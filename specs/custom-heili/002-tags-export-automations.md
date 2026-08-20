@@ -1,6 +1,8 @@
 # Fases 2 y 3 — Tags, Extracción y Automatizaciones (custom heili.cloud)
 
 > Sobre el fork de crm.heili.cloud. Requiere Fase 1 (multi-org).
+> **Estado: ✅ implementadas y desplegadas (2026-08-20, commit `38bdc65`).**
+> Verificación: `scripts/e2e-custom-heili.mjs` (40/40).
 
 ## Fase 2 — Tags + API de extracción
 

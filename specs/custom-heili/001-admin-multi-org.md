@@ -1,6 +1,8 @@
 # Fase 1 — Panel Admin multi-empresa (custom heili.cloud)
 
 > Customización sobre el fork desplegado en crm.heili.cloud. No existe upstream.
+> **Estado: ✅ implementada y desplegada (2026-08-20, commit `38bdc65`).**
+> Verificación: `scripts/e2e-custom-heili.mjs` (40/40).
 
 ## Objetivo
 
