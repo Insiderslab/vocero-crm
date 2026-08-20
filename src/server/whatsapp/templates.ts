@@ -99,6 +99,7 @@ export async function createTemplate(
       {
         method: "POST",
         token: creds.token,
+        organizationId,
         body: {
           name,
           language: input.language,
@@ -191,6 +192,7 @@ export async function syncTemplates(organizationId: string): Promise<number> {
   try {
     data = await graphRequest(`${creds.wabaId}/message_templates`, {
       token: creds.token,
+      organizationId,
     });
   } catch (err) {
     if (err instanceof MetaApiError) {

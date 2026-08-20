@@ -77,6 +77,7 @@ export async function POST(req: Request) {
     await graphRequest(`${creds.phoneNumberId}/messages`, {
       method: "POST",
       token: creds.token,
+      organizationId,
       body: {
         messaging_product: "whatsapp",
         status: "read",

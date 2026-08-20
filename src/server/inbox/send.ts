@@ -377,7 +377,12 @@ export async function callGraphSend(
   try {
     const res = await graphRequest<{ messages?: { id: string }[] }>(
       `${credentials.phoneNumberId}/messages`,
-      { method: "POST", token: credentials.token, body: payload }
+      {
+        method: "POST",
+        token: credentials.token,
+        body: payload,
+        organizationId: credentials.organizationId,
+      }
     );
     const id = res.messages?.[0]?.id;
     if (!id) throw new SendError("meta_error", "Meta no devolvió ID de mensaje");

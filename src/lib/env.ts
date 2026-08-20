@@ -22,6 +22,13 @@ const envSchema = z.object({
   META_APP_SECRET: z.string().optional(),
   META_GRAPH_API_VERSION: z.string().default("v25.0"),
   META_GRAPH_BASE_URL: z.string().url().default("https://graph.facebook.com"),
+  // Fase 4 (custom heili.cloud): gateway propio Wapi. Si WAPI_BASE_URL existe,
+  // las llamadas Graph se desvían ahí con WAPI_API_KEY como bearer (las
+  // credenciales Meta viven solo en Wapi). WAPI_ORG_IDS (csv) limita el
+  // desvío a esas orgs (migración por org); ausente/vacía = todas.
+  WAPI_BASE_URL: z.string().url().optional(),
+  WAPI_API_KEY: z.string().optional(),
+  WAPI_ORG_IDS: z.string().optional(),
   OPENROUTER_API_TOKEN: z.string().optional(),
   OPENROUTER_BASE_URL: z.string().url().default("https://openrouter.ai/api"),
   OPENROUTER_MODEL: z.string().optional(),

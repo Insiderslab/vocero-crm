@@ -40,7 +40,7 @@ export async function GET(
     const { data, mimeType } = await downloadGraphMedia(
       creds.token,
       mediaId,
-      MAX_MEDIA_BYTES
+      { maxBytes: MAX_MEDIA_BYTES, organizationId }
     );
     return new Response(new Uint8Array(data), {
       headers: {

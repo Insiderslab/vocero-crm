@@ -3,7 +3,7 @@ import path from "node:path";
 import { eq } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { getEnv } from "@/lib/env";
-import { graphRequest, MetaApiError } from "@/lib/meta/client";
+import { graphRequest, MetaApiError, resolveGraphTransport } from "@/lib/meta/client";
 import {
   getCredentialsByOrg,
   type Credentials,
@@ -135,15 +135,21 @@ export class MediaFetchError extends Error {
 /**
  * Descarga un media de Graph: GET {mediaId} → url efímera → GET con Bearer.
  * El token JAMÁS sale del servidor.
+ * Fase 4: con `organizationId` el transporte puede desviarse a Wapi (la URL
+ * efímera llega reescrita al gateway y el bearer es la API key de Wapi).
  */
 export async function downloadGraphMedia(
   token: string,
   waMediaId: string,
-  maxBytes: number = MEDIA_LIMITS.document.maxBytes
+  opts: { maxBytes?: number; organizationId?: string } = {}
 ): Promise<{ data: Buffer; mimeType: string | null; fileSize: number }> {
+  const maxBytes = opts.maxBytes ?? MEDIA_LIMITS.document.maxBytes;
   let meta: GraphMediaMeta;
   try {
-    meta = await graphRequest<GraphMediaMeta>(waMediaId, { token });
+    meta = await graphRequest<GraphMediaMeta>(waMediaId, {
+      token,
+      organizationId: opts.organizationId,
+    });
   } catch (err) {
     const gone = err instanceof MetaApiError && err.status === 404;
     throw new MediaFetchError("Meta no entregó la metadata del adjunto", gone);
@@ -153,10 +159,13 @@ export async function downloadGraphMedia(
     throw new MediaFetchError("El adjunto excede el límite de tamaño", true);
   }
 
+  // Bearer del segundo paso: el del transporte resuelto (token Meta o, en el
+  // desvío Wapi, la API key — la URL apunta al gateway).
+  const downloadToken = resolveGraphTransport(token, opts.organizationId).token;
   let res: Response;
   try {
     res = await fetch(meta.url, {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: { Authorization: `Bearer ${downloadToken}` },
     });
   } catch {
     throw new MediaFetchError("No se pudo descargar el adjunto");
@@ -205,7 +214,8 @@ export async function ensureAssetAvailable(
   try {
     const { data, mimeType, fileSize } = await downloadGraphMedia(
       creds.token,
-      asset.waMediaId
+      asset.waMediaId,
+      { organizationId }
     );
     const storagePath = await saveMediaFile(organizationId, assetId, data);
     const updated = await db
@@ -244,7 +254,11 @@ export async function uploadGraphMedia(
   file: { data: Buffer | Uint8Array; mimeType: string; fileName?: string }
 ): Promise<string> {
   const env = getEnv();
-  const url = `${env.META_GRAPH_BASE_URL}/${env.META_GRAPH_API_VERSION}/${credentials.phoneNumberId}/media`;
+  const transport = resolveGraphTransport(
+    credentials.token,
+    credentials.organizationId
+  );
+  const url = `${transport.baseUrl}/${env.META_GRAPH_API_VERSION}/${credentials.phoneNumberId}/media`;
   const form = new FormData();
   form.set("messaging_product", "whatsapp");
   form.set("type", file.mimeType);
@@ -259,7 +273,7 @@ export async function uploadGraphMedia(
   try {
     res = await fetch(url, {
       method: "POST",
-      headers: { Authorization: `Bearer ${credentials.token}` },
+      headers: { Authorization: `Bearer ${transport.token}` },
       body: form,
     });
   } catch (cause) {
