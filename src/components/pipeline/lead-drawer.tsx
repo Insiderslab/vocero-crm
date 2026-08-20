@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { MessageSquareText, X } from "lucide-react";
+import { useT } from "@/lib/i18n/client";
 import type { FichaDto, FichaValue, PriorityValue, StageDto } from "@/lib/types";
 import { formatMoneyCents, parseMoneyToCents } from "@/lib/money";
 import { cn, formatPhone } from "@/lib/utils";
@@ -40,6 +41,7 @@ export function LeadDrawer({
   onAmount: (cents: number | null) => void;
   onPriority: (value: PriorityValue | null) => void;
 }) {
+  const { t } = useT();
   const [ficha, setFicha] = useState<FichaDto>({});
   const [monto, setMonto] = useState("");
   const [editandoMonto, setEditandoMonto] = useState(false);
@@ -94,7 +96,7 @@ export function LeadDrawer({
     <>
       {/* Velo: cerrar tocando fuera es lo que uno intenta primero. */}
       <button
-        aria-label="Cerrar el trato"
+        aria-label={t("pipeline.drawer.close")}
         tabIndex={-1}
         onClick={onClose}
         className="fixed inset-0 z-40 bg-overlay"
@@ -103,16 +105,16 @@ export function LeadDrawer({
       <aside
         role="dialog"
         aria-modal="true"
-        aria-label={`Trato de ${lead.contact.name}`}
+        aria-label={t("pipeline.drawer.ariaLabel", { name: lead.contact.name })}
         className="fixed inset-y-0 right-0 z-50 flex w-[min(360px,92vw)] flex-col border-l bg-background shadow-pop"
       >
         <header className="flex items-center justify-between border-b px-4 py-3">
           <h3 className="text-[13px] font-[650] uppercase tracking-wide text-text-2">
-            Trato
+            {t("pipeline.drawer.title")}
           </h3>
           <button
             onClick={onClose}
-            aria-label="Cerrar el panel del trato"
+            aria-label={t("pipeline.drawer.closePanel")}
             className="rounded p-1 text-text-3 hover:bg-accent hover:text-foreground"
           >
             <X className="h-4 w-4" strokeWidth={1.7} />
@@ -141,11 +143,12 @@ export function LeadDrawer({
                 href={`/inbox?contact=${lead.contact.id}`}
                 className="mt-3 flex w-full items-center justify-center gap-2 rounded-md border bg-secondary px-3 py-2 text-sm font-medium hover:bg-accent"
               >
-                <MessageSquareText className="h-4 w-4" /> Abrir conversación
+                <MessageSquareText className="h-4 w-4" />{" "}
+                {t("pipeline.drawer.openConversation")}
               </Link>
             ) : (
               <p className="mt-3 text-xs text-text-3">
-                Todavía no hay conversación con este contacto.
+                {t("pipeline.drawer.noConversation")}
               </p>
             )}
           </section>
@@ -153,7 +156,7 @@ export function LeadDrawer({
           {/* Cuánto */}
           <section className="border-b p-4">
             <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-text-3">
-              Monto ({moneda})
+              {t("pipeline.drawer.amount", { currency: moneda })}
             </p>
             {editandoMonto ? (
               <>
@@ -169,15 +172,17 @@ export function LeadDrawer({
                     if (e.key === "Escape") setEditandoMonto(false);
                   }}
                   placeholder="12,500"
-                  aria-label="Monto del trato"
+                  aria-label={t("pipeline.drawer.amountLabel")}
                   className="h-8 text-sm"
                 />
                 <p className="mt-1 text-xs text-text-3">
                   {montoInvalido
-                    ? "No se entiende ese importe."
+                    ? t("pipeline.drawer.amountInvalid")
                     : montoParseado === null
-                      ? "Déjalo vacío para quitar el monto."
-                      : `Se guardará como ${formatMoneyCents(montoParseado, moneda)}`}
+                      ? t("pipeline.drawer.amountEmpty")
+                      : t("pipeline.drawer.amountWillSave", {
+                          amount: formatMoneyCents(montoParseado, moneda) ?? "",
+                        })}
                 </p>
                 <div className="mt-2 flex gap-1.5">
                   <Button
@@ -188,21 +193,21 @@ export function LeadDrawer({
                       onAmount(montoParseado);
                     }}
                   >
-                    Guardar
+                    {t("pipeline.drawer.save")}
                   </Button>
                   <Button
                     size="sm"
                     variant="ghost"
                     onClick={() => setEditandoMonto(false)}
                   >
-                    Cancelar
+                    {t("pipeline.drawer.cancel")}
                   </Button>
                 </div>
               </>
             ) : (
               <button
                 onClick={() => setEditandoMonto(true)}
-                aria-label="Editar el monto"
+                aria-label={t("pipeline.drawer.editAmount")}
                 className={cn(
                   "w-full rounded px-1 py-1 text-left text-sm tabular-nums hover:bg-accent",
                   lead.amountCents === null
@@ -211,7 +216,7 @@ export function LeadDrawer({
                 )}
               >
                 {lead.amountCents === null
-                  ? "Sin monto — captúralo"
+                  ? t("pipeline.drawer.noAmount")
                   : formatMoneyCents(lead.amountCents, moneda)}
               </button>
             )}
@@ -220,7 +225,7 @@ export function LeadDrawer({
           {/* A quién llamar primero */}
           <section className="border-b p-4">
             <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-text-3">
-              Prioridad
+              {t("pipeline.drawer.priority")}
             </p>
             <PriorityPicker value={lead.priority} onChange={onPriority} />
           </section>
@@ -228,7 +233,7 @@ export function LeadDrawer({
           {/* Dónde va */}
           <section className="border-b p-4">
             <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-text-3">
-              Etapa
+              {t("pipeline.drawer.stage")}
             </p>
             <div className="flex flex-wrap gap-1.5">
               {stages.map((s) => {
@@ -238,7 +243,7 @@ export function LeadDrawer({
                     key={s.id}
                     onClick={() => !actual && onMoveStage(s.id)}
                     aria-pressed={actual}
-                    aria-label={`Mover a ${s.name}`}
+                    aria-label={t("pipeline.drawer.moveTo", { stage: s.name })}
                     className={cn(
                       "rounded-full border px-2.5 py-1 text-xs transition-colors",
                       actual

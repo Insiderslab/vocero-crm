@@ -11,6 +11,7 @@ import {
   X,
 } from "lucide-react";
 import type { ConversationDto, TemplateDto } from "@/lib/types";
+import { useT } from "@/lib/i18n/client";
 import { cn } from "@/lib/utils";
 import { formatBytes, formatRemaining } from "./helpers";
 import { TemplateSender } from "./template-sender";
@@ -40,6 +41,7 @@ export function Composer({
   onSend: (text: string) => Promise<string | null>;
   onSent: () => void;
 }) {
+  const { t } = useT();
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -94,7 +96,7 @@ export function Composer({
     const res = await fetch(path, init);
     if (res.ok) return null;
     const data = (await res.json().catch(() => null)) as { message?: string } | null;
-    return data?.message ?? `Error ${res.status}`;
+    return data?.message ?? t("inbox.composer.errorStatus", { status: res.status });
   }
 
   async function submit() {
@@ -147,7 +149,7 @@ export function Composer({
   async function submitLocation() {
     const coords = parseCoords(coordsRaw);
     if (!coords) {
-      setError("Coordenadas inválidas — pega «lat, long» o un enlace de Google Maps");
+      setError(t("inbox.composer.invalidCoords"));
       return;
     }
     setSending(true);
@@ -173,7 +175,7 @@ export function Composer({
 
   async function submitContact() {
     if (!contactName.trim() || contactPhone.trim().length < 5) {
-      setError("El contacto necesita nombre y teléfono");
+      setError(t("inbox.composer.contactIncomplete"));
       return;
     }
     setSending(true);
@@ -203,12 +205,8 @@ export function Composer({
         <div className="mb-3 flex items-start gap-2 rounded-md border border-warning-soft bg-warning-tint p-3 text-sm text-warning-text">
           <Clock3 className="mt-0.5 h-4 w-4 shrink-0" strokeWidth={1.7} />
           <div>
-            <p className="font-medium">La ventana de 24 horas está cerrada.</p>
-            <p className="opacity-80">
-              WhatsApp solo permite texto libre dentro de las 24 horas
-              siguientes al último mensaje del cliente. Para retomar la
-              conversación, envía una plantilla aprobada.
-            </p>
+            <p className="font-medium">{t("inbox.windowClosed.title")}</p>
+            <p className="opacity-80">{t("inbox.windowClosed.body")}</p>
           </div>
         </div>
         <TemplateSender conversationId={conversation.id} onSent={onSent} />
@@ -255,12 +253,14 @@ export function Composer({
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-medium">{file.name}</p>
             <p className="text-xs text-text-3">
-              {formatBytes(file.size)} · el texto de abajo va como pie del adjunto
+              {t("inbox.composer.attachmentCaption", {
+                size: formatBytes(file.size),
+              })}
             </p>
           </div>
           <button
             onClick={() => pickFile(null)}
-            aria-label="Quitar adjunto"
+            aria-label={t("inbox.composer.removeAttachment")}
             className="rounded p-1 text-text-3 hover:bg-secondary hover:text-text-1"
           >
             <X className="h-4 w-4" strokeWidth={1.7} />
@@ -271,7 +271,7 @@ export function Composer({
       {panel === "location" && (
         <div className="mb-2.5 flex flex-wrap items-end gap-2 rounded-md border bg-secondary/50 p-2.5">
           <label className="min-w-0 flex-1 text-xs text-text-2">
-            Coordenadas o enlace de Google Maps
+            {t("inbox.composer.coordsLabel")}
             <input
               value={coordsRaw}
               onChange={(e) => setCoordsRaw(e.target.value)}
@@ -280,7 +280,7 @@ export function Composer({
             />
           </label>
           <label className="min-w-0 flex-1 text-xs text-text-2">
-            Nombre del lugar (opcional)
+            {t("inbox.composer.placeNameLabel")}
             <input
               value={placeName}
               onChange={(e) => setPlaceName(e.target.value)}
@@ -293,11 +293,11 @@ export function Composer({
             disabled={sending}
             className="rounded-md bg-brand px-3 py-1.5 text-sm font-medium text-brand-fg hover:bg-brand-hover disabled:opacity-40"
           >
-            Enviar ubicación
+            {t("inbox.composer.sendLocation")}
           </button>
           <button
             onClick={() => setPanel(null)}
-            aria-label="Cancelar"
+            aria-label={t("inbox.composer.cancel")}
             className="rounded p-1 text-text-3 hover:bg-secondary"
           >
             <X className="h-4 w-4" strokeWidth={1.7} />
@@ -308,7 +308,7 @@ export function Composer({
       {panel === "contact" && (
         <div className="mb-2.5 flex flex-wrap items-end gap-2 rounded-md border bg-secondary/50 p-2.5">
           <label className="min-w-0 flex-1 text-xs text-text-2">
-            Nombre
+            {t("inbox.composer.contactName")}
             <input
               value={contactName}
               onChange={(e) => setContactName(e.target.value)}
@@ -317,7 +317,7 @@ export function Composer({
             />
           </label>
           <label className="min-w-0 flex-1 text-xs text-text-2">
-            Teléfono
+            {t("inbox.composer.contactPhone")}
             <input
               value={contactPhone}
               onChange={(e) => setContactPhone(e.target.value)}
@@ -330,11 +330,11 @@ export function Composer({
             disabled={sending}
             className="rounded-md bg-brand px-3 py-1.5 text-sm font-medium text-brand-fg hover:bg-brand-hover disabled:opacity-40"
           >
-            Enviar contacto
+            {t("inbox.composer.sendContact")}
           </button>
           <button
             onClick={() => setPanel(null)}
-            aria-label="Cancelar"
+            aria-label={t("inbox.composer.cancel")}
             className="rounded p-1 text-text-3 hover:bg-secondary"
           >
             <X className="h-4 w-4" strokeWidth={1.7} />
@@ -352,16 +352,16 @@ export function Composer({
         <div className="flex shrink-0 items-center gap-0.5">
           <button
             onClick={() => fileRef.current?.click()}
-            aria-label="Adjuntar archivo"
-            title="Adjuntar imagen, video, audio o documento"
+            aria-label={t("inbox.composer.attach")}
+            title={t("inbox.composer.attachTitle")}
             className="rounded p-1.5 text-text-3 transition-colors hover:bg-secondary hover:text-text-1"
           >
             <Paperclip className="h-[18px] w-[18px]" strokeWidth={1.7} />
           </button>
           <button
             onClick={() => setPanel(panel === "location" ? null : "location")}
-            aria-label="Enviar ubicación"
-            title="Enviar ubicación"
+            aria-label={t("inbox.composer.sendLocation")}
+            title={t("inbox.composer.sendLocation")}
             className={cn(
               "rounded p-1.5 text-text-3 transition-colors hover:bg-secondary hover:text-text-1",
               panel === "location" && "bg-secondary text-brand"
@@ -371,8 +371,8 @@ export function Composer({
           </button>
           <button
             onClick={() => setPanel(panel === "contact" ? null : "contact")}
-            aria-label="Compartir contacto"
-            title="Compartir contacto"
+            aria-label={t("inbox.composer.shareContact")}
+            title={t("inbox.composer.shareContact")}
             className={cn(
               "rounded p-1.5 text-text-3 transition-colors hover:bg-secondary hover:text-text-1",
               panel === "contact" && "bg-secondary text-brand"
@@ -383,7 +383,11 @@ export function Composer({
         </div>
         <textarea
           ref={taRef}
-          placeholder={file ? "Pie del adjunto (opcional)…" : "Escribe una respuesta…"}
+          placeholder={
+            file
+              ? t("inbox.composer.captionPlaceholder")
+              : t("inbox.composer.placeholder")
+          }
           value={text}
           rows={1}
           onChange={(e) => {
@@ -401,7 +405,7 @@ export function Composer({
         <button
           onClick={() => void submit()}
           disabled={sending || !canSubmit}
-          aria-label="Enviar"
+          aria-label={t("inbox.composer.send")}
           className={cn(
             "flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-[9px] bg-brand text-brand-fg transition-opacity hover:bg-brand-hover",
             (sending || !canSubmit) && "opacity-40"
@@ -413,7 +417,9 @@ export function Composer({
       <div className="mt-1.5 flex items-center justify-between">
         {error ? <p className="text-xs text-destructive">{error}</p> : <span />}
         <p className="text-[11px] text-text-3">
-          Ventana abierta · quedan {formatRemaining(conversation.windowRemainingMs)}
+          {t("inbox.composer.windowRemaining", {
+            remaining: formatRemaining(conversation.windowRemainingMs),
+          })}
         </p>
       </div>
     </div>

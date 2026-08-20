@@ -575,3 +575,109 @@ export const agentTestCase = pgTable(
   },
   (t) => [index("test_case_run_idx").on(t.runId)]
 );
+
+/* ============================================================
+ * Custom heili.cloud: tags, extracción y automatizaciones
+ * ============================================================ */
+
+/** Etiqueta libre de contactos (por org). La usan la UI y las reglas. */
+export const tag = pgTable(
+  "tag",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    /** Hex opcional (#rrggbb) para el chip; null = color neutro. */
+    color: text("color"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("tag_org_name_uq").on(t.organizationId, t.name),
+    index("tag_org_idx").on(t.organizationId),
+  ]
+);
+
+/** Asignación N:M contacto ↔ tag. Cascada en ambos lados a propósito. */
+export const contactTag = pgTable(
+  "contact_tag",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    contactId: text("contact_id")
+      .notNull()
+      .references(() => contact.id, { onDelete: "cascade" }),
+    tagId: text("tag_id")
+      .notNull()
+      .references(() => tag.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("contact_tag_uq").on(t.contactId, t.tagId),
+    index("contact_tag_org_tag_idx").on(t.organizationId, t.tagId),
+    index("contact_tag_org_contact_idx").on(t.organizationId, t.contactId),
+  ]
+);
+
+/**
+ * Regla de automatización: a los contactos con `tagId`, cada `intervalDays`
+ * días, enviar la plantilla aprobada `templateId`. Fuera de la ventana de
+ * 24 h Meta solo permite plantillas — por eso la acción es siempre plantilla.
+ */
+export const automationRule = pgTable(
+  "automation_rule",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    tagId: text("tag_id")
+      .notNull()
+      .references(() => tag.id, { onDelete: "cascade" }),
+    templateId: text("template_id")
+      .notNull()
+      .references(() => template.id, { onDelete: "cascade" }),
+    intervalDays: integer("interval_days").notNull(),
+    enabled: boolean("enabled").notNull().default(true),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [index("automation_rule_org_idx").on(t.organizationId)]
+);
+
+/**
+ * Bitácora del motor: solo se registran envíos logrados y fallos (los saltos
+ * por ventana abierta son efímeros y llenarían la tabla de ruido). El último
+ * `sent` por (regla, contacto) es lo que alimenta la cadencia de N días.
+ */
+export const automationRun = pgTable(
+  "automation_run",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    ruleId: text("rule_id")
+      .notNull()
+      .references(() => automationRule.id, { onDelete: "cascade" }),
+    contactId: text("contact_id")
+      .notNull()
+      .references(() => contact.id, { onDelete: "cascade" }),
+    status: text("status", { enum: ["sent", "failed", "skipped"] }).notNull(),
+    /** Mensaje de error cuando status = failed. */
+    detail: text("detail"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("automation_run_rule_contact_idx").on(
+      t.ruleId,
+      t.contactId,
+      t.createdAt
+    ),
+    index("automation_run_org_idx").on(t.organizationId, t.createdAt),
+  ]
+);

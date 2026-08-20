@@ -9,22 +9,25 @@ import {
   MessageSquareText,
   Search,
   Send,
+  Tags,
   UserPlus,
 } from "lucide-react";
-import type { ContactDto } from "@/lib/types";
+import { useT } from "@/lib/i18n/client";
+import type { ContactDto, TagDto } from "@/lib/types";
 import { formatPhone } from "@/lib/utils";
 import { ContactAvatar } from "@/components/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { SOURCE_LABELS } from "@/server/contact-source";
 import { priorityRank } from "@/server/leads/priority";
 import { PriorityBadge } from "@/components/pipeline/priority-picker";
 import { NewContactDialog } from "./new-contact-dialog";
 import { StartConversation } from "./start-conversation";
+import { TagEditor } from "./tag-editor";
 
 export function ContactsClient() {
+  const { t } = useT();
   const router = useRouter();
   const [contacts, setContacts] = useState<ContactDto[]>([]);
   const [query, setQuery] = useState("");
@@ -34,6 +37,9 @@ export function ContactsClient() {
   const [editing, setEditing] = useState<ContactDto | null>(null);
   const [creando, setCreando] = useState(false);
   const [escribiendo, setEscribiendo] = useState<ContactDto | null>(null);
+  const [allTags, setAllTags] = useState<TagDto[]>([]);
+  const [tagFilter, setTagFilter] = useState("all");
+  const [tagEditando, setTagEditando] = useState<ContactDto | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Mismo rescate que en la Bandeja: lo tecleado antes de que hidrate el JS
@@ -52,10 +58,22 @@ export function ContactsClient() {
     })();
   }, []);
 
+  const refetchTags = useCallback(async () => {
+    const res = await fetch("/api/tags").catch(() => null);
+    if (!res?.ok) return;
+    const data = (await res.json()) as { tags: TagDto[] };
+    setAllTags(data.tags);
+  }, []);
+
+  useEffect(() => {
+    void refetchTags();
+  }, [refetchTags]);
+
   const refetch = useCallback(async () => {
     const params = new URLSearchParams();
     if (query.trim()) params.set("q", query.trim());
     if (stage !== "all") params.set("stage", stage);
+    if (tagFilter !== "all") params.set("tag", tagFilter);
     if (showArchived) params.set("archived", "true");
     const res = await fetch(`/api/contacts?${params}`).catch(() => null);
     if (!res?.ok) return;
@@ -68,7 +86,7 @@ export function ContactsClient() {
         (a, b) => priorityRank(a.priority ?? null) - priorityRank(b.priority ?? null)
       )
     );
-  }, [query, stage, showArchived]);
+  }, [query, stage, tagFilter, showArchived]);
 
   useEffect(() => {
     const t = setTimeout(() => void refetch(), 250);
@@ -88,10 +106,10 @@ export function ContactsClient() {
     <div className="flex h-full flex-col">
       <header className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3 sm:gap-4 sm:px-6 sm:py-4">
         <div className="flex flex-wrap items-center gap-2">
-          <h2 className="font-semibold">Contactos</h2>
+          <h2 className="font-semibold">{t("contacts.title")}</h2>
           <Button size="sm" onClick={() => setCreando(true)}>
             <UserPlus className="mr-1.5 h-4 w-4" strokeWidth={1.8} />
-            Nuevo contacto
+            {t("contacts.new")}
           </Button>
         </div>
         <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:gap-3">
@@ -102,19 +120,34 @@ export function ContactsClient() {
               onChange={(e) => setShowArchived(e.target.checked)}
               className="accent-primary"
             />
-            Ver archivados
+            {t("contacts.showArchived")}
           </label>
           {stages.length > 0 && (
             <select
               value={stage}
               onChange={(e) => setStage(e.target.value)}
-              aria-label="Filtrar por etapa del embudo"
+              aria-label={t("contacts.filterStage")}
               className="h-9 rounded-md border border-input bg-card px-2 text-sm"
             >
-              <option value="all">Toda etapa</option>
+              <option value="all">{t("contacts.allStages")}</option>
               {stages.map((s) => (
                 <option key={s} value={s}>
                   {s}
+                </option>
+              ))}
+            </select>
+          )}
+          {allTags.length > 0 && (
+            <select
+              value={tagFilter}
+              onChange={(e) => setTagFilter(e.target.value)}
+              aria-label={t("contacts.filterTag")}
+              className="h-9 rounded-md border border-input bg-card px-2 text-sm"
+            >
+              <option value="all">{t("contacts.allTags")}</option>
+              {allTags.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
                 </option>
               ))}
             </select>
@@ -123,8 +156,8 @@ export function ContactsClient() {
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
               ref={inputRef}
-              placeholder="Buscar por nombre o teléfono…"
-              aria-label="Buscar contacto"
+              placeholder={t("contacts.searchPlaceholder")}
+              aria-label={t("contacts.searchLabel")}
               defaultValue=""
               onChange={(e) => setQuery(e.target.value)}
               className="w-full pl-8 sm:w-72"
@@ -138,20 +171,27 @@ export function ContactsClient() {
           <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
             {query.trim() || stage !== "all" ? (
               <>
-                <p className="text-sm font-medium">Sin resultados</p>
+                <p className="text-sm font-medium">
+                  {t("contacts.empty.noResults")}
+                </p>
                 <p className="max-w-sm text-xs text-muted-foreground">
-                  Nadie coincide con
-                  {query.trim() ? ` «${query.trim()}»` : ""}
-                  {query.trim() && stage !== "all" ? " en" : ""}
-                  {stage !== "all" ? ` la etapa «${stage}»` : ""}.
+                  {query.trim() && stage !== "all"
+                    ? t("contacts.empty.filteredBoth", {
+                        query: query.trim(),
+                        stage,
+                      })
+                    : query.trim()
+                      ? t("contacts.empty.filteredQuery", {
+                          query: query.trim(),
+                        })
+                      : t("contacts.empty.filteredStage", { stage })}
                 </p>
               </>
             ) : (
               <>
-                <p className="text-sm font-medium">Sin contactos</p>
+                <p className="text-sm font-medium">{t("contacts.empty.title")}</p>
                 <p className="max-w-sm text-xs text-muted-foreground">
-                  Cada persona que escriba a tu WhatsApp quedará registrada aquí
-                  automáticamente.
+                  {t("contacts.empty.description")}
                 </p>
               </>
             )}
@@ -176,14 +216,19 @@ export function ContactsClient() {
                       <Badge variant="outline">{c.stageName}</Badge>
                     )}
                     {c.archivedAt && (
-                      <Badge variant="secondary">Archivado</Badge>
+                      <Badge variant="secondary">{t("contacts.archived")}</Badge>
                     )}
+                    {(c.tags ?? []).map((t) => (
+                      <Badge key={t.id} variant="secondary">
+                        {t.name}
+                      </Badge>
+                    ))}
                     {/* Solo la fuente que alguien capturó: presentar una
                         deducción como dato la volvería un número inventado en
                         cuanto se cuente por fuente. */}
                     {c.source?.source === "capturada" && (
                       <Badge variant="secondary">
-                        {SOURCE_LABELS[c.source.value]}
+                        {t(`contacts.source.${c.source.value}`)}
                       </Badge>
                     )}
                   </div>
@@ -198,28 +243,43 @@ export function ContactsClient() {
                     size="sm"
                     onClick={() => setEditing(c)}
                   >
-                    Editar
+                    {t("contacts.edit")}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label={t("contacts.tags")}
+                    title={t("contacts.tags")}
+                    onClick={() => setTagEditando(c)}
+                  >
+                    <Tags className="h-4 w-4" />
                   </Button>
                   {/* A quien nunca escribió hay que abrirle la conversación con
                       una plantilla: es regla de Meta, no del CRM. */}
                   <Button
                     variant="ghost"
                     size="icon"
-                    aria-label="Escribir primero"
-                    title="Escribir primero (con plantilla)"
+                    aria-label={t("contacts.writeFirst")}
+                    title={t("contacts.writeFirstTitle")}
                     onClick={() => setEscribiendo(c)}
                   >
                     <Send className="h-4 w-4" />
                   </Button>
                   <Link href={`/inbox?contact=${c.id}`}>
-                    <Button variant="ghost" size="icon" aria-label="Abrir conversación">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label={t("contacts.openConversation")}
+                    >
                       <MessageSquareText className="h-4 w-4" />
                     </Button>
                   </Link>
                   <Button
                     variant="ghost"
                     size="icon"
-                    aria-label={c.archivedAt ? "Desarchivar" : "Archivar"}
+                    aria-label={
+                      c.archivedAt ? t("contacts.unarchive") : t("contacts.archive")
+                    }
                     onClick={() => void patch(c.id, { archived: !c.archivedAt })}
                   >
                     {c.archivedAt ? (
@@ -246,20 +306,32 @@ export function ContactsClient() {
         />
       )}
 
+      {tagEditando && (
+        <TagEditor
+          contact={tagEditando}
+          onClose={() => setTagEditando(null)}
+          onSaved={() => {
+            setTagEditando(null);
+            void refetch();
+            void refetchTags();
+          }}
+        />
+      )}
+
       {escribiendo && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-overlay p-4"
           role="dialog"
           aria-modal="true"
-          aria-label="Escribir primero"
+          aria-label={t("contacts.writeDialog.ariaLabel")}
         >
           <div className="w-full max-w-md rounded-lg border bg-card p-4 shadow-pop">
             <div className="mb-3 flex items-baseline justify-between gap-2">
               <h3 className="font-semibold">
-                Escribir a {escribiendo.name}
+                {t("contacts.writeDialog.title", { name: escribiendo.name })}
               </h3>
               <Button variant="ghost" size="sm" onClick={() => setEscribiendo(null)}>
-                Cerrar
+                {t("contacts.writeDialog.close")}
               </Button>
             </div>
             <StartConversation
@@ -302,6 +374,7 @@ function EditDialog({
   onClose: () => void;
   onSave: (patch: { name: string; notes: string }) => Promise<void>;
 }) {
+  const { t } = useT();
   const [name, setName] = useState(contact.name);
   const [notes, setNotes] = useState(contact.notes ?? "");
 
@@ -314,11 +387,11 @@ function EditDialog({
         className="max-h-[85dvh] w-full max-w-md overflow-y-auto rounded-lg border bg-card p-5 shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <h3 className="mb-4 font-semibold">Editar contacto</h3>
+        <h3 className="mb-4 font-semibold">{t("contacts.editDialog.title")}</h3>
         <div className="space-y-3">
           <div className="space-y-1.5">
             <label className="text-sm font-medium" htmlFor="edit-name">
-              Nombre
+              {t("contacts.editDialog.name")}
             </label>
             <Input
               id="edit-name"
@@ -328,7 +401,7 @@ function EditDialog({
           </div>
           <div className="space-y-1.5">
             <label className="text-sm font-medium" htmlFor="edit-notes">
-              Notas
+              {t("contacts.editDialog.notes")}
             </label>
             <Textarea
               id="edit-notes"
@@ -340,13 +413,13 @@ function EditDialog({
         </div>
         <div className="mt-4 flex justify-end gap-2">
           <Button variant="ghost" onClick={onClose}>
-            Cancelar
+            {t("contacts.cancel")}
           </Button>
           <Button
             disabled={!name.trim()}
             onClick={() => void onSave({ name: name.trim(), notes })}
           >
-            Guardar
+            {t("contacts.save")}
           </Button>
         </div>
       </div>

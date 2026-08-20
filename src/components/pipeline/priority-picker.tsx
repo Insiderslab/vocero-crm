@@ -1,8 +1,9 @@
 "use client";
 
-import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
 import type { PriorityValue } from "@/lib/types";
-import { PRIORITY_LABELS, PRIORITY_VALUES } from "@/server/leads/priority";
+import { cn } from "@/lib/utils";
+import { PRIORITY_VALUES } from "@/server/leads/priority";
 
 const TONO: Record<PriorityValue, string> = {
   alta: "border-danger-soft bg-danger-tint text-danger-text",
@@ -12,6 +13,7 @@ const TONO: Record<PriorityValue, string> = {
 
 /** Etiqueta de prioridad. Solo se pinta cuando alguien la fijó. */
 export function PriorityBadge({ value }: { value: PriorityValue }) {
+  const { t } = useT();
   return (
     <span
       className={cn(
@@ -19,7 +21,7 @@ export function PriorityBadge({ value }: { value: PriorityValue }) {
         TONO[value]
       )}
     >
-      {PRIORITY_LABELS[value]}
+      {t(`pipeline.priority.${value}`)}
     </span>
   );
 }
@@ -36,6 +38,7 @@ export function PriorityPicker({
   value: PriorityValue | null;
   onChange: (value: PriorityValue | null) => void;
 }) {
+  const { t } = useT();
   return (
     <div className="flex flex-wrap items-center gap-1.5">
       {PRIORITY_VALUES.map((p) => (
@@ -48,7 +51,7 @@ export function PriorityPicker({
             value === p ? TONO[p] : "text-text-2 hover:bg-accent"
           )}
         >
-          {PRIORITY_LABELS[p]}
+          {t(`pipeline.priority.${p}`)}
         </button>
       ))}
       <button
@@ -61,7 +64,7 @@ export function PriorityPicker({
             : "text-text-3 hover:bg-accent"
         )}
       >
-        Sin prioridad
+        {t("pipeline.priority.none")}
       </button>
     </div>
   );

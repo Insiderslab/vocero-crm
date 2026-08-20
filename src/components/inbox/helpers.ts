@@ -1,5 +1,7 @@
 /** Utilidades de presentación de la bandeja. */
 
+import type { TFunction } from "@/lib/i18n/client";
+
 export function formatTime(iso: string | null): string {
   if (!iso) return "";
   const d = new Date(iso);
@@ -22,19 +24,19 @@ export function formatRemaining(ms: number): string {
   return `${m}m`;
 }
 
-const MEDIA_LABELS: Record<string, string> = {
-  image: "Imagen",
-  audio: "Audio",
-  video: "Video",
-  document: "Documento",
-  sticker: "Sticker",
-  location: "Ubicación",
-  contacts: "Contacto compartido",
-  template: "Plantilla",
-};
+const MEDIA_KEYS = new Set([
+  "image",
+  "audio",
+  "video",
+  "document",
+  "sticker",
+  "location",
+  "contacts",
+  "template",
+]);
 
-export function mediaLabel(type: string): string {
-  return MEDIA_LABELS[type] ?? "Contenido";
+export function mediaLabel(type: string, t: TFunction): string {
+  return MEDIA_KEYS.has(type) ? t(`inbox.media.${type}`) : t("inbox.media.other");
 }
 
 /** 008 — Tamaño humano de un adjunto. */
@@ -44,7 +46,7 @@ export function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-export function previewText(preview: string | null): string {
+export function previewText(preview: string | null, t: TFunction): string {
   if (!preview) return "";
-  return MEDIA_LABELS[preview] ? `📎 ${MEDIA_LABELS[preview]}` : preview;
+  return MEDIA_KEYS.has(preview) ? `📎 ${mediaLabel(preview, t)}` : preview;
 }

@@ -93,6 +93,15 @@ export type ContactDto = {
   priority?: PriorityValue | null;
   /** Lo que se sabe del lead. `{}` mientras nadie haya calificado. */
   ficha?: FichaDto;
+  /** Etiquetas del contacto (custom heili.cloud). */
+  tags?: TagDto[];
+};
+
+/** Etiqueta de contacto (custom heili.cloud). */
+export type TagDto = {
+  id: string;
+  name: string;
+  color: string | null;
 };
 
 /* ============================================================

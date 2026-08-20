@@ -45,7 +45,7 @@ export type Branding = {
 };
 
 export const DEFAULT_BRANDING: Branding = {
-  name: "Vocero",
+  name: "Heili CRM",
   accent: "#3f5972",
   currency: DEFAULT_CURRENCY,
   favicon: null,

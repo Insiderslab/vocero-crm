@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { ChevronLeft, PanelRight } from "lucide-react";
 import { cn, formatPhone } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
 import { ContactAvatar } from "@/components/avatar";
 import type { ConversationDto, MessageDto } from "@/lib/types";
 import { useEvents } from "@/components/use-events";
@@ -34,6 +35,7 @@ const isWideEnoughForPanel = () =>
   typeof window !== "undefined" && window.matchMedia(PANEL_MEDIA_QUERY).matches;
 
 export function InboxClient() {
+  const { t } = useT();
   const [conversations, setConversations] = useState<ConversationDto[] | null>(
     null
   );
@@ -208,7 +210,7 @@ export function InboxClient() {
   const sendText = useCallback(
     async (text: string): Promise<string | null> => {
       const conversationId = selectedIdRef.current;
-      if (!conversationId) return "Sin conversación seleccionada";
+      if (!conversationId) return t("inbox.send.noConversation");
 
       const tmpId = `tmp_${++tmpSeq.current}`;
       setPending((prev) => [
@@ -230,14 +232,14 @@ export function InboxClient() {
         }).catch(() => null);
         if (!res) {
           drop();
-          return "Sin conexión con el servidor";
+          return t("inbox.send.offline");
         }
         if (!res.ok) {
           const data = (await res.json().catch(() => null)) as {
             error?: { message?: string };
           } | null;
           drop();
-          return data?.error?.message ?? "No se pudo enviar el mensaje";
+          return data?.error?.message ?? t("inbox.send.failed");
         }
         // Primero traer el mensaje real, después quitar el provisional: al
         // revés, la burbuja parpadearía.
@@ -251,7 +253,7 @@ export function InboxClient() {
       sendQueue.current = queued.catch(() => null);
       return queued;
     },
-    [refetchMessages, refetchConversations]
+    [refetchMessages, refetchConversations, t]
   );
 
   const patchConversation = useCallback(
@@ -297,7 +299,7 @@ export function InboxClient() {
               {/* Volver a la lista: en móvil el hilo ocupa toda la pantalla. */}
               <button
                 onClick={() => setSelectedId(null)}
-                aria-label="Volver a las conversaciones"
+                aria-label={t("inbox.back")}
                 className="shrink-0 rounded-md p-1.5 text-text-2 hover:bg-accent hover:text-foreground md:hidden"
               >
                 <ChevronLeft className="h-5 w-5" strokeWidth={1.8} />
@@ -320,7 +322,7 @@ export function InboxClient() {
                     }
                   >
                     {selected.windowOpen
-                      ? "ventana abierta"
+                      ? t("inbox.windowOpen")
                       : formatPhone(selected.contact.phone)}
                   </p>
                 </div>
@@ -328,7 +330,7 @@ export function InboxClient() {
               {!panelOpen && (
                 <button
                   onClick={() => togglePanel(true)}
-                  aria-label="Mostrar detalles"
+                  aria-label={t("inbox.showDetails")}
                   className="shrink-0 rounded-sm border p-1.5 text-text-3 hover:bg-accent hover:text-foreground"
                 >
                   <PanelRight className="h-4 w-4" strokeWidth={1.7} />
@@ -348,7 +350,7 @@ export function InboxClient() {
           </>
         ) : (
           <div className="flex flex-1 items-center justify-center bg-chat text-sm text-text-3">
-            Elige una conversación para ver el hilo
+            {t("inbox.choose")}
           </div>
         )}
       </section>
@@ -356,7 +358,7 @@ export function InboxClient() {
       {/* Velo del cajón de detalles (solo donde no caben tres columnas). */}
       {panelOpen && selected && (
         <button
-          aria-label="Cerrar los detalles"
+          aria-label={t("inbox.closeDetails")}
           tabIndex={-1}
           onClick={() => togglePanel(false)}
           className="fixed inset-0 z-30 bg-overlay xl:hidden"

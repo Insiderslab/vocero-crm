@@ -99,9 +99,9 @@ describe("white-label: acento en tema oscuro", () => {
 });
 
 describe("white-label: normalización", () => {
-  it("nombre vacío o nulo → default 'Vocero'; se recorta a 30", () => {
-    expect(normalizeBranding(null).name).toBe("Vocero");
-    expect(normalizeBranding({ name: "   " }).name).toBe("Vocero");
+  it("nombre vacío o nulo → default 'Heili CRM'; se recorta a 30", () => {
+    expect(normalizeBranding(null).name).toBe("Heili CRM");
+    expect(normalizeBranding({ name: "   " }).name).toBe("Heili CRM");
     expect(normalizeBranding({ name: "x".repeat(50) }).name).toHaveLength(30);
   });
 

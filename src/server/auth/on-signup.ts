@@ -1,4 +1,4 @@
-import { count, eq, sql } from "drizzle-orm";
+import { and, count, eq, sql } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { newId } from "@/lib/db/ids";
 
@@ -10,6 +10,33 @@ const SEED_STAGES: { name: string; kind: "open" | "won" | "lost" }[] = [
   { name: "Cliente", kind: "won" },
   { name: "Perdido", kind: "lost" },
 ];
+
+/** Transacción de Drizzle sobre nuestra conexión (la que entrega db.transaction). */
+export type DbTx = Parameters<
+  Parameters<ReturnType<typeof getDb>["transaction"]>[0]
+>[0];
+
+/**
+ * Provisiona una organización nueva: etapas sembradas del pipeline + perfil
+ * del agente. La usan el primer registro de la instancia y el panel admin
+ * (custom multi-org). NO crea la org ni la membresía — eso lo hace el caller
+ * en la misma transacción.
+ */
+export async function provisionOrganization(tx: DbTx, orgId: string) {
+  await tx.insert(schema.pipelineStage).values(
+    SEED_STAGES.map((s, i) => ({
+      id: newId("stage"),
+      organizationId: orgId,
+      name: s.name,
+      position: i,
+      kind: s.kind,
+    }))
+  );
+  await tx.insert(schema.agentProfile).values({
+    id: newId("agentProfile"),
+    organizationId: orgId,
+  });
+}
 
 /**
  * Primer registro de la instancia: crea la organización, deja al usuario como
@@ -42,19 +69,7 @@ export async function onUserCreated(userId: string, userName: string) {
       userId,
       role: "owner",
     });
-    await tx.insert(schema.pipelineStage).values(
-      SEED_STAGES.map((s, i) => ({
-        id: newId("stage"),
-        organizationId: orgId,
-        name: s.name,
-        position: i,
-        kind: s.kind,
-      }))
-    );
-    await tx.insert(schema.agentProfile).values({
-      id: newId("agentProfile"),
-      organizationId: orgId,
-    });
+    await provisionOrganization(tx, orgId);
   });
 }
 
@@ -66,9 +81,29 @@ export async function resolveActiveOrganizationId(
 }
 
 export async function resolveMembership(
-  userId: string
+  userId: string,
+  preferredOrganizationId?: string | null
 ): Promise<{ organizationId: string; role: string } | null> {
   const db = getDb();
+  // Multi-org (custom): si la sesión trae una org activa y el usuario es
+  // miembro de ella, manda esa. Si no (sesión vieja, org borrada), cae a la
+  // primera membresía — el comportamiento de siempre.
+  if (preferredOrganizationId) {
+    const preferred = await db
+      .select({
+        organizationId: schema.member.organizationId,
+        role: schema.member.role,
+      })
+      .from(schema.member)
+      .where(
+        and(
+          eq(schema.member.userId, userId),
+          eq(schema.member.organizationId, preferredOrganizationId)
+        )
+      )
+      .limit(1);
+    if (preferred[0]) return preferred[0];
+  }
   const rows = await db
     .select({
       organizationId: schema.member.organizationId,

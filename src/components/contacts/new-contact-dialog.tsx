@@ -1,17 +1,18 @@
 ﻿"use client";
 
 import { useEffect, useState } from "react";
+import { useT } from "@/lib/i18n/client";
 import type { SourceValue, StageDto } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 
-const SOURCES: { value: SourceValue; label: string }[] = [
-  { value: "referido", label: "Referido" },
-  { value: "organico", label: "Contenido orgánico" },
-  { value: "conocido", label: "Conocido" },
-  { value: "anuncio", label: "Anuncio" },
-  { value: "otro", label: "Otro" },
+const SOURCES: SourceValue[] = [
+  "referido",
+  "organico",
+  "conocido",
+  "anuncio",
+  "otro",
 ];
 
 /**
@@ -29,6 +30,7 @@ export function NewContactDialog({
   /** Duplicado: en vez de un error seco, se ofrece ir a quien ya existe. */
   onOpenExisting: (contactId: string) => void;
 }) {
+  const { t } = useT();
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [source, setSource] = useState<SourceValue>("referido");
@@ -70,7 +72,7 @@ export function NewContactDialog({
     setSaving(false);
 
     if (!res) {
-      setError("No se pudo guardar. Revisa tu conexión.");
+      setError(t("contacts.form.errorConnection"));
       return;
     }
     const data = (await res.json().catch(() => null)) as {
@@ -83,7 +85,7 @@ export function NewContactDialog({
       return;
     }
     if (!res.ok) {
-      setError(data?.error?.message ?? "No se pudo guardar el contacto");
+      setError(data?.error?.message ?? t("contacts.form.errorFallback"));
       return;
     }
     onCreated();
@@ -100,51 +102,49 @@ export function NewContactDialog({
     >
       <div
         role="dialog"
-        aria-label="Nuevo contacto"
+        aria-label={t("contacts.form.ariaLabel")}
         className="w-full max-w-md rounded-lg border bg-card p-5 shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <h3 className="mb-1 font-semibold">Nuevo contacto</h3>
+        <h3 className="mb-1 font-semibold">{t("contacts.form.title")}</h3>
         <p className="mb-4 text-xs text-text-3">
-          Para prospectos que no llegaron por WhatsApp: referidos, gente que te
-          escribió por otra red, conocidos.
+          {t("contacts.form.description")}
         </p>
 
         <div className="space-y-3">
           <div className="space-y-1.5">
             <label className="text-sm font-medium" htmlFor="nc-name">
-              Nombre
+              {t("contacts.form.name")}
             </label>
             <Input
               id="nc-name"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Ferretería La Central"
+              placeholder={t("contacts.form.namePlaceholder")}
             />
           </div>
 
           <div className="space-y-1.5">
             <label className="text-sm font-medium" htmlFor="nc-phone">
-              Teléfono con código de país
+              {t("contacts.form.phone")}
             </label>
             <Input
               id="nc-phone"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
-              placeholder="52 462 134 9768"
+              placeholder={t("contacts.form.phonePlaceholder")}
             />
             <p className="text-[11px] text-text-3">
-              Escríbelo con espacios si quieres, pero{" "}
-              <strong>incluye el código de país</strong> (52 para México). Sin
-              él, WhatsApp no lo reconoce como la misma persona que te escriba
-              después.
+              {t("contacts.form.phoneHintA")}
+              <strong>{t("contacts.form.phoneHintStrong")}</strong>
+              {t("contacts.form.phoneHintB")}
             </p>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <label className="text-sm font-medium" htmlFor="nc-source">
-                ¿De dónde salió?
+                {t("contacts.form.source")}
               </label>
               <select
                 id="nc-source"
@@ -153,15 +153,15 @@ export function NewContactDialog({
                 className="h-9 w-full rounded-md border border-input bg-card px-2 text-sm"
               >
                 {SOURCES.map((s) => (
-                  <option key={s.value} value={s.value}>
-                    {s.label}
+                  <option key={s} value={s}>
+                    {t(`contacts.source.${s}`)}
                   </option>
                 ))}
               </select>
             </div>
             <div className="space-y-1.5">
               <label className="text-sm font-medium" htmlFor="nc-stage">
-                Etapa inicial
+                {t("contacts.form.stage")}
               </label>
               <select
                 id="nc-stage"
@@ -180,14 +180,14 @@ export function NewContactDialog({
 
           <div className="space-y-1.5">
             <label className="text-sm font-medium" htmlFor="nc-notes">
-              Notas (opcional)
+              {t("contacts.form.notes")}
             </label>
             <Textarea
               id="nc-notes"
               rows={3}
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="Me lo pasó Juan; tiene taller de motos…"
+              placeholder={t("contacts.form.notesPlaceholder")}
             />
           </div>
         </div>
@@ -195,8 +195,9 @@ export function NewContactDialog({
         {duplicado && (
           <div className="mt-3 rounded-md border border-warning-soft bg-warning-tint px-3 py-2.5">
             <p className="text-[13px] text-warning-text">
-              Ese teléfono ya es de <strong>{duplicado.name}</strong>. No se creó
-              un duplicado.
+              {t("contacts.form.duplicateA")}
+              <strong>{duplicado.name}</strong>
+              {t("contacts.form.duplicateB")}
             </p>
             <Button
               size="sm"
@@ -204,27 +205,26 @@ export function NewContactDialog({
               className="mt-2"
               onClick={() => onOpenExisting(duplicado.id)}
             >
-              Abrir su conversación
+              {t("contacts.form.openConversation")}
             </Button>
           </div>
         )}
         {error && <p className="mt-3 text-xs text-danger-text">{error}</p>}
         {stages.length === 0 && (
           <p className="mt-3 text-xs text-warning-text">
-            Tu embudo no tiene etapas abiertas. Crea una en el Pipeline antes de
-            capturar contactos.
+            {t("contacts.form.noOpenStages")}
           </p>
         )}
 
         <div className="mt-4 flex justify-end gap-2">
           <Button variant="ghost" onClick={onClose}>
-            Cancelar
+            {t("contacts.cancel")}
           </Button>
           <Button
             disabled={!listo || saving || stages.length === 0}
             onClick={() => void guardar()}
           >
-            {saving ? "Guardando…" : "Crear contacto"}
+            {saving ? t("contacts.form.saving") : t("contacts.form.create")}
           </Button>
         </div>
       </div>

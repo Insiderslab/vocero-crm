@@ -9,24 +9,30 @@ import {
   Kanban,
   LogOut,
   Settings,
+  ShieldCheck,
   Sparkles,
   Users,
   X,
+  Zap,
 } from "lucide-react";
 import type { Branding } from "@/lib/branding";
+import type { Locale } from "@/lib/i18n";
+import { useT } from "@/lib/i18n/client";
 import type { ThemePreference } from "@/lib/theme";
 import { cn, initials } from "@/lib/utils";
-import { signOut } from "@/lib/auth/client";
+import { authClient, signOut } from "@/lib/auth/client";
 import { useEvents } from "@/components/use-events";
+import { LocaleToggle } from "@/components/locale-toggle";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { APP_VERSION, BUILD_COMMIT, versionLabel } from "@/lib/version";
 
 const NAV = [
-  { href: "/inbox", label: "Bandeja", icon: Inbox, badge: true },
-  { href: "/pipeline", label: "Pipeline", icon: Kanban },
-  { href: "/contacts", label: "Contactos", icon: Users },
-  { href: "/agent", label: "Agente", icon: Sparkles },
-  { href: "/lab", label: "Laboratorio", icon: FlaskConical },
+  { href: "/inbox", key: "inbox", icon: Inbox, badge: true },
+  { href: "/pipeline", key: "pipeline", icon: Kanban },
+  { href: "/contacts", key: "contacts", icon: Users },
+  { href: "/automations", key: "automations", icon: Zap },
+  { href: "/agent", key: "agent", icon: Sparkles },
+  { href: "/lab", key: "lab", icon: FlaskConical },
 ] as const;
 
 export function AppNav({
@@ -35,6 +41,10 @@ export function AppNav({
   role,
   theme,
   commit,
+  orgs,
+  activeOrgId,
+  isSuperadmin,
+  locale,
   open = false,
   onClose,
 }: {
@@ -47,12 +57,19 @@ export function AppNav({
    * plataforma cuando quien construyó no lo pasó como build-arg.
    */
   commit?: string;
+  /** Multi-org: empresas del usuario; el selector solo aparece si hay >1. */
+  orgs?: { id: string; name: string }[];
+  activeOrgId?: string;
+  isSuperadmin?: boolean;
+  /** Idioma actual (para el selector). */
+  locale: Locale;
   /** Solo aplica por debajo de `lg`: en escritorio el lateral es fijo. */
   open?: boolean;
   onClose?: () => void;
 }) {
   const pathname = usePathname();
   const router = useRouter();
+  const { t } = useT();
   const [unread, setUnread] = useState(0);
 
   async function refetchUnread() {
@@ -94,7 +111,7 @@ export function AppNav({
             alcanzable con el pulgar. */}
         <button
           onClick={onClose}
-          aria-label="Cerrar el menú"
+          aria-label={t("nav.closeMenu")}
           className="-ml-1 rounded-md p-1.5 text-text-3 hover:bg-accent hover:text-foreground lg:hidden"
         >
           <X className="h-[18px] w-[18px]" strokeWidth={1.8} />
@@ -109,9 +126,37 @@ export function AppNav({
           <span className="block truncate text-[16px] font-[650] leading-tight tracking-tight">
             {branding.name}
           </span>
-          <span className="block text-[11px] text-text-3">CRM · WhatsApp</span>
+          <span className="block text-[11px] text-text-3">
+            {t("nav.subtitle")}
+          </span>
         </span>
       </div>
+
+      {/* Multi-org: cambiar de empresa sin cerrar sesión. Solo si hay >1. */}
+      {orgs && orgs.length > 1 && (
+        <div className="mb-3 px-2">
+          <label htmlFor="org-switcher" className="sr-only">
+            {t("nav.activeOrg")}
+          </label>
+          <select
+            id="org-switcher"
+            value={activeOrgId ?? orgs[0]?.id}
+            onChange={async (e) => {
+              await authClient.organization.setActive({
+                organizationId: e.target.value,
+              });
+              router.refresh();
+            }}
+            className="w-full rounded-md border bg-background px-2 py-1.5 text-[13px] font-medium text-foreground"
+          >
+            {orgs.map((o) => (
+              <option key={o.id} value={o.id}>
+                {o.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       <nav className="flex flex-col gap-0.5">
         {NAV.map((item) => {
@@ -132,7 +177,7 @@ export function AppNav({
                 className={cn("h-[18px] w-[18px]", active ? "text-brand" : "text-text-3")}
                 strokeWidth={1.7}
               />
-              <span className="flex-1">{item.label}</span>
+              <span className="flex-1">{t(`nav.${item.key}`)}</span>
               {"badge" in item && item.badge && unread > 0 && (
                 <span
                   className={cn(
@@ -150,6 +195,27 @@ export function AppNav({
 
       <div className="flex-1" />
 
+      {isSuperadmin && (
+        <Link
+          href="/admin"
+          className={cn(
+            "mb-0.5 flex items-center gap-[11px] rounded-sm px-2.5 py-2 text-sm font-medium transition-colors",
+            pathname.startsWith("/admin")
+              ? "bg-brand-tint font-semibold text-brand-text"
+              : "text-text-2 hover:bg-accent"
+          )}
+        >
+          <ShieldCheck
+            className={cn(
+              "h-[18px] w-[18px]",
+              pathname.startsWith("/admin") ? "text-brand" : "text-text-3"
+            )}
+            strokeWidth={1.7}
+          />
+          {t("nav.admin")}
+        </Link>
+      )}
+
       <Link
         href="/settings"
         className={cn(
@@ -166,7 +232,7 @@ export function AppNav({
           )}
           strokeWidth={1.7}
         />
-        Ajustes
+        {t("nav.settings")}
       </Link>
 
       <div className="mt-1 flex items-center gap-2.5 rounded-sm px-2.5 py-2 hover:bg-accent">
@@ -176,13 +242,14 @@ export function AppNav({
         <span className="min-w-0 flex-1">
           <span className="block truncate text-[13px] font-semibold">{userName}</span>
           <span className="block text-[11px] text-text-3">
-            {role === "owner" ? "Propietario" : "Equipo"} · En línea
+            {role === "owner" ? t("nav.owner") : t("nav.member")} · {t("nav.online")}
           </span>
         </span>
+        <LocaleToggle initial={locale} />
         <ThemeToggle initial={theme} />
         <button
-          aria-label="Cerrar sesión"
-          title="Cerrar sesión"
+          aria-label={t("nav.signOut")}
+          title={t("nav.signOut")}
           className="rounded p-1 text-text-3 hover:text-foreground"
           onClick={async () => {
             await signOut();

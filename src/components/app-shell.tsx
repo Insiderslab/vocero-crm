@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { Menu } from "lucide-react";
 import type { Branding } from "@/lib/branding";
+import { useT } from "@/lib/i18n/client";
+import type { Locale } from "@/lib/i18n";
 import type { ThemePreference } from "@/lib/theme";
 import { AppNav } from "@/components/app-nav";
 
@@ -25,6 +27,10 @@ export function AppShell({
   role,
   theme,
   commit,
+  orgs,
+  activeOrgId,
+  isSuperadmin,
+  locale,
   children,
 }: {
   branding: Branding;
@@ -33,9 +39,15 @@ export function AppShell({
   theme: ThemePreference;
   /** Commit resuelto en el servidor (build-arg o variable de la plataforma). */
   commit?: string;
+  /** Multi-org: empresas del usuario y la activa (selector del lateral). */
+  orgs?: { id: string; name: string }[];
+  activeOrgId?: string;
+  isSuperadmin?: boolean;
+  locale: Locale;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const { t } = useT();
   const [navOpen, setNavOpen] = useState(false);
 
   // Navegar = cerrar el cajón. Sin esto, tocar "Pipeline" deja el velo encima
@@ -57,7 +69,7 @@ export function AppShell({
     <div className="flex h-dvh overflow-hidden bg-background">
       {navOpen && (
         <button
-          aria-label="Cerrar el menú"
+          aria-label={t("nav.closeMenu")}
           tabIndex={-1}
           onClick={() => setNavOpen(false)}
           className="fixed inset-0 z-40 bg-overlay lg:hidden"
@@ -70,6 +82,10 @@ export function AppShell({
         userName={userName}
         role={role}
         theme={theme}
+        orgs={orgs}
+        activeOrgId={activeOrgId}
+        isSuperadmin={isSuperadmin}
+        locale={locale}
         open={navOpen}
         onClose={() => setNavOpen(false)}
       />
@@ -78,7 +94,7 @@ export function AppShell({
         <header className="flex h-12 shrink-0 items-center gap-2 border-b px-2 lg:hidden">
           <button
             onClick={() => setNavOpen(true)}
-            aria-label="Abrir el menú"
+            aria-label={t("nav.openMenu")}
             aria-expanded={navOpen}
             className="rounded-md p-2 text-text-2 hover:bg-accent hover:text-foreground"
           >

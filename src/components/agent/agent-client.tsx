@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { useT } from "@/lib/i18n/client";
 
 type Profile = {
   enabled: boolean;
@@ -27,6 +28,7 @@ type KbEntry = {
 };
 
 export function AgentClient() {
+  const { t } = useT();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [aiConfigured, setAiConfigured] = useState(true);
   const [entries, setEntries] = useState<KbEntry[]>([]);
@@ -54,7 +56,7 @@ export function AgentClient() {
   if (!profile) {
     return (
       <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-        Cargando…
+        {t("agent.loading")}
       </div>
     );
   }
@@ -73,16 +75,16 @@ export function AgentClient() {
   return (
     <div className="h-full overflow-y-auto">
       <header className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-3 sm:px-6 sm:py-4">
-        <h2 className="font-semibold">Agente de IA</h2>
+        <h2 className="font-semibold">{t("agent.title")}</h2>
         <div className="flex items-center gap-3">
-          {saved && <span className="text-xs text-primary">Guardado ✓</span>}
+          {saved && <span className="text-xs text-primary">{t("agent.saved")}</span>}
           <span className="text-sm text-muted-foreground">
-            {profile.enabled ? "Encendido" : "Apagado"}
+            {profile.enabled ? t("agent.statusOn") : t("agent.statusOff")}
           </span>
           <button
             role="switch"
             aria-checked={profile.enabled}
-            aria-label="Agente encendido"
+            aria-label={t("agent.toggleLabel")}
             disabled={!aiConfigured}
             onClick={() => void saveProfile({ enabled: !profile.enabled })}
             className={`relative h-6 w-11 rounded-full transition-colors disabled:opacity-40 ${
@@ -101,12 +103,13 @@ export function AgentClient() {
       {!aiConfigured && (
         <div className="mx-4 mt-4 rounded-lg border border-brand-soft bg-brand-tint p-5 text-center sm:mx-6 sm:mt-6 sm:p-6">
           <Sparkles className="mx-auto mb-2 h-8 w-8 text-primary" />
-          <p className="font-medium">Configura tu proveedor de IA para activar el agente</p>
+          <p className="font-medium">{t("agent.setupTitle")}</p>
           <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
-            Agrega <code className="rounded bg-secondary px-1">OPENROUTER_API_TOKEN</code> y{" "}
-            <code className="rounded bg-secondary px-1">OPENROUTER_MODEL</code> a las variables
-            de entorno de la instancia y reiníciala. Mientras tanto puedes dejar listo el
-            comportamiento y el conocimiento aquí abajo.
+            {t("agent.setupBody1")}
+            <code className="rounded bg-secondary px-1">OPENROUTER_API_TOKEN</code>
+            {t("agent.setupBody2")}
+            <code className="rounded bg-secondary px-1">OPENROUTER_MODEL</code>
+            {t("agent.setupBody3")}
           </p>
         </div>
       )}
@@ -127,19 +130,20 @@ function ProfileSection({
   onSave: (patch: Partial<Profile>) => Promise<void>;
 }) {
   const [form, setForm] = useState(profile);
+  const { t } = useT();
   useEffect(() => setForm(profile), [profile]);
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Comportamiento</CardTitle>
+        <CardTitle>{t("agent.behavior.title")}</CardTitle>
         <CardDescription>
-          Cómo se presenta y actúa el agente al responder a tus clientes.
+          {t("agent.behavior.description")}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="space-y-1.5">
-          <Label htmlFor="agent-name">Nombre del agente</Label>
+          <Label htmlFor="agent-name">{t("agent.behavior.nameLabel")}</Label>
           <Input
             id="agent-name"
             value={form.name}
@@ -147,44 +151,44 @@ function ProfileSection({
           />
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="agent-tone">Tono</Label>
+          <Label htmlFor="agent-tone">{t("agent.behavior.toneLabel")}</Label>
           <Input
             id="agent-tone"
-            placeholder="p. ej. cercano y directo, con usted"
+            placeholder={t("agent.behavior.tonePlaceholder")}
             value={form.tone ?? ""}
             onChange={(e) => setForm({ ...form, tone: e.target.value })}
           />
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="agent-instructions">Instrucciones</Label>
+          <Label htmlFor="agent-instructions">{t("agent.behavior.instructionsLabel")}</Label>
           <Textarea
             id="agent-instructions"
             rows={5}
-            placeholder="Qué debe y no debe hacer el agente…"
+            placeholder={t("agent.behavior.instructionsPlaceholder")}
             value={form.instructions ?? ""}
             onChange={(e) => setForm({ ...form, instructions: e.target.value })}
           />
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="agent-escalation">Reglas de escalado</Label>
+          <Label htmlFor="agent-escalation">{t("agent.behavior.escalationLabel")}</Label>
           <Textarea
             id="agent-escalation"
             rows={3}
-            placeholder="Cuándo pasar la conversación a un humano…"
+            placeholder={t("agent.behavior.escalationPlaceholder")}
             value={form.escalationRules ?? ""}
             onChange={(e) => setForm({ ...form, escalationRules: e.target.value })}
           />
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="agent-greeting">Saludo</Label>
+          <Label htmlFor="agent-greeting">{t("agent.behavior.greetingLabel")}</Label>
           <Input
             id="agent-greeting"
-            placeholder="Saludo para conversaciones nuevas"
+            placeholder={t("agent.behavior.greetingPlaceholder")}
             value={form.greeting ?? ""}
             onChange={(e) => setForm({ ...form, greeting: e.target.value })}
           />
         </div>
-        <Button onClick={() => void onSave(form)}>Guardar comportamiento</Button>
+        <Button onClick={() => void onSave(form)}>{t("agent.behavior.save")}</Button>
       </CardContent>
     </Card>
   );
@@ -199,6 +203,7 @@ function KbSection({
   kbSize: { chars: number; warnAt: number; warning: boolean } | null;
   onChanged: () => void;
 }) {
+  const { t, locale } = useT();
   const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState("");
   const [block, setBlock] = useState("");
@@ -236,35 +241,33 @@ function KbSection({
       <CardHeader>
         <div className="flex items-center justify-between">
           <div>
-            <CardTitle>Knowledge base</CardTitle>
+            <CardTitle>{t("agent.kb.title")}</CardTitle>
             <CardDescription>
-              La única fuente de verdad del agente: lo que no está aquí, no lo
-              afirma.
+              {t("agent.kb.description")}
             </CardDescription>
           </div>
           {kbSize && (
             <Badge variant={kbSize.warning ? "warning" : "secondary"}>
-              {kbSize.chars.toLocaleString("es-MX")} caracteres
+              {t("agent.kb.chars", { chars: kbSize.chars.toLocaleString(locale) })}
             </Badge>
           )}
         </div>
         {kbSize?.warning && (
           <p className="text-xs text-warning-text">
-            El conocimiento se acerca al límite del contexto del modelo (v1 lo
-            inyecta completo en cada turno). Considera depurar entradas.
+            {t("agent.kb.warning")}
           </p>
         )}
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="space-y-2 rounded-md border p-3">
-          <p className="text-sm font-medium">Nueva pregunta / respuesta</p>
+          <p className="text-sm font-medium">{t("agent.kb.newQa")}</p>
           <Input
-            placeholder="Pregunta (p. ej. ¿Hacen envíos?)"
+            placeholder={t("agent.kb.questionPlaceholder")}
             value={question}
             onChange={(e) => setQuestion(e.target.value)}
           />
           <Textarea
-            placeholder="Respuesta"
+            placeholder={t("agent.kb.answerPlaceholder")}
             rows={2}
             value={answer}
             onChange={(e) => setAnswer(e.target.value)}
@@ -274,20 +277,20 @@ function KbSection({
             onClick={() => void addQa()}
             disabled={!question.trim() || !answer.trim()}
           >
-            <Plus className="h-4 w-4" /> Agregar P/R
+            <Plus className="h-4 w-4" /> {t("agent.kb.addQa")}
           </Button>
         </div>
 
         <div className="space-y-2 rounded-md border p-3">
-          <p className="text-sm font-medium">Nuevo bloque de texto libre</p>
+          <p className="text-sm font-medium">{t("agent.kb.newBlock")}</p>
           <Textarea
-            placeholder="Horarios, direcciones, políticas…"
+            placeholder={t("agent.kb.blockPlaceholder")}
             rows={3}
             value={block}
             onChange={(e) => setBlock(e.target.value)}
           />
           <Button size="sm" onClick={() => void addBlock()} disabled={!block.trim()}>
-            <Plus className="h-4 w-4" /> Agregar bloque
+            <Plus className="h-4 w-4" /> {t("agent.kb.addBlock")}
           </Button>
         </div>
 
@@ -307,7 +310,7 @@ function KbSection({
               <Button
                 variant="ghost"
                 size="icon"
-                aria-label="Eliminar entrada"
+                aria-label={t("agent.kb.removeEntry")}
                 onClick={() => void remove(e.id)}
               >
                 <Trash2 className="h-4 w-4" />
@@ -316,7 +319,7 @@ function KbSection({
           ))}
           {entries.length === 0 && (
             <p className="py-2 text-center text-xs text-muted-foreground">
-              Sin entradas todavía: agrega lo que el agente debe saber.
+              {t("agent.kb.empty")}
             </p>
           )}
         </ul>

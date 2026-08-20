@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ImageUp, Trash2 } from "lucide-react";
 import type { Branding } from "@/lib/branding";
+import { useT } from "@/lib/i18n/client";
 import {
   faviconHref,
   FAVICON_MIMES,
@@ -21,6 +22,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
  */
 export function FaviconCard({ branding }: { branding: Branding }) {
   const router = useRouter();
+  const { t } = useT();
   const input = useRef<HTMLInputElement>(null);
   const [subiendo, setSubiendo] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -34,7 +36,9 @@ export function FaviconCard({ branding }: { branding: Branding }) {
     setError(null);
     if (file.size > MAX_FAVICON_BYTES) {
       setError(
-        `El icono no puede pasar de ${Math.round(MAX_FAVICON_BYTES / 1024)} KB.`
+        t("settings.favicon.tooBig", {
+          kb: Math.round(MAX_FAVICON_BYTES / 1024),
+        })
       );
       return;
     }
@@ -49,7 +53,7 @@ export function FaviconCard({ branding }: { branding: Branding }) {
       const data = (await res?.json().catch(() => null)) as {
         error?: { message?: string };
       } | null;
-      setError(data?.error?.message ?? "No se pudo subir el icono");
+      setError(data?.error?.message ?? t("settings.favicon.uploadError"));
       return;
     }
     const data = (await res.json()) as { favicon: Branding["favicon"] };
@@ -66,7 +70,7 @@ export function FaviconCard({ branding }: { branding: Branding }) {
     }).catch(() => null);
     setSubiendo(false);
     if (!res?.ok) {
-      setError("No se pudo quitar el icono");
+      setError(t("settings.favicon.removeError"));
       return;
     }
     setActual(null);
@@ -77,7 +81,7 @@ export function FaviconCard({ branding }: { branding: Branding }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Icono de la pestaña</CardTitle>
+        <CardTitle>{t("settings.favicon.title")}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex items-center gap-4">
@@ -87,19 +91,19 @@ export function FaviconCard({ branding }: { branding: Branding }) {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={src}
-            alt="Vista previa del icono de la pestaña"
+            alt={t("settings.favicon.previewAlt")}
             width={48}
             height={48}
             className="h-12 w-12 rounded-lg border bg-card object-contain"
           />
           <div className="min-w-0 flex-1">
             <p className="text-sm">
-              {actual ? "Logo propio" : "Generado con tu marca"}
+              {actual ? t("settings.favicon.own") : t("settings.favicon.generated")}
             </p>
             <p className="mt-0.5 text-xs text-text-3">
               {actual
-                ? "Reemplaza al generado. Puedes quitarlo para volver a él."
-                : "La inicial sobre tu color de acento. Sube un logo para reemplazarlo."}
+                ? t("settings.favicon.ownHelp")
+                : t("settings.favicon.generatedHelp")}
             </p>
           </div>
         </div>
@@ -125,18 +129,23 @@ export function FaviconCard({ branding }: { branding: Branding }) {
             onClick={() => input.current?.click()}
           >
             <ImageUp className="h-4 w-4" />
-            {subiendo ? "Subiendo…" : actual ? "Cambiar logo" : "Subir logo"}
+            {subiendo
+              ? t("settings.favicon.uploading")
+              : actual
+                ? t("settings.favicon.change")
+                : t("settings.favicon.upload")}
           </Button>
           {actual && (
             <Button variant="ghost" disabled={subiendo} onClick={() => void quitar()}>
-              <Trash2 className="h-4 w-4" /> Quitar
+              <Trash2 className="h-4 w-4" /> {t("settings.favicon.remove")}
             </Button>
           )}
         </div>
 
         <p className="text-xs text-text-3">
-          PNG, SVG, ICO, JPEG o WebP, hasta{" "}
-          {Math.round(MAX_FAVICON_BYTES / 1024)} KB. Cuadrado se ve mejor.
+          {t("settings.favicon.formats", {
+            kb: Math.round(MAX_FAVICON_BYTES / 1024),
+          })}
         </p>
 
         {error && <p className="text-sm text-destructive">{error}</p>}

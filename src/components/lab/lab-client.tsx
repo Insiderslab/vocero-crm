@@ -20,6 +20,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { useT } from "@/lib/i18n/client";
 
 type Run = {
   id: string;
@@ -47,14 +48,15 @@ type Case = {
   transcript: { role: "cliente" | "agente"; text: string }[];
 };
 
-const TIPO_LABELS: Record<Hallazgo["tipo"], string> = {
-  alucinacion: "Alucinación",
-  fuera_de_kb: "Fuera del conocimiento",
-  debio_escalar: "Debió escalar",
-  tono: "Tono",
+const TIPO_KEYS: Record<Hallazgo["tipo"], string> = {
+  alucinacion: "lab.findings.alucinacion",
+  fuera_de_kb: "lab.findings.fuera_de_kb",
+  debio_escalar: "lab.findings.debio_escalar",
+  tono: "lab.findings.tono",
 };
 
 export function LabClient() {
+  const { t } = useT();
   const [runs, setRuns] = useState<Run[]>([]);
   const [aiConfigured, setAiConfigured] = useState(true);
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
@@ -107,7 +109,7 @@ export function LabClient() {
       const data = (await res.json().catch(() => null)) as {
         error?: { message?: string };
       } | null;
-      setError(data?.error?.message ?? "No se pudo lanzar la corrida");
+      setError(data?.error?.message ?? t("lab.launchError"));
       return;
     }
     const data = (await res.json()) as { runId: string };
@@ -123,12 +125,12 @@ export function LabClient() {
         <div className="m-6 rounded-lg border border-brand-soft bg-brand-tint p-8 text-center">
           <Sparkles className="mx-auto mb-2 h-8 w-8 text-primary" />
           <p className="font-medium">
-            Configura tu proveedor de IA para usar el Laboratorio
+            {t("lab.setupTitle")}
           </p>
           <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
-            El Laboratorio necesita el agente activo: agrega{" "}
-            <code className="rounded bg-secondary px-1">OPENROUTER_API_TOKEN</code> a la
-            instancia y vuelve aquí.
+            {t("lab.setupBody1")}
+            <code className="rounded bg-secondary px-1">OPENROUTER_API_TOKEN</code>
+            {t("lab.setupBody2")}
           </p>
         </div>
       </div>
@@ -150,7 +152,7 @@ export function LabClient() {
       {running && progress && (
         <div className="mx-6 mt-4 rounded-lg border bg-card p-4">
           <div className="mb-2 flex items-center justify-between text-sm">
-            <span className="font-medium">Evaluando personas…</span>
+            <span className="font-medium">{t("lab.progress")}</span>
             <span className="text-muted-foreground">
               {progress.done} / {progress.total}
             </span>
@@ -175,8 +177,8 @@ export function LabClient() {
         ) : (
           <div className="rounded-lg border border-dashed p-10 text-center text-sm text-muted-foreground">
             {runs.length === 0
-              ? "Corre tu primera evaluación: 6 clientes simulados conversarán con tu agente y un juez calificará cada conversación."
-              : "Elige una corrida del historial."}
+              ? t("lab.emptyFirst")
+              : t("lab.emptySelect")}
           </div>
         )}
       </div>
@@ -195,19 +197,20 @@ function Header({
   onLaunch: () => void;
   disabled: boolean;
 }) {
+  const { t } = useT();
   return (
     <header className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-3 sm:px-6 sm:py-4">
       <div>
         <h2 className="flex items-center gap-2 font-semibold">
-          <FlaskConical className="h-4 w-4 text-primary" /> Laboratorio
+          <FlaskConical className="h-4 w-4 text-primary" /> {t("lab.title")}
         </h2>
         <p className="text-xs text-muted-foreground">
-          Sandbox interno — no envía mensajes reales
+          {t("lab.subtitle")}
         </p>
       </div>
       <Button onClick={onLaunch} disabled={disabled || running || launching}>
         <Play className="h-4 w-4" />
-        {running ? "Corrida en curso…" : "Correr evaluación"}
+        {running ? t("lab.running") : t("lab.run")}
       </Button>
     </header>
   );
@@ -222,13 +225,14 @@ function HistoryList({
   selectedRunId: string | null;
   onSelect: (id: string) => void;
 }) {
+  const { t, locale } = useT();
   return (
     <div className="space-y-2">
       <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-        Historial
+        {t("lab.history")}
       </p>
       {runs.length === 0 && (
-        <p className="text-xs text-muted-foreground">Sin corridas todavía.</p>
+        <p className="text-xs text-muted-foreground">{t("lab.historyEmpty")}</p>
       )}
       {runs.map((run) => (
         <button
@@ -257,7 +261,7 @@ function HistoryList({
             )}
           </div>
           <p className="mt-1 text-[11px] text-muted-foreground">
-            {new Date(run.startedAt).toLocaleString("es-MX", {
+            {new Date(run.startedAt).toLocaleString(locale, {
               day: "numeric",
               month: "short",
               hour: "2-digit",
@@ -271,11 +275,12 @@ function HistoryList({
 }
 
 function ScoreBadge({ run }: { run: Run }) {
-  if (run.status === "running") return <Badge variant="secondary">En curso…</Badge>;
-  if (run.status === "failed") return <Badge variant="destructive">Fallida</Badge>;
+  const { t } = useT();
+  if (run.status === "running") return <Badge variant="secondary">{t("lab.statusRunning")}</Badge>;
+  if (run.status === "failed") return <Badge variant="destructive">{t("lab.statusFailed")}</Badge>;
   const score = run.score ?? 0;
   const variant = score >= 80 ? "success" : score >= 50 ? "warning" : "destructive";
-  return <Badge variant={variant}>Score {score}</Badge>;
+  return <Badge variant={variant}>{t("lab.score", { score })}</Badge>;
 }
 
 function Report({
@@ -285,19 +290,19 @@ function Report({
   detail: { run: Run; cases: Case[] };
   onApplied: () => void;
 }) {
+  const { t } = useT();
   const { run, cases } = detail;
   return (
     <div className="space-y-4">
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
-            <CardTitle>Reporte</CardTitle>
+            <CardTitle>{t("lab.report")}</CardTitle>
             <ScoreBadge run={run} />
           </div>
           {run.status === "failed" && (
             <p className="text-sm text-destructive">
-              La corrida falló: {run.error ?? "error desconocido"}. Vuelve a
-              intentarlo.
+              {t("lab.failed", { error: run.error ?? t("lab.unknownError") })}
             </p>
           )}
         </CardHeader>
@@ -309,14 +314,15 @@ function Report({
                   <p className="text-2xl font-bold">
                     {cases.filter((c) => c.veredicto === v).length}
                   </p>
-                  <p className="capitalize text-muted-foreground">{v}s</p>
+                  <p className="capitalize text-muted-foreground">{t(`lab.verdicts.${v}`)}</p>
                 </div>
               ))}
             </div>
             {cases.some((c) => c.status === "judge_failed") && (
               <p className="mt-3 text-xs text-warning-text">
-                {cases.filter((c) => c.status === "judge_failed").length} caso(s) sin
-                veredicto (el juez no respondió válido); excluidos del score.
+                {t("lab.judgeFailed", {
+                  count: cases.filter((c) => c.status === "judge_failed").length,
+                })}
               </p>
             )}
           </CardContent>
@@ -331,8 +337,11 @@ function Report({
 }
 
 function CaseCard({ testCase, onApplied }: { testCase: Case; onApplied: () => void }) {
+  const { t } = useT();
   const [open, setOpen] = useState(false);
   const c = testCase;
+  const customerLabel = t("lab.customer");
+  const agentLabel = t("lab.agentRole");
   const icon =
     c.veredicto === "verde" ? (
       <CheckCircle2 className="h-4 w-4 text-success" />
@@ -355,11 +364,11 @@ function CaseCard({ testCase, onApplied }: { testCase: Case; onApplied: () => vo
             {icon}
             {c.personaLabel}
             {c.status === "judge_failed" && (
-              <Badge variant="secondary">sin veredicto</Badge>
+              <Badge variant="secondary">{t("lab.noVerdict")}</Badge>
             )}
           </span>
           <span className="flex items-center gap-2 text-xs text-muted-foreground">
-            {c.hallazgos.length > 0 && `${c.hallazgos.length} hallazgo(s)`}
+            {c.hallazgos.length > 0 && t("lab.findingsCount", { count: c.hallazgos.length })}
             {open ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
           </span>
         </button>
@@ -371,7 +380,7 @@ function CaseCard({ testCase, onApplied }: { testCase: Case; onApplied: () => vo
           ))}
           <div className="rounded-md border bg-background/40 p-3">
             <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Transcript
+              {t("lab.transcript")}
             </p>
             <div className="space-y-1.5 text-sm">
               {c.transcript.map((t, i) => (
@@ -381,7 +390,7 @@ function CaseCard({ testCase, onApplied }: { testCase: Case; onApplied: () => vo
                       t.role === "cliente" ? "text-info" : "text-primary"
                     }
                   >
-                    {t.role === "cliente" ? "Cliente" : "Agente"}:
+                    {t.role === "cliente" ? customerLabel : agentLabel}:
                   </span>{" "}
                   {t.text}
                 </p>
@@ -405,6 +414,7 @@ function HallazgoCard({
   index: number;
   onApplied: () => void;
 }) {
+  const { t } = useT();
   const [editing, setEditing] = useState(false);
   const [pregunta, setPregunta] = useState(hallazgo.sugerencia?.pregunta ?? "");
   const [respuesta, setRespuesta] = useState(hallazgo.sugerencia?.respuesta ?? "");
@@ -429,24 +439,24 @@ function HallazgoCard({
   return (
     <div className="rounded-md border border-warning-soft bg-warning-tint p-3">
       <div className="flex items-center justify-between">
-        <Badge variant="warning">{TIPO_LABELS[hallazgo.tipo]}</Badge>
+        <Badge variant="warning">{t(TIPO_KEYS[hallazgo.tipo])}</Badge>
         {hallazgo.sugerencia && !applied && !editing && (
           <Button size="sm" variant="outline" onClick={() => setEditing(true)}>
-            Agregar al conocimiento
+            {t("lab.addToKb")}
           </Button>
         )}
         {applied && (
-          <span className="text-xs text-success">Agregado al conocimiento ✓</span>
+          <span className="text-xs text-success">{t("lab.addedToKb")}</span>
         )}
       </div>
       <p className="mt-2 text-sm text-muted-foreground">
-        <span className="font-medium text-foreground">Evidencia:</span>{" "}
+        <span className="font-medium text-foreground">{t("lab.evidence")}</span>{" "}
         {hallazgo.evidencia}
       </p>
       {editing && hallazgo.sugerencia && (
         <div className="mt-3 space-y-2 rounded-md border bg-card p-3">
           <div className="space-y-1">
-            <Label htmlFor={`sug-q-${caseId}-${index}`}>Pregunta</Label>
+            <Label htmlFor={`sug-q-${caseId}-${index}`}>{t("lab.question")}</Label>
             <Input
               id={`sug-q-${caseId}-${index}`}
               value={pregunta}
@@ -454,7 +464,7 @@ function HallazgoCard({
             />
           </div>
           <div className="space-y-1">
-            <Label htmlFor={`sug-a-${caseId}-${index}`}>Respuesta</Label>
+            <Label htmlFor={`sug-a-${caseId}-${index}`}>{t("lab.answer")}</Label>
             <Textarea
               id={`sug-a-${caseId}-${index}`}
               rows={3}
@@ -468,10 +478,10 @@ function HallazgoCard({
               onClick={() => void apply()}
               disabled={saving || !pregunta.trim() || !respuesta.trim()}
             >
-              {saving ? "Guardando…" : "Guardar en el KB"}
+              {saving ? t("lab.saving") : t("lab.saveToKb")}
             </Button>
             <Button size="sm" variant="ghost" onClick={() => setEditing(false)}>
-              Cancelar
+              {t("lab.cancel")}
             </Button>
           </div>
         </div>

@@ -1,8 +1,9 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ACCENT_PRESETS, isValidHex, resolveAccentSet, type Branding } from "@/lib/branding";
+import { useT } from "@/lib/i18n/client";
 import { CURRENCIES, DEFAULT_CURRENCY, type Currency } from "@/lib/money";
 import { cn } from "@/lib/utils";
 import { useResolvedTheme } from "@/components/use-theme";
@@ -11,8 +12,17 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
+/** Las etiquetas de los presets viven en lib/branding; aquí se mapean a i18n. */
+const PRESET_LABEL_KEYS: Record<string, string> = {
+  "Azul acero": "settings.branding.preset.azulAcero",
+  Grafito: "settings.branding.preset.grafito",
+  "Verde apagado": "settings.branding.preset.verdeApagado",
+  Ciruela: "settings.branding.preset.ciruela",
+};
+
 export function BrandingClient() {
   const router = useRouter();
+  const { t } = useT();
   const mode = useResolvedTheme();
   const [name, setName] = useState("");
   const [accent, setAccent] = useState("#3f5972");
@@ -55,7 +65,7 @@ export function BrandingClient() {
       const data = (await res?.json().catch(() => null)) as {
         error?: { message?: string };
       } | null;
-      setError(data?.error?.message ?? "No se pudo guardar");
+      setError(data?.error?.message ?? t("settings.branding.saveError"));
       return;
     }
     setSaved(true);
@@ -63,33 +73,32 @@ export function BrandingClient() {
     router.refresh();
   }
 
-  if (!loaded) return <p className="text-sm text-text-3">Cargando…</p>;
+  if (!loaded) return <p className="text-sm text-text-3">{t("common.loading")}</p>;
 
   return (
     <div className="max-w-2xl space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle>Marca del CRM</CardTitle>
+          <CardTitle>{t("settings.branding.title")}</CardTitle>
           <CardDescription>
-            Este CRM es tuyo: ponle el nombre de tu negocio y tu color. Se
-            reflejan en toda la interfaz y en la pantalla de inicio de sesión.
+            {t("settings.branding.description")}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-5">
           <div className="space-y-1.5">
-            <Label htmlFor="brand-name">Nombre</Label>
+            <Label htmlFor="brand-name">{t("common.name")}</Label>
             <Input
               id="brand-name"
               maxLength={30}
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Vocero"
+              placeholder="Heili CRM"
               className="max-w-xs"
             />
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="brand-currency">Moneda del negocio</Label>
+            <Label htmlFor="brand-currency">{t("settings.branding.currencyLabel")}</Label>
             <select
               id="brand-currency"
               value={currency}
@@ -103,34 +112,39 @@ export function BrandingClient() {
               ))}
             </select>
             <p className="text-xs text-text-3">
-              Es la única que el Pipeline suma. Los montos capturados en otra
-              moneda se muestran, pero quedan fuera del total de su columna.
+              {t("settings.branding.currencyHelp")}
             </p>
           </div>
 
           <div className="space-y-2">
-            <Label>Color de acento</Label>
+            <Label>{t("settings.branding.accentLabel")}</Label>
             <div className="flex flex-wrap items-center gap-2">
-              {Object.entries(ACCENT_PRESETS).map(([hex, preset]) => (
-                <button
-                  key={hex}
-                  onClick={() => setAccent(hex)}
-                  title={preset.label}
-                  aria-label={preset.label}
-                  className={cn(
-                    "flex items-center gap-2 rounded-full border px-3 py-1.5 text-[12.5px] font-medium transition-colors",
-                    accent.toLowerCase() === hex
-                      ? "border-foreground/40 bg-secondary"
-                      : "hover:bg-accent"
-                  )}
-                >
-                  <span
-                    className="h-4 w-4 rounded-full"
-                    style={{ background: resolveAccentSet(hex, mode).accent }}
-                  />
-                  {preset.label}
-                </button>
-              ))}
+              {Object.entries(ACCENT_PRESETS).map(([hex, preset]) => {
+                const presetLabel = t(
+                  PRESET_LABEL_KEYS[preset.label] ??
+                    "settings.branding.preset.azulAcero"
+                );
+                return (
+                  <button
+                    key={hex}
+                    onClick={() => setAccent(hex)}
+                    title={presetLabel}
+                    aria-label={presetLabel}
+                    className={cn(
+                      "flex items-center gap-2 rounded-full border px-3 py-1.5 text-[12.5px] font-medium transition-colors",
+                      accent.toLowerCase() === hex
+                        ? "border-foreground/40 bg-secondary"
+                        : "hover:bg-accent"
+                    )}
+                  >
+                    <span
+                      className="h-4 w-4 rounded-full"
+                      style={{ background: resolveAccentSet(hex, mode).accent }}
+                    />
+                    {presetLabel}
+                  </button>
+                );
+              })}
               <label
                 className={cn(
                   "flex cursor-pointer items-center gap-2 rounded-full border px-3 py-1.5 text-[12.5px] font-medium transition-colors",
@@ -143,12 +157,11 @@ export function BrandingClient() {
                   onChange={(e) => setAccent(e.target.value)}
                   className="h-4 w-4 cursor-pointer appearance-none border-0 bg-transparent p-0"
                 />
-                Personalizado
+                {t("settings.branding.custom")}
               </label>
             </div>
             <p className="text-xs text-text-3">
-              Con un color personalizado, los tonos derivados (hover, fondos
-              suaves) se calculan solos y se ajusta el contraste.
+              {t("settings.branding.accentHelp")}
             </p>
           </div>
 
@@ -159,11 +172,11 @@ export function BrandingClient() {
                 className="flex h-[30px] w-[30px] items-center justify-center rounded-sm text-[15px] font-bold"
                 style={{ background: previewSet.accent, color: previewSet.fg }}
               >
-                {(name.trim() || "Vocero").charAt(0).toUpperCase()}
+                {(name.trim() || "Heili CRM").charAt(0).toUpperCase()}
               </span>
               <span>
                 <span className="block text-[15px] font-[650] leading-tight">
-                  {name.trim() || "Vocero"}
+                  {name.trim() || "Heili CRM"}
                 </span>
                 <span className="block text-[11px] text-text-3">CRM · WhatsApp</span>
               </span>
@@ -172,15 +185,15 @@ export function BrandingClient() {
                 className="rounded-md px-3 py-1.5 text-xs font-medium"
                 style={{ background: previewSet.accent, color: previewSet.fg }}
               >
-                Botón de ejemplo
+                {t("settings.branding.previewButton")}
               </span>
             </div>
           </div>
 
           {error && <p className="text-sm text-destructive">{error}</p>}
-          {saved && <p className="text-sm" style={{ color: previewSet.text }}>Marca guardada ✓</p>}
+          {saved && <p className="text-sm" style={{ color: previewSet.text }}>{t("settings.branding.saved")}</p>}
           <Button disabled={saving || !name.trim()} onClick={() => void save()}>
-            {saving ? "Guardando…" : "Guardar marca"}
+            {saving ? t("common.saving") : t("settings.branding.submit")}
           </Button>
         </CardContent>
       </Card>

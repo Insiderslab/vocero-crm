@@ -24,6 +24,7 @@ export const GET = withAuth(async (session, req: Request) => {
   const url = new URL(req.url);
   const q = url.searchParams.get("q")?.trim();
   const stage = url.searchParams.get("stage")?.trim();
+  const tagId = url.searchParams.get("tag")?.trim();
   const includeArchived = url.searchParams.get("archived") === "true";
 
   const db = getDb();
@@ -50,6 +51,27 @@ export const GET = withAuth(async (session, req: Request) => {
     leadStages.map((r) => [r.contactId, r.priority])
   );
 
+  // Tags por contacto (custom heili.cloud), mismo patrón que las etapas.
+  const tagRows = await db
+    .select({
+      contactId: schema.contactTag.contactId,
+      id: schema.tag.id,
+      name: schema.tag.name,
+      color: schema.tag.color,
+    })
+    .from(schema.contactTag)
+    .innerJoin(schema.tag, eq(schema.contactTag.tagId, schema.tag.id))
+    .where(scoped(schema.contactTag.organizationId, session.organizationId));
+  const tagsByContact = new Map<
+    string,
+    { id: string; name: string; color: string | null }[]
+  >();
+  for (const t of tagRows) {
+    const list = tagsByContact.get(t.contactId) ?? [];
+    list.push({ id: t.id, name: t.name, color: t.color });
+    tagsByContact.set(t.contactId, list);
+  }
+
   const qDigits = q ? digitsOnly(q) : "";
   // El patrón viaja normalizado igual que la columna, y con los comodines de
   // LIKE escapados para que un "%" tecleado no liste todo.
@@ -74,6 +96,12 @@ export const GET = withAuth(async (session, req: Request) => {
     : null;
   if (stageContactIds?.length === 0) return Response.json({ contacts: [] });
 
+  // Mismo razonamiento para el filtro de tag (custom heili.cloud).
+  const tagContactIds = tagId
+    ? tagRows.filter((r) => r.id === tagId).map((r) => r.contactId)
+    : null;
+  if (tagContactIds?.length === 0) return Response.json({ contacts: [] });
+
   const rows = await db
     .select()
     .from(schema.contact)
@@ -82,7 +110,8 @@ export const GET = withAuth(async (session, req: Request) => {
         schema.contact.organizationId,
         session.organizationId,
         search,
-        stageContactIds ? inArray(schema.contact.id, stageContactIds) : undefined
+        stageContactIds ? inArray(schema.contact.id, stageContactIds) : undefined,
+        tagContactIds ? inArray(schema.contact.id, tagContactIds) : undefined
       )
     )
     .orderBy(desc(schema.contact.updatedAt))
@@ -90,13 +119,14 @@ export const GET = withAuth(async (session, req: Request) => {
 
   const contacts = rows
     .filter((c) => includeArchived || !c.archivedAt)
-    .map((c) =>
-      serializeContact(
+    .map((c) => ({
+      ...serializeContact(
         c,
         stageByContact.get(c.id) ?? null,
         priorityByContact.get(c.id) ?? null
-      )
-    );
+      ),
+      tags: tagsByContact.get(c.id) ?? [],
+    }));
   return Response.json({ contacts });
 });
 

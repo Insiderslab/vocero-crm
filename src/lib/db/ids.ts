@@ -19,6 +19,11 @@ const prefixes = {
   testRun: "run",
   testCase: "case",
   mediaAsset: "ma",
+  // Custom heili.cloud
+  tag: "tag",
+  contactTag: "ctg",
+  automationRule: "rule",
+  automationRun: "arun",
 } as const;
 
 export type IdKind = keyof typeof prefixes;

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useT } from "@/lib/i18n/client";
 import { formatMoneyCents, parseMoneyToCents } from "@/lib/money";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,6 +35,7 @@ export function AmountDialog({
   onCancel: () => void;
   onSave: (cents: number | null) => void;
 }) {
+  const { t } = useT();
   const [texto, setTexto] = useState(
     amountCents === null ? "" : (amountCents / 100).toFixed(2)
   );
@@ -45,14 +47,14 @@ export function AmountDialog({
       className="fixed inset-0 z-50 flex items-center justify-center bg-overlay p-4"
       role="dialog"
       aria-modal="true"
-      aria-label="Monto y prioridad"
+      aria-label={t("pipeline.amount.ariaLabel")}
     >
       <div className="w-full max-w-sm rounded-lg border bg-card p-4 shadow-pop">
-        <h3 className="font-semibold">Monto y prioridad</h3>
+        <h3 className="font-semibold">{t("pipeline.amount.title")}</h3>
         <p className="mt-0.5 text-xs text-text-3">{leadName}</p>
 
         <label className="mt-3 block text-xs font-medium" htmlFor="monto">
-          Cuánto vale este trato ({currency})
+          {t("pipeline.amount.label", { currency })}
         </label>
         <Input
           id="monto"
@@ -65,18 +67,20 @@ export function AmountDialog({
         />
         {invalido ? (
           <p className="mt-1 text-xs text-danger-text">
-            No reconozco ese número. Escríbelo como 12500 o 12,500.00
+            {t("pipeline.amount.invalid")}
           </p>
         ) : (
           <p className="mt-1 text-xs text-text-3">
             {parsed === null
-              ? "Déjalo vacío para quitar el monto."
-              : `Se guardará como ${formatMoneyCents(parsed, currency)}`}
+              ? t("pipeline.amount.empty")
+              : t("pipeline.amount.willSave", {
+                  amount: formatMoneyCents(parsed, currency) ?? "",
+                })}
           </p>
         )}
 
         <div className="mt-4">
-          <p className="text-xs font-medium">Prioridad</p>
+          <p className="text-xs font-medium">{t("pipeline.amount.priority")}</p>
           <div className="mt-1.5">
             <PriorityPicker value={priority} onChange={onPriorityChange} />
           </div>
@@ -84,10 +88,10 @@ export function AmountDialog({
 
         <div className="mt-4 flex justify-end gap-2">
           <Button variant="ghost" onClick={onCancel}>
-            Cancelar
+            {t("pipeline.amount.cancel")}
           </Button>
           <Button disabled={invalido} onClick={() => onSave(parsed)}>
-            Guardar
+            {t("pipeline.amount.save")}
           </Button>
         </div>
       </div>

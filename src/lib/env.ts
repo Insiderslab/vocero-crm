@@ -27,11 +27,19 @@ const envSchema = z.object({
   OPENROUTER_MODEL: z.string().optional(),
   OPENROUTER_JUDGE_MODEL: z.string().optional(),
   ALLOW_SIGNUP: z.string().optional(),
+  // Correos (separados por coma) con poderes de super-admin de la instancia:
+  // crear organizaciones y usuarios desde /admin. Sin ella, no hay super-admin.
+  SUPERADMIN_EMAILS: z.string().optional(),
   AGENT_COALESCE_MS: z.coerce.number().int().min(0).default(6000),
   WA_MOCK_ENABLED: z.string().optional(),
   // API key de un cerebro externo que conduzca la conversación por /api/bot/*.
   // Sin ella, toda esa superficie responde 401.
   BOT_API_KEY: z.string().optional(),
+  // API key de extracción /api/export/* (custom heili.cloud): lectura JSON/CSV
+  // de cualquier org para análisis con IA. Sin ella, responde 401.
+  EXPORT_API_KEY: z.string().optional(),
+  // Cadencia del scheduler de automatizaciones (default 30 min).
+  AUTOMATIONS_TICK_MS: z.coerce.number().int().min(0).optional(),
   // 008: volumen local de adjuntos (constitución II: sin S3/R2).
   MEDIA_DIR: z.string().default("./.dev-media"),
   NODE_ENV: z.string().default("development"),

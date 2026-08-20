@@ -10,18 +10,13 @@ import type {
   StageDto,
 } from "@/lib/types";
 import { cn, formatPhone } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
 import { ContactAvatar } from "@/components/avatar";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { FichaPanel } from "@/components/ficha-panel";
 
-const HANDOFF_LABELS: Record<string, string> = {
-  cliente: "El cliente pidió un humano",
-  modelo: "El agente decidió escalar",
-  error: "Error del proveedor de IA",
-  ventana: "Ventana de 24h cerrada",
-  manual_reply: "Respondiste desde el teléfono — IA en pausa",
-};
+const HANDOFF_KEYS = ["cliente", "modelo", "error", "ventana", "manual_reply"];
 
 export function ContactPanel({
   conversation,
@@ -38,6 +33,7 @@ export function ContactPanel({
   }) => Promise<void>;
   onClose: () => void;
 }) {
+  const { t } = useT();
   const [notes, setNotes] = useState("");
   const [ficha, setFicha] = useState<FichaDto>({});
   const [notesLoaded, setNotesLoaded] = useState(false);
@@ -153,11 +149,11 @@ export function ContactPanel({
     <div className="flex h-full flex-col">
       <header className="sticky top-0 flex items-center justify-between border-b bg-background px-4 py-3">
         <h3 className="text-[13px] font-[650] uppercase tracking-wide text-text-2">
-          Detalles
+          {t("inbox.panel.title")}
         </h3>
         <button
           onClick={onClose}
-          aria-label="Ocultar panel"
+          aria-label={t("inbox.panel.hide")}
           className="rounded p-1 text-text-3 hover:bg-accent hover:text-foreground"
         >
           <ChevronRight className="h-4 w-4" strokeWidth={1.7} />
@@ -186,11 +182,12 @@ export function ContactPanel({
           {conversation.handoffAt && (
             <div className="mt-3 rounded-md border border-warning-soft bg-warning-tint p-3">
               <p className="flex items-center gap-1.5 text-[13px] font-medium text-warning-text">
-                <UserRound className="h-4 w-4" strokeWidth={1.7} /> Atención humana
+                <UserRound className="h-4 w-4" strokeWidth={1.7} /> {t("inbox.handoff")}
               </p>
               <p className="mt-1 text-xs text-warning-text opacity-80">
-                {HANDOFF_LABELS[conversation.handoffReason ?? ""] ??
-                  "La IA está en pausa en esta conversación."}
+                {HANDOFF_KEYS.includes(conversation.handoffReason ?? "")
+                  ? t(`inbox.handoffReasons.${conversation.handoffReason}`)
+                  : t("inbox.handoffReasons.default")}
               </p>
               <Button
                 size="sm"
@@ -198,7 +195,7 @@ export function ContactPanel({
                 className="mt-2 w-full"
                 onClick={() => void onPatchConversation({ reactivate: true })}
               >
-                Reactivar IA
+                {t("inbox.panel.reactivate")}
               </Button>
             </div>
           )}
@@ -206,21 +203,21 @@ export function ContactPanel({
           <div className="mt-3 rounded-md border bg-secondary/50 px-3 py-2.5">
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
-                <p className="text-[13px] font-medium">IA en esta conversación</p>
+                <p className="text-[13px] font-medium">{t("inbox.panel.aiTitle")}</p>
                 <p className="text-[11px] text-text-3">
                   {conversation.handoffAt
-                    ? "En pausa · atención humana"
+                    ? t("inbox.panel.stateHandoff")
                     : !conversation.aiEnabled
-                      ? "En pausa"
+                      ? t("inbox.panel.statePaused")
                       : agentReady
-                        ? "Respondiendo"
-                        : "Activada"}
+                        ? t("inbox.panel.stateReplying")
+                        : t("inbox.panel.stateEnabled")}
                 </p>
               </div>
               <button
                 role="switch"
                 aria-checked={aiActive}
-                aria-label="IA en esta conversación"
+                aria-label={t("inbox.panel.aiTitle")}
                 onClick={() => {
                   void onPatchConversation({
                     aiEnabled: !conversation.aiEnabled,
@@ -248,14 +245,14 @@ export function ContactPanel({
                 />
                 <p className="text-[11px] leading-relaxed text-warning-text">
                   {aiConfigured
-                    ? "El agente de Vocero no responde por su cuenta. Configura lo básico y enciéndelo (o conecta tu propio bot por la API)."
-                    : "Falta la clave de IA de la instancia (OPENROUTER_API_TOKEN) para que el agente responda, o conecta tu propio bot por la API."}
+                    ? t("inbox.panel.agentNotReady")
+                    : t("inbox.panel.aiNotConfigured")}
                   {aiConfigured && (
                     <Link
                       href="/agent"
                       className="ml-1 whitespace-nowrap font-medium text-brand-text underline underline-offset-2 hover:text-brand"
                     >
-                      Configurar agente →
+                      {t("inbox.panel.configureAgent")}
                     </Link>
                   )}
                 </p>
@@ -268,7 +265,7 @@ export function ContactPanel({
         {stages.length > 0 && leadId && (
           <section className="border-b p-4">
             <p className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-text-3">
-              Etapa del pipeline
+              {t("inbox.panel.stage")}
             </p>
             <ol>
               {stages.map((s, i) => {
@@ -286,7 +283,7 @@ export function ContactPanel({
                     )}
                     <button
                       onClick={() => void moveToStage(s.id)}
-                      aria-label={`Mover a ${s.name}`}
+                      aria-label={t("inbox.panel.moveTo", { name: s.name })}
                       className={cn(
                         "relative z-10 mt-0.5 flex h-[15px] w-[15px] shrink-0 items-center justify-center rounded-full transition-colors",
                         done && "bg-brand text-brand-fg",
@@ -319,11 +316,11 @@ export function ContactPanel({
         {/* Notas */}
         <section className="p-4">
           <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-text-3">
-            Notas
+            {t("inbox.panel.notes")}
           </p>
           <Textarea
             rows={5}
-            placeholder="Notas internas sobre este contacto…"
+            placeholder={t("inbox.panel.notesPlaceholder")}
             value={notes}
             disabled={!notesLoaded}
             onChange={(e) => setNotes(e.target.value)}
@@ -335,7 +332,7 @@ export function ContactPanel({
             disabled={savingNotes || !notesLoaded}
             onClick={() => void saveNotes()}
           >
-            {savingNotes ? "Guardando…" : "Guardar notas"}
+            {savingNotes ? t("inbox.panel.saving") : t("inbox.panel.saveNotes")}
           </Button>
         </section>
       </div>

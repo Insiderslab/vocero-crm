@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { signUp } from "@/lib/auth/client";
+import { useT } from "@/lib/i18n/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -11,6 +12,7 @@ import { Label } from "@/components/ui/label";
 
 export default function RegisterPage() {
   const router = useRouter();
+  const { t } = useT();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -25,13 +27,11 @@ export default function RegisterPage() {
     setLoading(false);
     if (err) {
       if (err.status === 403) {
-        setError(
-          "El registro está cerrado: esta instancia ya tiene su organización. Pide acceso al propietario."
-        );
+        setError(t("auth.register.closed"));
       } else if (err.status === 429) {
-        setError("Demasiados intentos. Espera unos minutos.");
+        setError(t("auth.register.tooMany"));
       } else {
-        setError(err.message ?? "No se pudo crear la cuenta.");
+        setError(err.message ?? t("auth.register.failed"));
       }
       return;
     }
@@ -42,16 +42,13 @@ export default function RegisterPage() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Crear cuenta</CardTitle>
-        <CardDescription>
-          El primer registro crea la organización de esta instancia y queda
-          como propietario.
-        </CardDescription>
+        <CardTitle>{t("auth.register.title")}</CardTitle>
+        <CardDescription>{t("auth.register.description")}</CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={onSubmit} className="space-y-4">
           <div className="space-y-1.5">
-            <Label htmlFor="name">Tu nombre</Label>
+            <Label htmlFor="name">{t("auth.register.yourName")}</Label>
             <Input
               id="name"
               required
@@ -60,7 +57,7 @@ export default function RegisterPage() {
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="email">Correo</Label>
+            <Label htmlFor="email">{t("common.email")}</Label>
             <Input
               id="email"
               type="email"
@@ -71,7 +68,7 @@ export default function RegisterPage() {
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="password">Contraseña</Label>
+            <Label htmlFor="password">{t("common.password")}</Label>
             <Input
               id="password"
               type="password"
@@ -84,12 +81,12 @@ export default function RegisterPage() {
           </div>
           {error && <p className="text-sm text-destructive">{error}</p>}
           <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? "Creando…" : "Crear cuenta"}
+            {loading ? t("auth.register.submitting") : t("auth.register.submit")}
           </Button>
           <p className="text-center text-sm text-muted-foreground">
-            ¿Ya tienes cuenta?{" "}
+            {t("auth.register.haveAccount")}{" "}
             <Link href="/login" className="text-primary hover:underline">
-              Inicia sesión
+              {t("auth.register.signIn")}
             </Link>
           </p>
         </form>

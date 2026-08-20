@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { RefreshCw } from "lucide-react";
 import type { TemplateDto } from "@/lib/types";
+import { useT } from "@/lib/i18n/client";
 import { countVariables, validateBodyVariables } from "@/lib/templates";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -11,17 +12,18 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 
-const STATUS_BADGE: Record<
+const STATUS_VARIANT: Record<
   TemplateDto["status"],
-  { label: string; variant: "secondary" | "warning" | "success" | "destructive" }
+  "secondary" | "warning" | "success" | "destructive"
 > = {
-  draft: { label: "Borrador", variant: "secondary" },
-  pending: { label: "Pendiente de Meta", variant: "warning" },
-  approved: { label: "Aprobada", variant: "success" },
-  rejected: { label: "Rechazada", variant: "destructive" },
+  draft: "secondary",
+  pending: "warning",
+  approved: "success",
+  rejected: "destructive",
 };
 
 export function TemplatesClient() {
+  const { t } = useT();
   const [templates, setTemplates] = useState<TemplateDto[]>([]);
   const [syncing, setSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState<string | null>(null);
@@ -54,8 +56,8 @@ export function TemplatesClient() {
         if (!silent) {
           setSyncMsg(
             data.updated > 0
-              ? `${data.updated} plantilla(s) actualizada(s)`
-              : "Todo al día"
+              ? t("settings.templates.syncUpdated", { count: data.updated })
+              : t("settings.templates.syncUpToDate")
           );
         }
         if (!silent || data.updated > 0) void refetch();
@@ -64,10 +66,10 @@ export function TemplatesClient() {
         const data = (await res?.json().catch(() => null)) as {
           error?: { message?: string };
         } | null;
-        setSyncMsg(data?.error?.message ?? "No se pudo sincronizar");
+        setSyncMsg(data?.error?.message ?? t("settings.templates.syncError"));
       }
     },
-    [refetch]
+    [refetch, t]
   );
 
   useEffect(() => {
@@ -78,15 +80,11 @@ export function TemplatesClient() {
     <div className="max-w-3xl space-y-6">
       <div className="flex items-start justify-between gap-4">
         <p className="text-sm text-muted-foreground">
-          Las plantillas permiten reabrir conversaciones con la ventana de 24 h
-          cerrada. Meta las aprueba en horas o días y puede reclasificar la
-          categoría (lo que cambia el costo por conversación). Esta pantalla
-          consulta el estado a Meta cada vez que la abres; Sincronizar fuerza
-          la consulta sin recargar.
+          {t("settings.templates.intro")}
         </p>
         <Button variant="outline" size="sm" disabled={syncing} onClick={() => void sync()}>
           <RefreshCw className={`h-4 w-4 ${syncing ? "animate-spin" : ""}`} />
-          Sincronizar
+          {t("settings.templates.sync")}
         </Button>
       </div>
       {syncMsg && <p className="text-xs text-muted-foreground">{syncMsg}</p>}
@@ -94,32 +92,32 @@ export function TemplatesClient() {
       <CreateForm onCreated={() => void refetch()} />
 
       <div className="space-y-2">
-        {templates.map((t) => (
-          <div key={t.id} className="rounded-lg border bg-card p-4">
+        {templates.map((tpl) => (
+          <div key={tpl.id} className="rounded-lg border bg-card p-4">
             <div className="flex items-center justify-between gap-3">
               <p className="font-mono text-sm font-medium">
-                {t.name}{" "}
+                {tpl.name}{" "}
                 <span className="text-muted-foreground">
-                  ({t.language} · {t.category})
+                  ({tpl.language} · {tpl.category})
                 </span>
               </p>
-              <Badge variant={STATUS_BADGE[t.status].variant}>
-                {STATUS_BADGE[t.status].label}
+              <Badge variant={STATUS_VARIANT[tpl.status]}>
+                {t(`settings.templates.status.${tpl.status}`)}
               </Badge>
             </div>
-            <p className="mt-2 text-sm text-muted-foreground">{t.body}</p>
-            {t.status === "rejected" && t.rejectionReason && (
+            <p className="mt-2 text-sm text-muted-foreground">{tpl.body}</p>
+            {tpl.status === "rejected" && tpl.rejectionReason && (
               <p className="mt-2 text-xs text-destructive">
-                Razón del rechazo: {t.rejectionReason}
+                {t("settings.templates.rejectionReason", {
+                  reason: tpl.rejectionReason,
+                })}
               </p>
             )}
           </div>
         ))}
         {templates.length === 0 && (
           <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-            Sin plantillas todavía. Crea la primera arriba — por ejemplo un
-            «seguimos disponibles, ¿retomamos tu cotización?» para
-            conversaciones frías.
+            {t("settings.templates.empty")}
           </p>
         )}
       </div>
@@ -128,6 +126,7 @@ export function TemplatesClient() {
 }
 
 function CreateForm({ onCreated }: { onCreated: () => void }) {
+  const { t } = useT();
   const [name, setName] = useState("");
   const [language, setLanguage] = useState("es_MX");
   const [category, setCategory] = useState<"UTILITY" | "MARKETING">("UTILITY");
@@ -152,7 +151,7 @@ function CreateForm({ onCreated }: { onCreated: () => void }) {
       const data = (await res?.json().catch(() => null)) as {
         error?: { message?: string };
       } | null;
-      setError(data?.error?.message ?? "No se pudo crear la plantilla");
+      setError(data?.error?.message ?? t("settings.templates.createError"));
       return;
     }
     setName("");
@@ -163,17 +162,17 @@ function CreateForm({ onCreated }: { onCreated: () => void }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Nueva plantilla</CardTitle>
+        <CardTitle>{t("settings.templates.createTitle")}</CardTitle>
         <CardDescription>
-          Cuerpo con las variables que necesites: numéralas{" "}
+          {t("settings.templates.createIntro1")}
           <code>{"{{1}}"}</code>, <code>{"{{2}}"}</code>, <code>{"{{3}}"}</code>
-          … en orden y sin saltos. Se envía a aprobación de Meta al crearla.
+          {t("settings.templates.createIntro2")}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid gap-4 md:grid-cols-3">
           <div className="space-y-1.5">
-            <Label htmlFor="tpl-name">Nombre</Label>
+            <Label htmlFor="tpl-name">{t("common.name")}</Label>
             <Input
               id="tpl-name"
               placeholder="seguimiento_cotizacion"
@@ -182,7 +181,7 @@ function CreateForm({ onCreated }: { onCreated: () => void }) {
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="tpl-lang">Idioma</Label>
+            <Label htmlFor="tpl-lang">{t("settings.templates.languageLabel")}</Label>
             <select
               id="tpl-lang"
               value={language}
@@ -196,7 +195,7 @@ function CreateForm({ onCreated }: { onCreated: () => void }) {
             </select>
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="tpl-cat">Categoría</Label>
+            <Label htmlFor="tpl-cat">{t("settings.templates.categoryLabel")}</Label>
             <select
               id="tpl-cat"
               value={category}
@@ -205,17 +204,17 @@ function CreateForm({ onCreated }: { onCreated: () => void }) {
               }
               className="flex h-9 w-full rounded-md border border-input bg-card px-3 text-sm"
             >
-              <option value="UTILITY">UTILITY (seguimiento)</option>
+              <option value="UTILITY">{t("settings.templates.utilityOption")}</option>
               <option value="MARKETING">MARKETING</option>
             </select>
           </div>
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="tpl-body">Cuerpo</Label>
+          <Label htmlFor="tpl-body">{t("settings.templates.bodyLabel")}</Label>
           <Textarea
             id="tpl-body"
             rows={3}
-            placeholder="Hola {{1}}, te confirmo tu sesión el {{2}} a las {{3}}."
+            placeholder={t("settings.templates.bodyPlaceholder")}
             value={body}
             onChange={(e) => setBody(e.target.value)}
           />
@@ -225,8 +224,8 @@ function CreateForm({ onCreated }: { onCreated: () => void }) {
             variableCount > 0 && (
               <p className="text-xs text-muted-foreground">
                 {variableCount === 1
-                  ? "1 variable: al enviar pedirá su valor."
-                  : `${variableCount} variables: al enviar pedirá los ${variableCount} valores.`}
+                  ? t("settings.templates.variableOne")
+                  : t("settings.templates.variableMany", { count: variableCount })}
               </p>
             )
           )}
@@ -236,7 +235,9 @@ function CreateForm({ onCreated }: { onCreated: () => void }) {
           disabled={saving || !name.trim() || !body.trim() || bodyError !== null}
           onClick={() => void create()}
         >
-          {saving ? "Enviando a Meta…" : "Crear y enviar a aprobación"}
+          {saving
+            ? t("settings.templates.submitting")
+            : t("settings.templates.submit")}
         </Button>
       </CardContent>
     </Card>

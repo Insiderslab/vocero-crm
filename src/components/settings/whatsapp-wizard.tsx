@@ -8,6 +8,7 @@ import {
   Info,
   ShieldCheck,
 } from "lucide-react";
+import { useT } from "@/lib/i18n/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -31,6 +32,7 @@ type WebhookInfo = {
 };
 
 export function WhatsappWizard() {
+  const { t } = useT();
   const [connection, setConnection] = useState<Connection | null>(null);
   const [webhook, setWebhook] = useState<WebhookInfo | null>(null);
   const [loaded, setLoaded] = useState(false);
@@ -50,7 +52,7 @@ export function WhatsappWizard() {
   }, [refetch]);
 
   if (!loaded) {
-    return <p className="text-sm text-muted-foreground">Cargando…</p>;
+    return <p className="text-sm text-muted-foreground">{t("common.loading")}</p>;
   }
 
   return (
@@ -60,11 +62,10 @@ export function WhatsappWizard() {
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
           <div>
             <p className="font-medium text-danger-text">
-              El token de WhatsApp expiró o fue revocado.
+              {t("settings.whatsapp.reconnectTitle")}
             </p>
             <p className="text-danger-text opacity-80">
-              Los envíos están pausados. Pega un token nuevo abajo y prueba la
-              conexión para reconectar.
+              {t("settings.whatsapp.reconnectBody")}
             </p>
           </div>
         </div>
@@ -75,14 +76,19 @@ export function WhatsappWizard() {
           <CheckCircle2 className="h-5 w-5 text-success" />
           <div className="flex-1 text-sm">
             <p className="font-medium text-success-text">
-              Número conectado: {connection.displayPhoneNumber ?? connection.phoneNumberId}
+              {t("settings.whatsapp.connectedNumber", {
+                number:
+                  connection.displayPhoneNumber ?? connection.phoneNumberId,
+              })}
             </p>
             <p className="text-success-text opacity-80">
               {connection.verifiedName ? `${connection.verifiedName} · ` : ""}
-              token …{connection.tokenLast4}
+              {t("settings.whatsapp.tokenTail", {
+                last4: connection.tokenLast4,
+              })}
             </p>
           </div>
-          <Badge variant="success">Conectado</Badge>
+          <Badge variant="success">{t("settings.whatsapp.connected")}</Badge>
         </div>
       )}
 
@@ -100,6 +106,7 @@ function ConnectForm({
   existing: Connection | null;
   onSaved: () => void;
 }) {
+  const { t } = useT();
   const [wabaId, setWabaId] = useState(existing?.wabaId ?? "");
   const [phoneNumberId, setPhoneNumberId] = useState(
     existing?.phoneNumberId ?? ""
@@ -126,7 +133,7 @@ function ConnectForm({
     }).catch(() => null);
     setTesting(false);
     if (!res) {
-      setTestResult({ ok: false, message: "Sin conexión con el servidor" });
+      setTestResult({ ok: false, message: t("settings.whatsapp.noServer") });
       return;
     }
     const data = (await res.json().catch(() => null)) as {
@@ -138,7 +145,7 @@ function ConnectForm({
     } else {
       setTestResult({
         ok: false,
-        message: data?.error?.message ?? "La validación falló",
+        message: data?.error?.message ?? t("settings.whatsapp.validationFailed"),
       });
     }
   }
@@ -156,7 +163,7 @@ function ConnectForm({
       const data = (await res?.json().catch(() => null)) as {
         error?: { message?: string };
       } | null;
-      setSaveError(data?.error?.message ?? "No se pudo guardar la conexión");
+      setSaveError(data?.error?.message ?? t("settings.whatsapp.saveError"));
       return;
     }
     setToken("");
@@ -168,35 +175,34 @@ function ConnectForm({
     <Card>
       <CardHeader>
         <CardTitle>
-          {existing ? "Reconectar / actualizar el número" : "Conectar tu número de WhatsApp"}
+          {existing
+            ? t("settings.whatsapp.titleReconnect")
+            : t("settings.whatsapp.titleConnect")}
         </CardTitle>
         <CardDescription>
-          Pega las credenciales de WhatsApp Cloud API. El token se valida
-          contra Meta ANTES de guardarse y se almacena cifrado.
+          {t("settings.whatsapp.connectDescription")}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid gap-3 rounded-md border bg-background/40 p-4 text-sm">
-          <p className="font-medium">¿De dónde sale el token?</p>
+          <p className="font-medium">{t("settings.whatsapp.originTitle")}</p>
           <div className="grid gap-3 md:grid-cols-2">
             <div className="rounded-md border p-3">
-              <p className="mb-1 font-medium text-primary">Modo directo</p>
+              <p className="mb-1 font-medium text-primary">{t("settings.whatsapp.originDirectTitle")}</p>
               <p className="text-muted-foreground">
-                El negocio tiene su propia app en{" "}
-                <span className="text-foreground">developers.facebook.com</span>:
-                usa un token de <span className="text-foreground">usuario del sistema</span>{" "}
-                (no expira) con permisos de WhatsApp. En este modo conviene
-                configurar también el App Secret para la firma del webhook.
+                {t("settings.whatsapp.originDirect1")}
+                <span className="text-foreground">developers.facebook.com</span>
+                {t("settings.whatsapp.originDirect2")}
+                <span className="text-foreground">{t("settings.whatsapp.originSystemUser")}</span>
+                {t("settings.whatsapp.originDirect3")}
               </p>
             </div>
             <div className="rounded-md border p-3">
-              <p className="mb-1 font-medium text-primary">Modo agencia (Tech Provider)</p>
+              <p className="mb-1 font-medium text-primary">{t("settings.whatsapp.originAgencyTitle")}</p>
               <p className="text-muted-foreground">
-                Tu agencia hace el Embedded Signup en SU plataforma y su
-                backend obtiene el token del cliente; te lo entrega para
-                pegarlo aquí. El webhook se conecta con el{" "}
-                <span className="text-foreground">override por WABA</span>{" "}
-                (checklist de 5 pasos en el README).
+                {t("settings.whatsapp.originAgency1")}
+                <span className="text-foreground">{t("settings.whatsapp.originAgencyWaba")}</span>
+                {t("settings.whatsapp.originAgency2")}
               </p>
             </div>
           </div>
@@ -207,7 +213,7 @@ function ConnectForm({
             <Label htmlFor="waba-id">WABA ID</Label>
             <Input
               id="waba-id"
-              placeholder="ID de la cuenta de WhatsApp Business"
+              placeholder={t("settings.whatsapp.wabaPlaceholder")}
               value={wabaId}
               onChange={(e) => setWabaId(e.target.value)}
             />
@@ -216,18 +222,18 @@ function ConnectForm({
             <Label htmlFor="phone-number-id">Phone Number ID</Label>
             <Input
               id="phone-number-id"
-              placeholder="ID del número de teléfono"
+              placeholder={t("settings.whatsapp.phoneIdPlaceholder")}
               value={phoneNumberId}
               onChange={(e) => setPhoneNumberId(e.target.value)}
             />
           </div>
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="token">Token de acceso</Label>
+          <Label htmlFor="token">{t("settings.whatsapp.tokenLabel")}</Label>
           <Input
             id="token"
             type="password"
-            placeholder={existing ? `Guardado (…${existing.tokenLast4}) — pega uno nuevo para cambiarlo` : "EAAG…"}
+            placeholder={existing ? t("settings.whatsapp.tokenPlaceholderSaved", { last4: existing.tokenLast4 }) : "EAAG…"}
             value={token}
             onChange={(e) => {
               setToken(e.target.value);
@@ -241,7 +247,9 @@ function ConnectForm({
             className={`text-sm ${testResult.ok ? "text-success" : "text-destructive"}`}
           >
             {testResult.ok
-              ? `✓ Token válido para ${testResult.display}. Ya puedes guardar.`
+              ? t("settings.whatsapp.tokenValid", {
+                  display: testResult.display,
+                })
               : testResult.message}
           </p>
         )}
@@ -253,13 +261,15 @@ function ConnectForm({
             disabled={!canTest || testing}
             onClick={() => void test()}
           >
-            {testing ? "Probando…" : "Probar conexión"}
+            {testing
+              ? t("settings.whatsapp.testing")
+              : t("settings.whatsapp.test")}
           </Button>
           <Button
             disabled={!testResult?.ok || saving}
             onClick={() => void save()}
           >
-            {saving ? "Guardando…" : "Guardar conexión"}
+            {saving ? t("common.saving") : t("settings.whatsapp.save")}
           </Button>
         </div>
       </CardContent>
@@ -268,6 +278,7 @@ function ConnectForm({
 }
 
 function WebhookCard({ webhook }: { webhook: WebhookInfo }) {
+  const { t } = useT();
   const [copied, setCopied] = useState<string | null>(null);
 
   function copy(text: string, which: string) {
@@ -280,28 +291,24 @@ function WebhookCard({ webhook }: { webhook: WebhookInfo }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Webhook de WhatsApp</CardTitle>
+        <CardTitle>{t("settings.whatsapp.webhookTitle")}</CardTitle>
         <CardDescription>
-          Pega estos valores en el panel de Meta (modo directo) o úsalos en el
-          override de tu backend de agencia (a nivel WABA).{" "}
+          {t("settings.whatsapp.webhookDesc1")}
           <strong className="text-foreground">
-            Guarda la conexión ANTES de configurar el webhook:
-          </strong>{" "}
-          la verificación (handshake) funciona sin guardar, pero los mensajes
-          solo se reciben si la conexión está guardada — se enrutan por tu
-          Phone Number ID.
+            {t("settings.whatsapp.webhookDescStrong")}
+          </strong>
+          {t("settings.whatsapp.webhookDesc2")}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
         {!webhook.isHttps && (
           <p className="flex items-start gap-2 rounded-md border border-warning-soft bg-warning-tint p-3 text-xs text-warning-text">
             <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-            La URL configurada no es https: Meta exige https para los webhooks.
-            Ajusta APP_BASE_URL con tu dominio público.
+            {t("settings.whatsapp.httpsWarning")}
           </p>
         )}
         <div className="space-y-1.5">
-          <Label>URL del webhook (callback URL)</Label>
+          <Label>{t("settings.whatsapp.urlLabel")}</Label>
           <div className="flex items-center gap-2">
             <code className="min-w-0 flex-1 truncate rounded-md border bg-background/60 px-3 py-2 text-xs">
               {webhook.url}
@@ -309,18 +316,17 @@ function WebhookCard({ webhook }: { webhook: WebhookInfo }) {
             <Button
               variant="outline"
               size="icon"
-              aria-label="Copiar URL"
+              aria-label={t("settings.whatsapp.copyUrl")}
               onClick={() => copy(webhook.url, "url")}
             >
               <Copy className="h-4 w-4" />
             </Button>
             {copied === "url" && (
-              <span className="text-xs text-primary">Copiada ✓</span>
+              <span className="text-xs text-primary">{t("settings.whatsapp.copiedUrl")}</span>
             )}
           </div>
           <p className="text-xs text-muted-foreground">
-            La URL contiene el token secreto en la ruta: trátala como una
-            contraseña.
+            {t("settings.whatsapp.urlHelp")}
           </p>
         </div>
         <div className="space-y-1.5">
@@ -332,28 +338,23 @@ function WebhookCard({ webhook }: { webhook: WebhookInfo }) {
             <Button
               variant="outline"
               size="icon"
-              aria-label="Copiar verify token"
+              aria-label={t("settings.whatsapp.copyToken")}
               onClick={() => copy(webhook.verifyToken, "vt")}
             >
               <Copy className="h-4 w-4" />
             </Button>
             {copied === "vt" && (
-              <span className="text-xs text-primary">Copiado ✓</span>
+              <span className="text-xs text-primary">{t("settings.whatsapp.copiedToken")}</span>
             )}
           </div>
         </div>
         {webhook.signatureLayer ? (
           <p className="flex items-center gap-2 text-xs text-success">
-            <ShieldCheck className="h-4 w-4" /> Verificación de firma activa
-            (META_APP_SECRET configurado): cada evento se valida con
-            x-hub-signature-256.
+            <ShieldCheck className="h-4 w-4" /> {t("settings.whatsapp.signatureActive")}
           </p>
         ) : (
           <p className="flex items-start gap-2 text-xs text-muted-foreground">
-            <Info className="mt-0.5 h-4 w-4 shrink-0" /> Sin App Secret
-            configurado: el webhook queda protegido por la URL secreta (normal
-            en modo agencia). Para la capa extra de firma, agrega
-            META_APP_SECRET a la instancia.
+            <Info className="mt-0.5 h-4 w-4 shrink-0" /> {t("settings.whatsapp.signatureInactive")}
           </p>
         )}
       </CardContent>
