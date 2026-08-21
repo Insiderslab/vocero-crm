@@ -215,3 +215,117 @@ PS> git commit → [notte-2026-08-21 56e7108] test(fase-4): cobertura del adapta
 7. Se si vuole chiudere il rilievo 3.2 in radice: valutare (in altra sessione,
   con l'owner sveglio) di rendere la capa 2 fail-closed quando il forward Wapi
   è attivo — è una decisione di prodotto, non l'ho presa di notte.
+
+---
+---
+
+# MANDATO 2 — REGISTRAZIONE & INVITI (PROMPT-NOTTE-ANALISI-2026-08-21.txt)
+
+Progettazione del sistema di accesso ibrido (3 porte). **Solo documenti**:
+nessuna rotta, migrazione o UI. Letti prima `CLAUDE.md` e
+`.specify/memory/constitution.md` (vincoli applicati: art. II — niente email;
+niente servizi Google; lista dipendenze chiusa).
+
+## Cosa ho prodotto
+
+1. `docs/analisi/REGISTRAZIONE-E-INVITI.md` — analisi completa:
+   - Cosa copre GIÀ Better Auth 1.6.23 (plugin organization): inviti senza
+     email (`sendInvitationEmail` opzionale, `crud-invites.mjs:150,226`), il
+     token è l'`id` del invito (`adapter.mjs`, `generateId`), scadenza default
+     48h (`crud-invites.mjs:137`), uso singolo (`:268`), revoca
+     (`cancelInvitation`), email match all'accettazione (`:269`), permessi
+     owner/admin (`access/statement.mjs`). Tabelle già in schema
+     (`src/lib/db/schema.ts:90-102`) e adapter (`src/lib/auth/index.ts:55-57`).
+   - Gap precisi: nessuna rotta/UI inviti (cartelle `invit*`/`member*` non
+     trovate); `onUserCreated` crea org solo al primo utente
+     (`src/server/auth/on-signup.ts:55-58`); gate registro opposto alla porta 1
+     (`src/server/auth/registration.ts:9-14`); anti-abuso solo rate limit
+     (`src/lib/rate-limit.ts:45-46`); super-admin env-only
+     (`src/server/auth/superadmin.ts:12-19`).
+   - Flusso link copiabile definito (token, scadenza, uso singolo, revoca,
+     invitato già registrato / non registrato / già membro).
+   - Ruoli: super-admin env BASTA (con precisazione membership prima
+     dell'invito in org non proprie).
+   - Anti-abuso sovrano: rate limit più stretto, quota `MAX_ORGANIZATIONS`,
+     approvazione manuale dichiarata fuori v1 (richiede migrazione → subida
+     de carril), signup aperto solo opt-in (`SIGNUP_MODE=open`).
+   - 3 diagrammi testuali + flusso di accettazione comune.
+   - 5 domande bloccanti per l'owner.
+2. `specs/custom-heili/004-registro-e-invitaciones.md` — spec SDD nel formato
+   del progetto (template `.specify/templates/spec-template.md`): User
+   Scenarios (P1 invito fra utenti, P2 invito super-admin, P3 self-signup),
+   Requirements FR-101..109 con NEEDS CLARIFICATION marcati (costituzione
+   VII), Success Criteria, carril ligero dichiarato + Constitution Check
+   nel corpo (regola del carril ligero, costituzione VI).
+
+## §A — cosa ho fatto (commit hash e file) — MANDATO 2
+
+| Commit | File | Cosa |
+|---|---|---|
+| `1ad9675` | `docs/analisi/REGISTRAZIONE-E-INVITI.md` | analisi + progetto (nuovo) |
+| `e2ca126` | `specs/custom-heili/004-registro-e-invitaciones.md` | spec SDD (nuova) |
+| (questo) | `LAVORO-NOTTE-2026-08-21.md` | aggiunta sezione Mandato 2 |
+
+Nessun codice toccato. `memory/` non toccata. Branch `notte-2026-08-21`.
+
+## §B — comandi reali e loro output — MANDATO 2
+
+```
+PS> git branch --show-current
+notte-2026-08-21
+PS> node -e "console.log(require('.../better-auth/package.json').version)"
+1.6.23
+PS> Select-String crud-invites.mjs -Pattern "..."   [estratti chiave]
+  137: invitationExpiresIn || 3600*48        (scadenza default 48h)
+  150/226: if (...sendInvitationEmail) ...   (email OPZIONALE)
+  238~: return ctx.json(invitation)          (id nel response → link)
+  268: rifiuto se status !== pending o scaduto
+  269: email mismatch → FORBIDDEN
+PS> Select-String access/statement.mjs → owner/admin: invitation[create,cancel]; member: []
+PS> cmd /c "corepack pnpm lint 2>&1" → LINT_EXIT=0
+PS> cmd /c "corepack pnpm typecheck 2>&1" → TSC_EXIT=0
+PS> git commit → 1ad9675 (analisi), e2ca126 (spec)
+```
+
+## §C — COSA NON HO VERIFICATO — MANDATO 2
+
+1. **Non ho eseguito Better Auth**: i comportamenti del plugin (48h, email
+   match, resend) derivano dalla LETTURA di `node_modules/better-auth/dist/
+   plugins/organization/` — non da una chiamata reale. Da confermare con un
+   test quando si implementerà.
+2. **Entropia di `generateId`**: ho verificato che l'id lo genera
+   `context.generateId({model:"invitation"})` (`adapter.mjs`), NON l'algoritmo
+   esatto né la lunghezza del token. Se il revisore vuole un link più lungo/
+   opaco, valutare in implementazione.
+3. **`getInvitation` pubblico**: non ho verificato se l'endpoint richiede
+   sessione o è anonimo (serve anonimo per la pagina del link) — da verificare
+   in fase di piano; se richiede sessione, la pagina userà una rotta nostra.
+4. **Compatibilità del flusso "registra poi accetta"** col gate chiuso: il
+   bypass `runInternalSignup` esiste (`src/lib/auth/index.ts:33-39`) ma non ho
+   verificato in esecuzione che la sequenza register→accept non lasci stati
+   intermedi (utente creato, invito non accettato).
+5. Non ho verificato l'i18n: le nuove pagine (`/invitacion/[id]`, UI inviti)
+   richiederanno chiavi di traduzione (`useT`, visto in
+   `src/app/(auth)/register/page.tsx:7`) — impatto non analizzato.
+6. Non ho aperto PR né toccato main; nessun test E2E eseguito (fuori
+   perimetro: progettazione).
+
+## §D — COSA DEVE CONTROLLARE IL REVISORE domattina — MANDATO 2
+
+1. **Rispondere alle 5 domande bloccanti** in coda a
+   `docs/analisi/REGISTRAZIONE-E-INVITI.md` §6 (super-admin env vs DB; signup
+   sempre-nuova-org + modalità solo Heili; multi-org per utente; scadenza
+   48h vs 7gg; approvazione manuale sì/no). Le risposte cambiano la spec 004.
+2. **Validare il punto §C-3**: se `getInvitation` richiede sessione, il
+   disegno della pagina pubblica del link va adattato (rotta nostra di sola
+   lettura dell'invito: org, ruolo, scadenza — mai dati sensibili).
+3. **Confermare il carril ligero**: la spec 004 dichiara nessuna migrazione;
+   se l'owner vuole l'approvazione manuale (domanda 5), la feature subisce
+   subida de carril e serve il piano completo prima del codice.
+4. **Confermare che la porta 1 non rompe la promessa OSS**: la costituzione
+   (`:268-271`) impone registro chiuso dopo la prima org; il disegno lo
+   preserva come default e apre solo con `SIGNUP_MODE=open`. Se il revisore
+   preferisce un nome diverso di env, si cambia in implementazione.
+5. Rileggere la tabella "gap precisi" (§1.2 dell'analisi) contro il codice:
+   ogni riga ha `file:riga` — se una non torna, la spec va corretta prima di
+   implementare.
