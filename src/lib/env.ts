@@ -22,6 +22,12 @@ const envSchema = z.object({
   META_APP_SECRET: z.string().optional(),
   META_GRAPH_API_VERSION: z.string().default("v25.0"),
   META_GRAPH_BASE_URL: z.string().url().default("https://graph.facebook.com"),
+  // Fase 4 — Adaptador Wapi (opcional). Si AMBAS están presentes, el tráfico
+  // saliente de WhatsApp se enruta por Wapi (proxy Graph-shaped en
+  // https://whapi.heili.cloud) en lugar de la Graph API de Meta directa.
+  // Ausentes → comportamiento actual (Meta directo). Nunca obligatorias.
+  WAPI_BASE_URL: z.string().url().optional(),
+  WAPI_API_KEY: z.string().optional(),
   OPENROUTER_API_TOKEN: z.string().optional(),
   OPENROUTER_BASE_URL: z.string().url().default("https://openrouter.ai/api"),
   OPENROUTER_MODEL: z.string().optional(),

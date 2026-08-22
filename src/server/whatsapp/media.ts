@@ -4,6 +4,8 @@ import { eq } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { getEnv } from "@/lib/env";
 import { graphRequest, MetaApiError } from "@/lib/meta/client";
+import { isWapiEnabled, mediaBinaryAuthToken } from "@/lib/whatsapp/client";
+import { uploadWapiMedia } from "@/lib/wapi/client";
 import {
   getCredentialsByOrg,
   type Credentials,
@@ -153,10 +155,13 @@ export async function downloadGraphMedia(
     throw new MediaFetchError("El adjunto excede el límite de tamaño", true);
   }
 
+  // Fase 4: con Wapi, `meta.url` viene reescrita hacia el endpoint `_media`
+  // de Wapi, que exige la api key de Wapi como Bearer (no el token de Meta).
+  const binaryToken = mediaBinaryAuthToken(token);
   let res: Response;
   try {
     res = await fetch(meta.url, {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: { Authorization: `Bearer ${binaryToken}` },
     });
   } catch {
     throw new MediaFetchError("No se pudo descargar el adjunto");
@@ -243,6 +248,11 @@ export async function uploadGraphMedia(
   credentials: Credentials,
   file: { data: Buffer | Uint8Array; mimeType: string; fileName?: string }
 ): Promise<string> {
+  // Fase 4: delega en el adaptador Wapi cuando está configurado (mismo
+  // contrato: sube el binario y devuelve el media id).
+  if (isWapiEnabled()) {
+    return uploadWapiMedia(credentials, file);
+  }
   const env = getEnv();
   const url = `${env.META_GRAPH_BASE_URL}/${env.META_GRAPH_API_VERSION}/${credentials.phoneNumberId}/media`;
   const form = new FormData();

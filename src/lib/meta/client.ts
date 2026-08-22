@@ -1,9 +1,16 @@
 import { getEnv } from "@/lib/env";
+import { isWapiEnabled } from "@/lib/whatsapp/client";
+import { wapiApiKey, wapiRequest } from "@/lib/wapi/client";
 
 /**
  * Cliente propio de la Graph API de Meta (WhatsApp Cloud API).
  * Única frontera de salida hacia Meta (Constitución II): todo request pasa
  * por graphRequest. En self-test, META_GRAPH_BASE_URL apunta al wa-mock.
+ *
+ * Fase 4: si el adaptador Wapi está configurado (WAPI_BASE_URL + WAPI_API_KEY),
+ * graphRequest delega en el proxy Graph-shaped de Wapi de forma transparente.
+ * Las rutas son idénticas (Wapi habla el dialecto de Meta); solo cambian la
+ * base y el Bearer (la api key de Wapi). El resto del CRM no se entera.
  */
 
 export class MetaApiError extends Error {
@@ -44,6 +51,17 @@ export async function graphRequest<T>(
     body?: unknown;
   }
 ): Promise<T> {
+  // Fase 4: enrutamiento por Wapi cuando está configurado. La api key de Wapi
+  // sustituye al token de Meta como Bearer; Wapi resuelve las credenciales
+  // reales por el phone_number_id/waba_id presente en `path`.
+  if (isWapiEnabled()) {
+    return wapiRequest<T>(path, {
+      method: opts.method,
+      token: wapiApiKey(),
+      body: opts.body,
+    });
+  }
+
   const env = getEnv();
   const url = `${env.META_GRAPH_BASE_URL}/${env.META_GRAPH_API_VERSION}/${path}`;
   let res: Response;
