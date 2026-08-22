@@ -1,0 +1,86 @@
+╔══════════════════════════════════════════════════════════════════════════╗
+║  REGOLE NOTTURNE — valgono per TUTTO il mandato, non derogabili           ║
+║  (l'owner dorme: nessuno può sbloccarti. Nel dubbio, FERMATI e scrivi.)   ║
+╚══════════════════════════════════════════════════════════════════════════╝
+1.  NIENTE PRODUZIONE. Non toccare il VPS, non fare deploy, non riavviare
+    container, non modificare DNS/Auth0/Meta. Zero SSH verso il server.
+2.  NIENTE SEGRETI. Non aprire né stampare .env, .env.local, chiavi, token,
+    CREDENCIALES-*. Non scrivere segreti in nessun file.
+3.  LAVORA SU UN BRANCH. Crea `notte-2026-08-21` PRIMA di modificare.
+    Committa lì. NON toccare `main`/`master`. NON fare merge. Puoi fare
+    `push -u origin notte-2026-08-21` (solo backup del branch, mai su main).
+4.  NIENTE DIPENDENZE NUOVE senza necessità. Se un passo richiede
+    `pnpm add` di un pacchetto nuovo e non è esplicitamente permesso qui,
+    salta quel passo e annotalo. (Aggiornare il lockfile per un dep già
+    presente è ok.)
+5.  IL CODICE È L'AUTORITÀ. Ogni affermazione con `file:riga`. Se non trovi
+    riscontro, scrivi «non trovato» — non inventare, non dedurre, non spacciare
+    un ragionamento per una verifica eseguita.
+6.  PICCOLI PASSI VERIFICABILI. Dopo ogni modifica: `pnpm lint` e, se il
+    progetto ha il typecheck, `pnpm exec tsc --noEmit`  [QUESTO REPO USA PNPM]. Se rompi qualcosa e non sai
+    aggiustarlo in 1 tentativo, fai `git checkout` del file e annotalo.
+7.  NON ALLARGARE IL PERIMETRO. Ciò che è fuori tema si annota in coda, non si
+    tocca. Un ciclo, un obiettivo.
+8.  WORK-LOG OBBLIGATORIO. Crea `LAVORO-NOTTE-2026-08-21.md` nel repo e
+    riempilo MENTRE lavori (non a memoria). Deve avere in fondo, sempre:
+      §A — cosa ho fatto (con commit hash e file)
+      §B — comandi reali e loro output (incolla, non descrivere)
+      §C — COSA NON HO VERIFICATO
+      §D — COSA DEVE CONTROLLARE IL REVISORE domattina
+    Un lavoro senza §C e §D è considerato incompleto.
+9.  Se un test o un lint erano già rossi PRIMA di toccare, NON forzare il
+    verde cambiando i test: annota lo stato di partenza e lascia stare.
+
+MANDATO UX/SICUREZZA — CRM  (continua sul branch notte-2026-08-21)
+═══════════════════════════════════════════════════════════════════════════
+FOCUS: USABILITÀ + SICUREZZA FRONT-END (diagnosi da test dal vivo 2026-08-21)
+Modulo di RIFERIMENTO: Heili Core (app.heili.cloud) — ha già tutto fatto bene.
+Dove possibile, ALLINEATI a come fa il Core, non inventare.
+═══════════════════════════════════════════════════════════════════════════
+
+Un tester ha provato l'app dal vivo. Correggi questi punti, ognuno = 1 commit.
+NON toccare produzione: lavori su branch, i cambiamenti sono file di config e
+UI, verificabili con `pnpm build`/`lint`.
+
+1. HEADER DI SICUREZZA (mancano del tutto; il Core li ha).
+   In `next.config.ts` aggiungi la sezione `async headers()` che applica a
+   tutte le rotte QUESTI header (identici a quelli del Core, già provati su
+   questo stesso stack Next):
+     - Strict-Transport-Security: max-age=31536000; includeSubDomains
+     - X-Frame-Options: DENY
+     - X-Content-Type-Options: nosniff
+     - Referrer-Policy: strict-origin-when-cross-origin
+     - Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()
+   E imposta `poweredByHeader: false` (ora l'app espone `X-Powered-By: Next.js`,
+   fingerprint inutile da togliere).
+   ⚠️ NON aggiungere una Content-Security-Policy stanotte: una CSP sbagliata
+   rompe l'app a runtime e non puoi verificarlo senza browser. Annotala in §D
+   come «da fare con l'owner, verificando nel browser» e copia come riferimento
+   la CSP del Core.
+   Verifica: `pnpm build` ok. NON deployare.
+
+2. ACCESSIBILITÀ DEL LOGIN.
+   Gli input hanno solo `placeholder`, niente `<label>` associata → problema per
+   screen reader e per chi usa l'autofill. Aggiungi label vere (anche visivamente
+   nascoste ma legate con `htmlFor`/`id`), `autoComplete` corretto
+   (email/current-password) e `aria-invalid`+messaggio d'errore collegato quando
+   il login fallisce. Mantieni lo stile attuale.
+
+3. RESPONSIVITÀ.
+   Verifica che la card di login e le pagine principali non abbiano larghezze
+   fisse che rompono su mobile (<400px). Se trovi `width` fissi, passa a
+   `max-width`+`w-full`. Solo dove serve, senza ridisegnare.
+
+Se un punto non è chiaro o rischia di rompere qualcosa, SALTALO e annotalo in §D.
+Meglio 2 fix solidi che 3 traballanti di notte.
+
+SPECIFICO CRM — BUG i18n CONFERMATO DAL TESTER:
+- Il TITOLO della pagina mostra la chiave NON tradotta «meta.titleSuffix»
+  (visibile nella tab del browser: «Heili CRM — meta.titleSuffix»).
+  Trova dove si compone il <title> (metadata di Next / layout) e la chiave
+  i18n mancante nei file di traduzione (it/es/en): o aggiungi la traduzione
+  in TUTTE le lingue, o rimuovi il suffisso se non serve. Aggiungi un test
+  che il titolo non contenga mai una stringa che inizia con «meta.».
+- Cerca ALTRE chiavi i18n che trapelano: fai un grep delle stringhe rese a
+  schermo che matchano /^[a-z]+\.[a-z]+/ (namespace.key) e elencale in §D.
+- Il login del CRM ha già label vere: verifica solo autoComplete e aria.

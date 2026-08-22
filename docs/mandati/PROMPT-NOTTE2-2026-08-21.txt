@@ -1,0 +1,72 @@
+╔══════════════════════════════════════════════════════════════════════════╗
+║  REGOLE NOTTURNE — valgono per TUTTO il mandato, non derogabili           ║
+║  (l'owner dorme: nessuno può sbloccarti. Nel dubbio, FERMATI e scrivi.)   ║
+╚══════════════════════════════════════════════════════════════════════════╝
+1.  NIENTE PRODUZIONE. Non toccare il VPS, non fare deploy, non riavviare
+    container, non modificare DNS/Auth0/Meta. Zero SSH verso il server.
+2.  NIENTE SEGRETI. Non aprire né stampare .env, .env.local, chiavi, token,
+    CREDENCIALES-*. Non scrivere segreti in nessun file.
+3.  LAVORA SU UN BRANCH. Crea `notte-2026-08-21` PRIMA di modificare.
+    Committa lì. NON toccare `main`/`master`. NON fare merge. Puoi fare
+    `push -u origin notte-2026-08-21` (solo backup del branch, mai su main).
+4.  NIENTE DIPENDENZE NUOVE senza necessità. Se un passo richiede
+    `npm install` di un pacchetto nuovo e non è esplicitamente permesso qui,
+    salta quel passo e annotalo. (Aggiornare il lockfile per un dep già
+    presente è ok.)
+5.  IL CODICE È L'AUTORITÀ. Ogni affermazione con `file:riga`. Se non trovi
+    riscontro, scrivi «non trovato» — non inventare, non dedurre, non spacciare
+    un ragionamento per una verifica eseguita.
+6.  PICCOLI PASSI VERIFICABILI. Dopo ogni modifica: `npm run lint` e, se il
+    progetto ha il typecheck, `tsc --noEmit`. Se rompi qualcosa e non sai
+    aggiustarlo in 1 tentativo, fai `git checkout` del file e annotalo.
+7.  NON ALLARGARE IL PERIMETRO. Ciò che è fuori tema si annota in coda, non si
+    tocca. Un ciclo, un obiettivo.
+8.  WORK-LOG OBBLIGATORIO. Crea `LAVORO-NOTTE-2026-08-21.md` nel repo e
+    riempilo MENTRE lavori (non a memoria). Deve avere in fondo, sempre:
+      §A — cosa ho fatto (con commit hash e file)
+      §B — comandi reali e loro output (incolla, non descrivere)
+      §C — COSA NON HO VERIFICATO
+      §D — COSA DEVE CONTROLLARE IL REVISORE domattina
+    Un lavoro senza §C e §D è considerato incompleto.
+9.  Se un test o un lint erano già rossi PRIMA di toccare, NON forzare il
+    verde cambiando i test: annota lo stato di partenza e lascia stare.
+
+═══════════════════════════════════════════════════════════════════════════
+MANDATO NOTTURNO #2 — CRM  (continua sul branch notte-2026-08-21)
+Obiettivo: LAVORO A SCORRIMENTO che riempie la notte — alzare la copertura dei
+test dell'intera app e correggere SOLO i bug piccoli e ovvi che i test rivelano.
+È il modo più sicuro di usare ore non supervisionate: i test non toccano la
+produzione e o passano o falliscono.
+═══════════════════════════════════════════════════════════════════════════
+
+STATO: il branch notte-2026-08-21 ha già patch compose + test Fase 4 (268 test
+verdi). Continua da lì, stesso branch.
+
+CICLO DA RIPETERE finché hai tempo (ogni modulo = 1 commit):
+1. Scegli il PROSSIMO modulo NON (o poco) coperto, in questo ordine di priorità:
+   a. rotte auth/sessione e admin (isolamento, permessi) — la sicurezza prima.
+   b. rotte API pubbliche e webhook in entrata (incl. il fail-open del webhook
+      CRM già rilevato: scrivi un test che lo DIMOSTRA, non correggerlo di notte
+      — è decisione di prodotto, annotalo in §D).
+   c. lib/ di dominio (meta/client, inbox, whatsapp, automations, tags/export).
+   d. il resto delle rotte.
+2. Scrivi test vitest realistici (mock di rete/DB, nessuna risorsa reale) che
+   coprano: caso felice, isolamento per org, input invalido, auth mancante.
+3. Lancia la suite. DEVE restare verde. Se un test NUOVO rivela un bug:
+   - se il fix è ovvio e ≤15 righe → correggilo, con un test che lo blocca.
+   - altrimenti → NON toccare il codice: scrivi un test `.skip` che documenta
+     il bug e annotalo in §D come «BUG DA DECIDERE».
+4. Commit del modulo. Passa al successivo.
+
+MANTIENI un file `BACKLOG-VERSO-LANCIO.md` sul branch: mentre lavori, elenca
+ciò che manca per andare in produzione con clienti veri (con file:riga),
+diviso P0/P1/P2. È la mappa che l'owner userà per il rush finale.
+
+PALETTI SPECIFICI:
+- NON cambiare schema DB, NON migrazioni, NON deploy, NON toccare `memory/`.
+- NON rendere fail-closed il webhook CRM stanotte (decisione di prodotto).
+- Se `pnpm test`/`vitest` era già rosso all'inizio, annota e NON forzare.
+- Preferisci MOLTI piccoli commit verdi a un grande commit rischioso.
+
+Work-log §A–§D aggiornato ad ogni commit. Alla fine: `git log --oneline`,
+numero di test prima/dopo, e «main intatto, nessun deploy».

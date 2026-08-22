@@ -1,0 +1,48 @@
+MANDATO — Runbook di deploy della Fase 4 (SOLA LETTURA / ANALISI)
+
+Repo: C:\Users\stefa\vocero-crm  (branch main, remote Insiderslab/vocero-crm)
+Obiettivo: NON deployare. Produrre il runbook esatto che l'owner e Claude
+eseguiranno insieme, e l'elenco preciso di ciò che serve.
+
+═══════════════════════ PALETTI (non derogabili) ═══════════════════════
+- SOLA LETTURA: niente modifiche al codice, niente commit, niente push.
+- NON toccare produzione (VPS, container, DNS), NON leggere .env né segreti.
+- NON eseguire il deploy, nemmeno su vocero-dev. Solo analisi e scrittura del
+  runbook (che consegni in chat, non come file).
+- Ogni affermazione con `file:riga` o comando verificabile.
+
+═══════════════════════ CONTESTO GIÀ VERIFICATO (non rifarlo) ═══════════
+Accertato sul server il 2026-08-20 via SSH:
+- Tutti i moduli girano sullo STESSO VPS, dietro un solo Caddy:
+  app/api.heili.cloud (Core), crm.heili.cloud -> vocero-app,
+  whapi.heili.cloud -> wapi-app.
+- Esiste un ambiente di prova NON esposto: `vocero-dev-app` + `vocero-dev-postgres`.
+- **Il deploy della fase 4 riguarda DUE moduli, non uno**: il CRM (vocero-app)
+  E Wapi (wapi-app), perché in produzione Wapi NON ha ancora il proxy Graph
+  (`app/api/v1/graph/` esiste solo in locale). Se si deploya solo il CRM,
+  l'integrazione non funziona.
+- Gira un container `graph-mock` (finto Graph API di Meta) da giorni.
+
+═══════════════════════ COSA DEVI FARE ═══════════════════════
+1. Leggi in quest'ordine: memory/MEMORY.md, memory/proyecto-heili.md,
+   CLAUDE.md, specs/custom-heili/003-integracion-wapi.md (ha la checklist),
+   poi 001 e 002 solo se servono.
+2. Verifica lo stato REALE contro i documenti:
+   - `git log --oneline -5` e `git status --short`
+   - il codice della fase 4 (adattatore Wapi nel trasporto Graph) esiste
+     davvero? dove? `file:riga`
+   - quali variabili d'ambiente NUOVE richiede la fase 4? Elencale tutte,
+     con il file dove sono lette.
+3. Rispondi a questa domanda chiave: **la fase 4 punta al `graph-mock` o al
+   Meta reale?** Come si commuta? Quale variabile lo decide? `file:riga`.
+4. Produci il RUNBOOK di deploy, in ordine, così com'è da eseguire:
+   - prima su `vocero-dev` (prova), poi in produzione
+   - per OGNI passo: comando esatto, risultato atteso, come si verifica
+   - come si deploya anche `wapi-app` con il proxy Graph
+   - come si torna indietro (rollback) se qualcosa va storto
+5. Elenca separatamente **CIÒ CHE SERVE DALL'OWNER**: credenziali Meta
+   (phone_number_id, access token, WABA ID, verify token), accessi VPS,
+   valori di env, decisioni. Senza inventare: se non sai, scrivi «da chiedere».
+6. Segnala ogni ANOMALIA fra documenti e stato reale (con entrambi i riferimenti).
+
+Alla fine dichiara: «nessun file modificato, nessun deploy eseguito».
