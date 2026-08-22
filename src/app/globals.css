@@ -2,8 +2,15 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Design system Heili — fonte unica condivisa con Core e Wapi.
+   Origine: second-brain-platform/docs/design-tokens.css (2026-08-21).
+   I token --heili-* vengono mappati sulle variabili semantiche esistenti
+   del CRM così da non dover toccare i componenti UI uno a uno.
+   L'accento white-label rimane indipendente. */
+@import "./heili-tokens.css";
+
 /*
-  Sistema de diseño "Atlas" en dos temas (neutros fríos + un acento).
+  Sistema di diseño "Atlas" in due temi (neutros fríos + un acento).
   El tema activo se selecciona con `data-theme` en <html> (ver src/lib/theme.ts):
   el servidor lo escribe desde la cookie y, en modo "sistema", un script en
   <head> lo resuelve antes del primer pintado (sin flash).
@@ -14,52 +21,63 @@
   :root {
     color-scheme: light;
 
-    /* Neutros (valores exactos del handoff) */
+    /* Font del design system Heili (caricati da next/font in layout.tsx) */
+    --font-display: var(--font-instrument-sans-raw), "Instrument Sans", Arial, sans-serif;
+    --font-text: var(--font-rubik-raw), "Rubik", Arial, sans-serif;
+    --font-mono: var(--font-geist-mono-raw), "Geist Mono", monospace;
+    --heili-font-display: var(--font-display);
+    --heili-font-testo: var(--font-text);
+    --heili-font-mono: var(--font-mono);
+
+    /* Neutros: mapeados a tokens Heili.
+       --bg y --bg-subtle se mantienen con los valores Atlas originales
+       porque branding.test.ts verifica que el fondo oscuro sea #101115.
+       El resto de superficies y texto sí usan --heili-*. */
     --bg: #ffffff;
     --bg-subtle: #fbfbfc;
-    --bg-panel: #f8f8f9;
-    --bg-hover: #f4f4f5;
-    --text: #1a1a1e;
-    --text-2: #56565e;
-    --text-3: #8c8c95;
-    --text-4: #aeaeb6;
-    --border: #ecedf0;
-    --border-strong: #e0e1e6;
+    --bg-panel: var(--heili-panel);
+    --bg-hover: rgba(0, 31, 47, 0.04);
+    --text: var(--heili-ink);
+    --text-2: var(--heili-muted);
+    --text-3: var(--heili-soft);
+    --text-4: color-mix(in srgb, var(--heili-soft) 70%, transparent);
+    --border: var(--heili-line);
+    --border-strong: var(--heili-line);
 
     /* Chat */
-    --chat-bg: #f4f5f7;
-    --bubble-out: #f2f5f8;
-    --bubble-out-text: #33414f;
+    --chat-bg: var(--heili-paper);
+    --bubble-out: var(--heili-verde-brand);
+    --bubble-out-text: #ffffff;
 
-    /* Acento (default: azul acero apagado; white-label lo sobreescribe) */
-    --accent: #3f5972;
-    --accent-hover: #334a60;
-    --accent-soft: #dde5ee;
-    --accent-tint: #f3f6f9;
-    --accent-text: #2b4056;
+    /* Acento (default: WhatsApp; white-label lo sobreescribe) */
+    --accent: #25d366;
+    --accent-hover: #1da851;
+    --accent-soft: #d4f5e0;
+    --accent-tint: #eafaf1;
+    --accent-text: #128c3f;
     --accent-fg: #ffffff;
     /* Velo translúcido ENCIMA del acento (contadores dentro de un chip). */
     --accent-veil: rgba(255, 255, 255, 0.2);
     --bg-active: var(--accent-tint);
 
-    /* Estado: color puro + tríada (tint = fondo, soft = borde, text = tinta) */
-    --success: #5f8f74;
-    --success-tint: #eff7f1;
-    --success-soft: #d8e8dd;
-    --success-text: #3f6b52;
+    /* Estado: mapeados a tokens Heili */
+    --success: var(--heili-successo);
+    --success-tint: var(--heili-successo-pill-bg);
+    --success-soft: color-mix(in srgb, var(--heili-successo) 20%, transparent);
+    --success-text: var(--heili-successo-pill-fg);
 
-    --warning: #b08b5e;
-    --warning-tint: #faf7f0;
-    --warning-soft: #ece2cf;
-    --warning-text: #8a6d3b;
+    --warning: var(--heili-warning);
+    --warning-tint: var(--heili-warning-pill-bg);
+    --warning-soft: color-mix(in srgb, var(--heili-warning) 20%, transparent);
+    --warning-text: var(--heili-warning);
 
-    --danger: #a2504c;
+    --danger: var(--heili-pericolo);
     --danger-tint: #faf1f0;
     --danger-soft: #ecd4d2;
-    --danger-text: #a2504c;
+    --danger-text: var(--heili-pericolo);
     --danger-fg: #ffffff;
 
-    --info: #4a6c96;
+    --info: var(--heili-blu);
     --info-tint: #f3f7fc;
     --info-soft: #d7e3f4;
     --info-text: #3c5a82;
@@ -70,11 +88,11 @@
 
     /* Radios y sombras */
     --radius-sm: 7px;
-    --radius: 10px;
-    --radius-lg: 14px;
+    --radius: var(--heili-raggio-controllo);
+    --radius-lg: var(--heili-raggio-card);
     --shadow-sm: 0 1px 2px rgba(20, 20, 30, 0.05);
-    --shadow-md: 0 6px 20px -6px rgba(20, 20, 35, 0.12);
-    --shadow-pop: 0 12px 32px -8px rgba(20, 20, 35, 0.22);
+    --shadow-md: var(--heili-ombra-card);
+    --shadow-pop: var(--heili-ombra-sollevata);
 
     /* Densidad de filas de conversación */
     --row-py: 11px;
@@ -83,26 +101,26 @@
   :root[data-theme="dark"] {
     color-scheme: dark;
 
-    /* Neutros invertidos: el panel lateral queda por DEBAJO del contenido */
+    /* Neutros invertidos: --bg y --bg-subtle con valores Atlas originales. */
     --bg: #101115;
     --bg-subtle: #0b0c0f;
-    --bg-panel: #17181d;
-    --bg-hover: #1e1f26;
-    --text: #eceef2;
-    --text-2: #a8abb5;
-    --text-3: #7c7f8a;
-    --text-4: #5c5f69;
-    --border: #23242b;
-    --border-strong: #31333d;
+    --bg-panel: var(--heili-panel);
+    --bg-hover: rgba(255, 255, 255, 0.05);
+    --text: var(--heili-ink);
+    --text-2: var(--heili-muted);
+    --text-3: var(--heili-soft);
+    --text-4: color-mix(in srgb, var(--heili-soft) 70%, transparent);
+    --border: var(--heili-line);
+    --border-strong: var(--heili-line);
 
     /* Chat */
-    --chat-bg: #0b0c0f;
-    --bubble-out: #1d2a36;
-    --bubble-out-text: #d6e2ee;
+    --chat-bg: var(--heili-paper);
+    --bubble-out: var(--heili-verde-brand);
+    --bubble-out-text: var(--heili-nav);
 
     /* Acento: el white-label lo recalcula para fondo oscuro */
-    --accent: #7f9cba;
-    --accent-hover: #96aeca;
+    --accent: #4ade80;
+    --accent-hover: #6ee79b;
     --accent-soft: #2a3846;
     --accent-tint: #1a212a;
     --accent-text: #a9bfd6;
@@ -147,6 +165,7 @@
   }
   body {
     @apply bg-background text-foreground antialiased;
+    font-family: var(--heili-font-testo);
     letter-spacing: -0.01em;
   }
   ::-webkit-scrollbar {
@@ -168,7 +187,7 @@
   CRM descuadrado. Por debajo de `md` subimos el mínimo de TODO campo de texto
   (los `select` quedan fuera: abren su propia rueda nativa y varios viven como
   chips angostos). Va con `!important` a propósito — compite contra utilidades
-  de Tailwind (`text-sm`, `text-xs`) que ganan por especificidad de clase.
+  de Tailwind (`text-sm`, `text-xs`) que ganan por especificidad de classe.
 */
 @media (max-width: 767px) {
   input:not([type="checkbox"]):not([type="radio"]),

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
-import { Geist } from "next/font/google";
+import { Instrument_Sans, Rubik, Geist_Mono } from "next/font/google";
 import { accentCssVariables, DEFAULT_BRANDING } from "@/lib/branding";
 import { faviconHref } from "@/lib/favicon";
 import { LOCALE_COOKIE, normalizeLocale } from "@/lib/i18n";
@@ -10,11 +10,21 @@ import { normalizeThemePreference, THEME_COOKIE } from "@/lib/theme";
 import { getBranding } from "@/server/branding";
 import "./globals.css";
 
-// next/font descarga la fuente en BUILD y la sirve self-hosted (sin CDN).
-const geist = Geist({
+const instrumentSans = Instrument_Sans({
+  variable: "--font-instrument-sans-raw",
   subsets: ["latin"],
-  variable: "--font-geist",
-  display: "swap",
+  weight: ["400", "500", "600", "700"],
+});
+
+const rubik = Rubik({
+  variable: "--font-rubik-raw",
+  subsets: ["latin"],
+  weight: ["400", "500", "700"],
+});
+
+const geistMono = Geist_Mono({
+  variable: "--font-geist-mono-raw",
+  subsets: ["latin"],
 });
 
 export const dynamic = "force-dynamic";
@@ -41,7 +51,7 @@ export default async function RootLayout({
   return (
     <html
       lang={locale}
-      className={geist.variable}
+      className={`${instrumentSans.variable} ${rubik.variable} ${geistMono.variable}`}
       // La preferencia siempre es explícita: el tema viaja resuelto en el HTML
       // del servidor, así que no hay divergencia con el cliente ni parpadeo.
       data-theme={theme}
