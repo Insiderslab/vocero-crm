@@ -20,6 +20,7 @@ import type { Locale } from "@/lib/i18n";
 import { useT } from "@/lib/i18n/client";
 import type { ThemePreference } from "@/lib/theme";
 import { cn, initials } from "@/lib/utils";
+import { HeiliMark } from "@/components/heili-mark";
 import { authClient, signOut } from "@/lib/auth/client";
 import { useEvents } from "@/components/use-events";
 import { LocaleToggle } from "@/components/locale-toggle";
@@ -116,14 +117,12 @@ export function AppNav({
         >
           <X className="h-[18px] w-[18px]" strokeWidth={1.8} />
         </button>
-        <span
-          className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-sm bg-brand text-[15px] font-bold text-brand-fg"
-          aria-hidden
-        >
-          {branding.name.charAt(0).toUpperCase()}
-        </span>
+        <HeiliMark size={30} className="shrink-0" />
         <span className="min-w-0">
-          <span className="block truncate text-[16px] font-[650] leading-tight tracking-tight">
+          <span
+            className="block truncate text-[16px] font-[650] leading-tight tracking-tight"
+            style={{ fontFamily: "var(--heili-font-display)" }}
+          >
             {branding.name}
           </span>
           <span className="block text-[11px] text-text-3">
