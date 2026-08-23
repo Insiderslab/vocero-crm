@@ -1,0 +1,111 @@
+/* ==========================================================================
+   Heili design tokens — FONTE UNICA copiabile negli altri repo (CRM, Wapi).
+   Estratti il 2026-08-21 dal codice reale del Core:
+   - app/globals.css:3-40        (tema light/dark)
+   - app/knowledge.css:460-475   (palette grafo, taratura daltonica verificata)
+   - app/knowledge.css:631,692-724 (accento Business Brain)
+   - app/layout.tsx:2-21         (famiglie di font)
+   Regola: se questo file e il Core divergono, vale il Core e questo file
+   va riallineato. Prefisso `--heili-*`: alias nuovi, NON sostituiscono i
+   token esistenti del Core (la migrazione la decide l'owner).
+   ========================================================================== */
+
+:root {
+  /* ---- superfici e testo ------------------------------------------------ */
+  --heili-ink: #001f2f;          /* testo principale                       */
+  --heili-muted: #5d6371;        /* testo secondario                       */
+  --heili-soft: #83909a;         /* testo terziario / etichette            */
+  --heili-line: #dce5e6;         /* bordi, divisori                        */
+  --heili-paper: #f9f7f6;        /* sfondo pagina                          */
+  --heili-panel: #ffffff;        /* superfici / card                       */
+  --heili-nav: #001f2f;          /* sidebar, CTA scure, hub grafo          */
+
+  /* ---- brand ------------------------------------------------------------ */
+  --heili-verde-brand: #007f81;  /* azioni, link, accento principale       */
+  --heili-verde-brand-hover: #00676a; /* hover del primario (knowledge.css:313) */
+  --heili-menta: #00e1cd;        /* accento luminoso su navy               */
+  --heili-menta-su-nav: #27e0d0; /* accento operativo nella sidebar navy   */
+  --heili-arancio: #e28152;      /* avvisi                                 */
+  --heili-viola: #7d6abd;        /* categoria / handoff                    */
+  --heili-blu: #5b7bfb;          /* categoria                              */
+
+  /* ---- stati ------------------------------------------------------------ */
+  --heili-successo: #43a76b;
+  --heili-successo-pill-bg: #e8f5ec;
+  --heili-successo-pill-fg: #347b50;
+  --heili-warning: #b55e34;
+  --heili-warning-pill-bg: #fff0e5;
+  --heili-pericolo: #c35043;
+  --heili-focus-ring: rgba(47, 123, 109, .27); /* outline 3px, offset 2px  */
+
+  /* ---- ombre ------------------------------------------------------------ */
+  --heili-ombra-card: 0 5px 17px rgba(20, 41, 35, .025);
+  --heili-ombra-sollevata: 0 14px 40px rgba(0, 31, 47, .08);
+  --heili-ombra-eroica: 0 17px 45px rgba(20, 44, 38, .15);
+
+  /* ---- raggi ------------------------------------------------------------ */
+  --heili-raggio-controllo: 8px;   /* bottoni, input                       */
+  --heili-raggio-card: 12px;       /* pannelli, card entità                */
+  --heili-raggio-eroico: 16px;     /* stage grafo, dialog                  */
+  --heili-raggio-pill: 999px;      /* badge, pill                          */
+
+  /* ---- tipografia ------------------------------------------------------- */
+  --heili-font-display: "Instrument Sans", Arial, sans-serif;
+  --heili-font-testo: "Rubik", Arial, sans-serif;
+  --heili-font-mono: "Geist Mono", monospace;
+  --heili-display-tracking: -0.035em; /* titoli: -0.02…-0.045em            */
+  --heili-eyebrow-tracking: 0.13em;   /* etichette maiuscole: .08–.16em    */
+
+  /* ---- palette grafo (NON ritoccare a occhio: ΔE≥24, contrasto ≥3:1,
+         verificato da tests/graph-visual-language.test.mjs nel Core) ------ */
+  --heili-graph-note: #1e675b;
+  --heili-graph-meeting: #1f69b2;
+  --heili-graph-project: #551e67;
+  --heili-graph-client: #b38a0f;
+  --heili-graph-sop: #24671e;
+  --heili-graph-decision: #7b0a1d;
+
+  /* ---- accento Business Brain ------------------------------------------- */
+  --heili-bb-primary: #27e0d0;
+  --heili-bb-primary-2: #19cfc5;
+
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  --heili-ink: #e8f1f2;
+  --heili-muted: #a9b6bd;
+  --heili-soft: #8b9aa2;
+  --heili-line: #1f3540;
+  --heili-paper: #0a1a22;
+  --heili-panel: #0f242e;
+  --heili-nav: #061219;
+
+  --heili-verde-brand: #2ecfc0;
+  --heili-verde-brand-hover: #27b8aa; /* derivato: tinta chiara del token  */
+  /* --heili-menta identica nei due temi per scelta del Core */
+  --heili-arancio: #f0996b;
+  --heili-viola: #a394e0;
+  --heili-blu: #7f9bff;
+
+  --heili-ombra-card: 0 5px 17px rgba(0, 0, 0, .25);
+  --heili-ombra-sollevata: 0 14px 40px rgba(0, 0, 0, .45);
+  --heili-ombra-eroica: 0 17px 45px rgba(0, 0, 0, .5);
+
+  /* palette grafo, variante a luminosità controllata */
+  --heili-graph-note: #89d2c6;
+  --heili-graph-meeting: #89b5e1;
+  --heili-graph-project: #865cc1;
+  --heili-graph-client: #df6020;
+  --heili-graph-sop: #99d694;
+  --heili-graph-decision: #d8646e;
+
+  /* stage scuro del Business Brain */
+  --heili-bb-stage-1: #061923;
+  --heili-bb-stage-2: #04131b;
+  --heili-bb-stage-3: #020b12;
+  --heili-bb-testo: #f5fafa;      /* ≥4.5:1 su #04131b, misurato          */
+  --heili-bb-testo-2: #8ea6ad;    /* ≥4.5:1 su #04131b, misurato          */
+
+  color-scheme: dark;
+}

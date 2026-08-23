@@ -8,6 +8,7 @@ import { useT } from "@/lib/i18n/client";
 import type { Locale } from "@/lib/i18n";
 import type { ThemePreference } from "@/lib/theme";
 import { AppNav } from "@/components/app-nav";
+import { HeiliMark } from "@/components/heili-mark";
 
 /**
  * Cascarón de la app en dos modos:
@@ -100,13 +101,11 @@ export function AppShell({
           >
             <Menu className="h-5 w-5" strokeWidth={1.8} />
           </button>
+          <HeiliMark size={26} className="shrink-0" />
           <span
-            className="flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-sm bg-brand text-[13px] font-bold text-brand-fg"
-            aria-hidden
+            className="truncate text-[15px] font-[650] tracking-tight"
+            style={{ fontFamily: "var(--heili-font-display)" }}
           >
-            {branding.name.charAt(0).toUpperCase()}
-          </span>
-          <span className="truncate text-[15px] font-[650] tracking-tight">
             {branding.name}
           </span>
         </header>

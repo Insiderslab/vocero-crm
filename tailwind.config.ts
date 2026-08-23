@@ -108,7 +108,9 @@ const config: Config = {
         pop: "var(--shadow-pop)",
       },
       fontFamily: {
-        sans: ["var(--font-geist)", "Hanken Grotesk", "-apple-system", "sans-serif"],
+        sans: ["var(--heili-font-testo)"],
+        display: ["var(--heili-font-display)"],
+        mono: ["var(--heili-font-mono)"],
       },
     },
   },
