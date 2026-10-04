@@ -64,6 +64,13 @@
       "when": 1787094651373,
       "tag": "0008_bouncy_penance",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1791129824323,
+      "tag": "0009_green_killmonger",
+      "breakpoints": true
     }
   ]
 }

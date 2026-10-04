@@ -24,6 +24,7 @@ const prefixes = {
   contactTag: "ctg",
   automationRule: "rule",
   automationRun: "arun",
+  botApiKey: "bk",
 } as const;
 
 export type IdKind = keyof typeof prefixes;

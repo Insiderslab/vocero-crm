@@ -459,6 +459,33 @@ export const metaCredentials = pgTable(
   ]
 );
 
+/**
+ * Claves de la API de servicio `/api/bot/*` POR organización (custom heili.cloud).
+ * Solo se guarda el SHA-256 de la clave (alta entropía): el texto plano se
+ * muestra una única vez al crearla. La organización se deriva SIEMPRE de la
+ * clave, nunca de una elección implícita de la instancia.
+ */
+export const botApiKey = pgTable(
+  "bot_api_key",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    label: text("label").notNull(),
+    keyPrefix: text("key_prefix").notNull(),
+    keyHash: text("key_hash").notNull(),
+    createdBy: text("created_by").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    lastUsedAt: timestamp("last_used_at"),
+    revokedAt: timestamp("revoked_at"),
+  },
+  (t) => [
+    uniqueIndex("bot_api_key_hash_uq").on(t.keyHash),
+    index("bot_api_key_org_idx").on(t.organizationId, t.createdAt),
+  ]
+);
+
 export const agentProfile = pgTable(
   "agent_profile",
   {
