@@ -110,7 +110,7 @@ Ordine di scelta:
 
 ### 3.5 Cancellare è un miglioramento
 - Codice morto, template residui, file di configurazione inutilizzati e branch abbandonati si eliminano, con un commit dedicato.
-- Esempi in Heili: il template Cloudflare in `heili-platform/worker/index.ts`, `vercel.json` e l'immagine "openreply" in `heili-dm`, i branch morti del fork in `vocero-crm`.
+- Prima di cancellare si verifica che il pezzo sia davvero inutilizzato. Esempio: `heili-platform/worker/index.ts` sembra un template residuo ma serve alla build (`vite.config.ts`); `vercel.json` di `heili-dm` è il percorso di deploy su Vercel dell'upstream, documentato in `docs/setup.md`. Restano candidati da verificare: l'immagine Docker "openreply" in `heili-dm`, i branch morti del fork in `vocero-crm`.
 
 ### 3.6 Come si consegna una semplificazione
 - **Commit separato** dai cambi funzionali, con prefisso `refactor:`.
