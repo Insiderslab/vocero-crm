@@ -22,10 +22,16 @@ import { checkRateLimit } from "@/lib/rate-limit";
 
 export const BOT_KEY_PREFIX = "vbk_";
 
+/** Límite común de toda la superficie `/api/bot/*`. null = dentro del límite. */
+function botRateLimited(): Response | null {
+  const rl = checkRateLimit("bot-api", { windowMs: 60_000, max: 600 });
+  return rl.allowed ? null : apiError(429, "rate_limited", "Demasiadas solicitudes");
+}
+
 /** Comprueba la clave de instancia heredada (`BOT_API_KEY`). null = válida. */
 export function requireBotKey(req: Request): Response | null {
-  const rl = checkRateLimit("bot-api", { windowMs: 60_000, max: 600 });
-  if (!rl.allowed) return apiError(429, "rate_limited", "Demasiadas solicitudes");
+  const limited = botRateLimited();
+  if (limited) return limited;
 
   const expected = process.env.BOT_API_KEY;
   const provided = req.headers.get("x-api-key");
@@ -96,8 +102,8 @@ export async function authenticateBot(
   const provided = req.headers.get("x-api-key") ?? "";
 
   if (provided.startsWith(BOT_KEY_PREFIX)) {
-    const rl = checkRateLimit("bot-api", { windowMs: 60_000, max: 600 });
-    if (!rl.allowed) return apiError(429, "rate_limited", "Demasiadas solicitudes");
+    const limited = botRateLimited();
+    if (limited) return limited;
     const key = await deps.findActiveKey(hashBotKey(provided));
     if (!key) return apiError(401, "unauthorized", "No autorizado");
     // Registro de uso best-effort: un fallo aquí no debe tumbar la petición.
