@@ -23,7 +23,8 @@ function fakeDeps(keys: KeyRow[], orgIds: string[]): BotAuthDeps & { touched: st
     touched,
     async findActiveKey(hash) {
       const row = keys.find((k) => k.hash === hash && !k.revoked);
-      return row ? { id: row.id, organizationId: row.organizationId } : null;
+      // Las filas de C1 son todas de ámbito "bot" (default de la columna scope).
+      return row ? { id: row.id, organizationId: row.organizationId, scope: "bot" } : null;
     },
     async touchKey(id) {
       touched.push(id);

@@ -1,0 +1,1 @@
+ALTER TABLE "bot_api_key" ADD COLUMN "scope" text DEFAULT 'bot' NOT NULL;

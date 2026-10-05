@@ -71,6 +71,13 @@
       "when": 1791129824323,
       "tag": "0009_green_killmonger",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1791227892724,
+      "tag": "0010_warm_guardsmen",
+      "breakpoints": true
     }
   ]
 }

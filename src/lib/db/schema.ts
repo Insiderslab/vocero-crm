@@ -460,7 +460,9 @@ export const metaCredentials = pgTable(
 );
 
 /**
- * Claves de la API de servicio `/api/bot/*` POR organización (custom heili.cloud).
+ * Claves de servicio POR organización (custom heili.cloud): `/api/bot/*`
+ * (scope "bot", `vbk_…`) y `/api/export/*` (scope "export", `vex_…`, C2).
+ * El nombre de la tabla es histórico (C1).
  * Solo se guarda el SHA-256 de la clave (alta entropía): el texto plano se
  * muestra una única vez al crearla. La organización se deriva SIEMPRE de la
  * clave, nunca de una elección implícita de la instancia.
@@ -473,6 +475,8 @@ export const botApiKey = pgTable(
       .notNull()
       .references(() => organization.id, { onDelete: "cascade" }),
     label: text("label").notNull(),
+    // Ámbito de la clave (C2): "bot" (/api/bot/*) o "export" (/api/export/*).
+    scope: text("scope", { enum: ["bot", "export"] }).notNull().default("bot"),
     keyPrefix: text("key_prefix").notNull(),
     keyHash: text("key_hash").notNull(),
     createdBy: text("created_by").notNull(),
