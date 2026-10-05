@@ -9,6 +9,7 @@ import type { Locale } from "@/lib/i18n";
 import type { ThemePreference } from "@/lib/theme";
 import { AppNav } from "@/components/app-nav";
 import { HeiliMark } from "@/components/heili-mark";
+import { RoleProvider } from "@/components/role-context";
 
 /**
  * Cascarón de la app en dos modos:
@@ -110,7 +111,9 @@ export function AppShell({
           </span>
         </header>
 
-        <main className="min-h-0 min-w-0 flex-1 overflow-hidden">{children}</main>
+        <main className="min-h-0 min-w-0 flex-1 overflow-hidden">
+          <RoleProvider value={role}>{children}</RoleProvider>
+        </main>
       </div>
     </div>
   );

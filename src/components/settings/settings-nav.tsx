@@ -3,7 +3,9 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useT } from "@/lib/i18n/client";
+import { canManageApiKeys } from "@/lib/roles";
 import { cn } from "@/lib/utils";
+import { useRole } from "@/components/role-context";
 
 const TABS = [
   { href: "/settings/whatsapp", key: "whatsapp" },
@@ -16,9 +18,11 @@ const TABS = [
 export function SettingsNav() {
   const pathname = usePathname();
   const { t } = useT();
+  // Pestaña de claves API solo para quien puede gestionarlas (la página y la API lo exigen igual).
+  const canSeeApiKeys = canManageApiKeys(useRole());
   return (
     <nav className="flex shrink-0 gap-1 overflow-x-auto border-b p-2 sm:w-44 sm:flex-col sm:space-y-1 sm:overflow-visible sm:border-b-0 sm:border-r sm:p-3">
-      {TABS.map((tab) => (
+      {TABS.filter((tab) => tab.key !== "apiKeys" || canSeeApiKeys).map((tab) => (
         <Link
           key={tab.href}
           href={tab.href}

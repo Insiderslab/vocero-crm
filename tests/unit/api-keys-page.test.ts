@@ -20,7 +20,7 @@ vi.mock("@/lib/i18n/server", () => ({
 }));
 
 import ApiKeysSettingsPage from "@/app/(app)/settings/api-keys/page";
-import { canManageApiKeys } from "@/server/api-keys-admin";
+import { canManageApiKeys } from "@/lib/roles";
 
 async function html(): Promise<string> {
   return renderToStaticMarkup(await ApiKeysSettingsPage());

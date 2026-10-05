@@ -1,7 +1,7 @@
 import { ApiKeysClient } from "@/components/settings/api-keys-client";
 import { getSessionOrNull } from "@/lib/auth/session";
 import { getT } from "@/lib/i18n/server";
-import { canManageApiKeys } from "@/server/api-keys-admin";
+import { canManageApiKeys } from "@/lib/roles";
 
 export const dynamic = "force-dynamic";
 

@@ -4,6 +4,7 @@ import { apiError, parseBody, withAuth } from "@/lib/api";
 import { getDb, schema } from "@/lib/db";
 import { newId } from "@/lib/db/ids";
 import { scoped } from "@/lib/db/tenant";
+import { canManageApiKeys } from "@/lib/roles";
 import { generateApiKey, type ApiKeyScope } from "@/server/api-keys";
 
 /**
@@ -11,11 +12,6 @@ import { generateApiKey, type ApiKeyScope } from "@/server/api-keys";
  * `/api/settings/bot-keys` y `/api/settings/export-keys`. Solo owner/admin, y
  * siempre dentro de la organización de la sesión y del ámbito de la ruta.
  */
-
-/** Una sola regla para la API y la página de configuración: solo owner/admin. */
-export function canManageApiKeys(role: string): boolean {
-  return role === "owner" || role === "admin";
-}
 
 const forbidden = () =>
   apiError(403, "forbidden", "Solo owner o admin gestionan las claves de servicio");
