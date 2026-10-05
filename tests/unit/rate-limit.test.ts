@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { AUTH_RATE_LIMIT, checkRateLimit, resetRateLimit } from "@/lib/rate-limit";
+import { AUTH_RATE_LIMIT, checkRateLimit, isRateLimited, resetRateLimit } from "@/lib/rate-limit";
 
 describe("rate limit por IP (FR-062: 10 / 10 min → 429)", () => {
   beforeEach(() => resetRateLimit());
@@ -39,5 +39,19 @@ describe("rate limit por IP (FR-062: 10 / 10 min → 429)", () => {
     expect(
       checkRateLimit("login:2.2.2.2", AUTH_RATE_LIMIT, t0 + 100).allowed
     ).toBe(true);
+  });
+
+  it("isRateLimited consulta sin consumir y respeta la ventana", () => {
+    const t0 = 1_000_000;
+    for (let i = 0; i < 100; i++) {
+      expect(isRateLimited("peek", AUTH_RATE_LIMIT, t0 + i)).toBe(false);
+    }
+    for (let i = 0; i < AUTH_RATE_LIMIT.max; i++) {
+      checkRateLimit("peek", AUTH_RATE_LIMIT, t0 + i);
+    }
+    expect(isRateLimited("peek", AUTH_RATE_LIMIT, t0 + 200)).toBe(true);
+    expect(
+      isRateLimited("peek", AUTH_RATE_LIMIT, t0 + AUTH_RATE_LIMIT.windowMs + 500)
+    ).toBe(false);
   });
 });

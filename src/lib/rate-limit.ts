@@ -37,6 +37,16 @@ export function checkRateLimit(
   return { allowed: true, remaining: opts.max - bucket.length };
 }
 
+/** Consulta sin consumir: ¿la clave ya agotó su ventana? */
+export function isRateLimited(
+  key: string,
+  opts: { windowMs: number; max: number },
+  now: number = Date.now()
+): boolean {
+  const cutoff = now - opts.windowMs;
+  return (store().get(key) ?? []).filter((t) => t > cutoff).length >= opts.max;
+}
+
 /** Solo para tests. */
 export function resetRateLimit(): void {
   store().clear();

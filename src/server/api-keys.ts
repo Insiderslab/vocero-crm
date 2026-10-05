@@ -2,7 +2,7 @@ import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { and, eq, isNull } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { apiError } from "@/lib/api";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { checkRateLimit, isRateLimited } from "@/lib/rate-limit";
 
 /**
  * Claves de servicio POR organización (una sola fuente para `/api/bot/*` y
@@ -22,7 +22,12 @@ type ScopeConfig = {
   prefix: string;
   /** Variable de entorno de la clave de instancia heredada. */
   instanceEnv: "BOT_API_KEY" | "EXPORT_API_KEY";
-  /** Límite común de toda la superficie del ámbito. */
+  /**
+   * Límite por ventana. Se cuenta por organización (`<bucket>:org:<id>`), así
+   * una organización no agota el límite de otra. Aparte, con el mismo límite:
+   * `<bucket>:invalid` (claves del ámbito que no existen o están revocadas) y
+   * `<bucket>:instance` (clave de instancia heredada).
+   */
   rateLimit: { bucket: string; windowMs: number; max: number };
 };
 
@@ -39,15 +44,17 @@ export const API_KEY_SCOPES: Record<ApiKeyScope, ScopeConfig> = {
   },
 };
 
-function rateLimited(scope: ApiKeyScope): Response | null {
+const tooMany = () => apiError(429, "rate_limited", "Demasiadas solicitudes");
+
+/** Consume una solicitud del contador `<bucket>:<sub>` del ámbito. */
+function rateLimited(scope: ApiKeyScope, sub: string): Response | null {
   const { bucket, windowMs, max } = API_KEY_SCOPES[scope].rateLimit;
-  const rl = checkRateLimit(bucket, { windowMs, max });
-  return rl.allowed ? null : apiError(429, "rate_limited", "Demasiadas solicitudes");
+  return checkRateLimit(`${bucket}:${sub}`, { windowMs, max }).allowed ? null : tooMany();
 }
 
 /** Comprueba la clave de instancia heredada del ámbito. null = válida. */
 export function requireInstanceKey(req: Request, scope: ApiKeyScope): Response | null {
-  const limited = rateLimited(scope);
+  const limited = rateLimited(scope, "instance");
   if (limited) return limited;
 
   const expected = process.env[API_KEY_SCOPES[scope].instanceEnv];
@@ -126,11 +133,19 @@ export async function authenticateApiKey(
   const provided = req.headers.get("x-api-key") ?? "";
 
   if (provided.startsWith(API_KEY_SCOPES[scope].prefix)) {
-    const limited = rateLimited(scope);
-    if (limited) return limited;
+    const { bucket, windowMs, max } = API_KEY_SCOPES[scope].rateLimit;
+    const invalid = `${bucket}:invalid`;
+    // Avalancha de claves inválidas: se corta antes de consultar la base de datos.
+    if (isRateLimited(invalid, { windowMs, max })) return tooMany();
     const key = await deps.findActiveKey(hashApiKey(provided));
     // Una clave de otro ámbito no vale aquí, aunque exista y esté activa.
-    if (!key || key.scope !== scope) return apiError(401, "unauthorized", "No autorizado");
+    if (!key || key.scope !== scope) {
+      checkRateLimit(invalid, { windowMs, max });
+      return apiError(401, "unauthorized", "No autorizado");
+    }
+    // Límite propio de la organización de la clave.
+    const limited = rateLimited(scope, `org:${key.organizationId}`);
+    if (limited) return limited;
     // Registro de uso best-effort: un fallo aquí no debe tumbar la petición.
     deps.touchKey(key.id).catch(() => {});
     return { organizationId: key.organizationId, keyId: key.id };
