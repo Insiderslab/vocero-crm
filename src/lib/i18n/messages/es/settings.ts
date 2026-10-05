@@ -84,6 +84,8 @@ const messages = {
     copy: "Copiar clave",
     copied: "Copiada ✓",
     hide: "Ocultar",
+    listError:
+      "No se pudo cargar la lista de claves: recarga la página. Puede haber claves activas.",
     empty: "Aún no hay claves de este tipo.",
     createdAt: "creada {{date}}",
     lastUsed: "último uso {{date}}",

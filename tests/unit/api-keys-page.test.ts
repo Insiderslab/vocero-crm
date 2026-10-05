@@ -64,5 +64,8 @@ describe("/settings/api-keys", () => {
     expect(out).toContain("settings.apiKeys.export.title");
     expect(out).toContain('id="bot-key-label"');
     expect(out).toContain('id="export-key-label"');
+    // Antes de leer el listado no se afirma que no haya claves.
+    expect(out).toContain("common.loading");
+    expect(out).not.toContain("settings.apiKeys.empty");
   });
 });

@@ -85,6 +85,8 @@ const messages: typeof base = {
     copy: "Copy key",
     copied: "Copied ✓",
     hide: "Hide",
+    listError:
+      "Couldn't load the key list: reload the page. There may be active keys.",
     empty: "No keys of this type yet.",
     createdAt: "created {{date}}",
     lastUsed: "last used {{date}}",

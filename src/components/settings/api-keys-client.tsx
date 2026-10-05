@@ -26,10 +26,31 @@ type ApiKey = {
   revokedAt: string | null;
 };
 
+/**
+ * Estado del listado. Un fallo al leerlo es "error", nunca "sin claves": si
+ * no, el operador creería que no hay claves activas que revocar.
+ */
+export type KeyListState =
+  | { status: "loading" }
+  | { status: "error" }
+  | { status: "ready"; keys: ApiKey[] };
+
+/** Lee el listado: red caída, 4xx/5xx o cuerpo inesperado → "error". */
+export async function loadKeyList(
+  url: string,
+  fetcher: typeof fetch = fetch
+): Promise<KeyListState> {
+  const res = await fetcher(url, { cache: "no-store" }).catch(() => null);
+  if (!res?.ok) return { status: "error" };
+  const data = (await res.json().catch(() => null)) as { keys?: unknown } | null;
+  const keys = data?.keys;
+  return Array.isArray(keys) ? { status: "ready", keys: keys as ApiKey[] } : { status: "error" };
+}
+
 export function ApiKeysClient({ scope }: { scope: "bot" | "export" }) {
-  const { t, locale } = useT();
+  const { t } = useT();
   const base = `/api/settings/${scope}-keys`;
-  const [keys, setKeys] = useState<ApiKey[]>([]);
+  const [list, setList] = useState<KeyListState>({ status: "loading" });
   const [label, setLabel] = useState("");
   const [created, setCreated] = useState<{ label: string; key: string } | null>(null);
   const [copied, setCopied] = useState(false);
@@ -37,10 +58,7 @@ export function ApiKeysClient({ scope }: { scope: "bot" | "export" }) {
   const [saving, setSaving] = useState(false);
 
   const refetch = useCallback(async () => {
-    const res = await fetch(base, { cache: "no-store" }).catch(() => null);
-    if (!res?.ok) return;
-    const data = (await res.json()) as { keys: ApiKey[] };
-    setKeys(data.keys);
+    setList(await loadKeyList(base));
   }, [base]);
 
   useEffect(() => {
@@ -92,9 +110,6 @@ export function ApiKeysClient({ scope }: { scope: "bot" | "export" }) {
     void navigator.clipboard.writeText(text).then(() => setCopied(true));
   }
 
-  const date = (iso: string) =>
-    new Date(iso).toLocaleString(locale, { dateStyle: "medium", timeStyle: "short" });
-
   return (
     <div className="space-y-3">
       <Card>
@@ -142,31 +157,48 @@ export function ApiKeysClient({ scope }: { scope: "bot" | "export" }) {
         </CardContent>
       </Card>
 
-      {keys.length === 0 ? (
-        <p className="text-sm text-muted-foreground">{t("settings.apiKeys.empty")}</p>
-      ) : (
-        keys.map((k) => (
-          <div key={k.id} className="flex items-center gap-3 rounded-lg border bg-card px-4 py-3">
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium">{k.label}</p>
-              <p className="text-xs text-muted-foreground">
-                <code>{k.keyPrefix}…</code> · {t("settings.apiKeys.createdAt", { date: date(k.createdAt) })}
-                {" · "}
-                {k.lastUsedAt
-                  ? t("settings.apiKeys.lastUsed", { date: date(k.lastUsedAt) })
-                  : t("settings.apiKeys.neverUsed")}
-              </p>
-            </div>
-            {k.revokedAt ? (
-              <Badge variant="secondary">{t("settings.apiKeys.revoked")}</Badge>
-            ) : (
-              <Button variant="outline" size="sm" onClick={() => void revoke(k)}>
-                {t("settings.apiKeys.revoke")}
-              </Button>
-            )}
-          </div>
-        ))
-      )}
+      <KeyList list={list} onRevoke={(k) => void revoke(k)} />
     </div>
   );
+}
+
+/** Listado de claves según su estado: cargando, error, vacío o filas. */
+export function KeyList({ list, onRevoke }: { list: KeyListState; onRevoke: (k: ApiKey) => void }) {
+  const { t, locale } = useT();
+  if (list.status === "loading") {
+    return <p className="text-sm text-muted-foreground">{t("common.loading")}</p>;
+  }
+  if (list.status === "error") {
+    return (
+      <p role="alert" className="text-sm text-destructive">
+        {t("settings.apiKeys.listError")}
+      </p>
+    );
+  }
+  if (list.keys.length === 0) {
+    return <p className="text-sm text-muted-foreground">{t("settings.apiKeys.empty")}</p>;
+  }
+  const date = (iso: string) =>
+    new Date(iso).toLocaleString(locale, { dateStyle: "medium", timeStyle: "short" });
+  return list.keys.map((k) => (
+    <div key={k.id} className="flex items-center gap-3 rounded-lg border bg-card px-4 py-3">
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-medium">{k.label}</p>
+        <p className="text-xs text-muted-foreground">
+          <code>{k.keyPrefix}…</code> · {t("settings.apiKeys.createdAt", { date: date(k.createdAt) })}
+          {" · "}
+          {k.lastUsedAt
+            ? t("settings.apiKeys.lastUsed", { date: date(k.lastUsedAt) })
+            : t("settings.apiKeys.neverUsed")}
+        </p>
+      </div>
+      {k.revokedAt ? (
+        <Badge variant="secondary">{t("settings.apiKeys.revoked")}</Badge>
+      ) : (
+        <Button variant="outline" size="sm" onClick={() => onRevoke(k)}>
+          {t("settings.apiKeys.revoke")}
+        </Button>
+      )}
+    </div>
+  ));
 }

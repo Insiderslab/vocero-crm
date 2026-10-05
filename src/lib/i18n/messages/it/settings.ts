@@ -86,6 +86,8 @@ const messages: typeof base = {
     copy: "Copia chiave",
     copied: "Copiata ✓",
     hide: "Nascondi",
+    listError:
+      "Impossibile caricare l'elenco delle chiavi: ricarica la pagina. Potrebbero esserci chiavi attive.",
     empty: "Ancora nessuna chiave di questo tipo.",
     createdAt: "creata {{date}}",
     lastUsed: "ultimo uso {{date}}",
