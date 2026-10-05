@@ -1,5 +1,11 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { AUTH_RATE_LIMIT, checkRateLimit, isRateLimited, resetRateLimit } from "@/lib/rate-limit";
+import {
+  AUTH_RATE_LIMIT,
+  checkRateLimit,
+  clientIp,
+  isRateLimited,
+  resetRateLimit,
+} from "@/lib/rate-limit";
 
 describe("rate limit por IP (FR-062: 10 / 10 min → 429)", () => {
   beforeEach(() => resetRateLimit());
@@ -53,5 +59,32 @@ describe("rate limit por IP (FR-062: 10 / 10 min → 429)", () => {
     expect(
       isRateLimited("peek", AUTH_RATE_LIMIT, t0 + AUTH_RATE_LIMIT.windowMs + 500)
     ).toBe(false);
+  });
+});
+
+describe("clientIp: la IP de los contadores por IP", () => {
+  const h = (init: Record<string, string>) => new Headers(init);
+
+  it("primera entrada de x-forwarded-for, sin espacios", () => {
+    expect(clientIp(h({ "x-forwarded-for": " 203.0.113.7 , 10.0.0.1" }))).toBe("203.0.113.7");
+  });
+
+  it("x-forwarded-for gana a x-real-ip", () => {
+    expect(clientIp(h({ "x-forwarded-for": "203.0.113.7", "x-real-ip": "10.0.0.9" }))).toBe(
+      "203.0.113.7"
+    );
+  });
+
+  it("sin x-forwarded-for (o vacía) usa x-real-ip", () => {
+    expect(clientIp(h({ "x-real-ip": "198.51.100.20" }))).toBe("198.51.100.20");
+    expect(clientIp(h({ "x-forwarded-for": "", "x-real-ip": "198.51.100.20" }))).toBe(
+      "198.51.100.20"
+    );
+  });
+
+  it("sin cabeceras: \"local\"", () => {
+    expect(clientIp(h({}))).toBe("local");
+    expect(clientIp(undefined)).toBe("local");
+    expect(clientIp(null)).toBe("local");
   });
 });

@@ -103,3 +103,88 @@ describe("rate limit de claves de servicio por organización", () => {
     expect(await call(keyA.plain, "export", d)).toBe(200);
   });
 });
+
+/**
+ * Claves inválidas: el contador es por IP del cliente (`clientIp`, la misma
+ * regla del login). Una avalancha desde una IP no bloquea las claves válidas
+ * que llegan desde otras IPs, y sigue limitada para la IP que la envía.
+ */
+describe("claves inválidas: contador por IP del cliente", () => {
+  beforeEach(() => resetRateLimit());
+
+  const ATTACKER = "203.0.113.7";
+  const OTHER = "198.51.100.20";
+  const VALID: Record<ApiKeyScope, string> = { export: keyB.plain, bot: botA.plain };
+
+  async function callFrom(key: string, scope: ApiKeyScope, d: ApiKeyAuthDeps, xff: string) {
+    const r = await authenticateApiKey(
+      new Request("http://localhost/api/x", {
+        headers: { "x-api-key": key, "x-forwarded-for": xff },
+      }),
+      scope,
+      d
+    );
+    return r instanceof Response ? r.status : 200;
+  }
+
+  async function flood(scope: ApiKeyScope, d: ApiKeyAuthDeps, xff: string) {
+    const { max } = API_KEY_SCOPES[scope].rateLimit;
+    const { prefix } = API_KEY_SCOPES[scope];
+    for (let i = 0; i < max; i++) {
+      expect(await callFrom(`${prefix}inventada_${i}`, scope, d, xff)).toBe(401);
+    }
+  }
+
+  it.each(["export", "bot"] as const)(
+    "%s: una avalancha desde una IP no bloquea la clave válida que llega de otra IP",
+    async (scope) => {
+      const d = deps();
+      await flood(scope, d, ATTACKER);
+      expect(await callFrom(VALID[scope], scope, d, OTHER)).toBe(200);
+    }
+  );
+
+  it("la avalancha sigue limitada: la IP que la envía recibe 429 sin consultar la base de datos", async () => {
+    const d = deps();
+    await flood("export", d, ATTACKER);
+    d.findActiveKey.mockClear();
+    expect(await callFrom("vex_otra_inventada", "export", d, ATTACKER)).toBe(429);
+    expect(d.findActiveKey).not.toHaveBeenCalled();
+  });
+
+  it("otra IP con claves inválidas tiene su propio contador", async () => {
+    const d = deps();
+    await flood("export", d, ATTACKER);
+    expect(await callFrom("vex_inventada_otra_ip", "export", d, OTHER)).toBe(401);
+  });
+
+  it("decisión: la IP bloqueada lo está también con una clave válida (si no, el 200 delataría la clave buena)", async () => {
+    const d = deps();
+    await flood("export", d, ATTACKER);
+    d.findActiveKey.mockClear();
+    expect(await callFrom(keyB.plain, "export", d, ATTACKER)).toBe(429);
+    expect(d.findActiveKey).not.toHaveBeenCalled();
+  });
+
+  it("cuenta la primera IP de x-forwarded-for, no la del proxy añadida detrás", async () => {
+    const d = deps();
+    await flood("export", d, `${ATTACKER}, 10.0.0.1`);
+    expect(await callFrom("vex_x", "export", d, ATTACKER)).toBe(429);
+    expect(await callFrom("vex_y", "export", d, "10.0.0.1")).toBe(401);
+  });
+
+  it("las claves válidas no consumen el contador de inválidas de su IP", async () => {
+    const d = deps();
+    for (let i = 0; i < 5; i++) expect(await callFrom(keyA.plain, "export", d, ATTACKER)).toBe(200);
+    await flood("export", d, ATTACKER);
+    expect(await callFrom("vex_z", "export", d, ATTACKER)).toBe(429);
+  });
+
+  it("una avalancha completa no consume el contador de ninguna organización", async () => {
+    const d = deps();
+    await flood("export", d, ATTACKER);
+    for (let i = 0; i < 5; i++) expect(await callFrom(`vex_mas_${i}`, "export", d, ATTACKER)).toBe(429);
+    const { max } = API_KEY_SCOPES.export.rateLimit;
+    for (let i = 0; i < max; i++) expect(await callFrom(keyA.plain, "export", d, OTHER)).toBe(200);
+  });
+});

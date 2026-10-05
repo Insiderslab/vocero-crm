@@ -2,7 +2,7 @@ import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { and, eq, isNull } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { apiError } from "@/lib/api";
-import { checkRateLimit, isRateLimited } from "@/lib/rate-limit";
+import { checkRateLimit, clientIp, isRateLimited } from "@/lib/rate-limit";
 
 /**
  * Claves de servicio POR organización (una sola fuente para `/api/bot/*` y
@@ -25,8 +25,9 @@ type ScopeConfig = {
   /**
    * Límite por ventana. Se cuenta por organización (`<bucket>:org:<id>`), así
    * una organización no agota el límite de otra. Aparte, con el mismo límite:
-   * `<bucket>:invalid` (claves del ámbito que no existen o están revocadas) y
-   * `<bucket>:instance` (clave de instancia heredada).
+   * `<bucket>:invalid:<ip>` (claves del ámbito que no existen o están
+   * revocadas, por IP del cliente) y `<bucket>:instance` (clave de instancia
+   * heredada).
    */
   rateLimit: { bucket: string; windowMs: number; max: number };
 };
@@ -134,8 +135,12 @@ export async function authenticateApiKey(
 
   if (provided.startsWith(API_KEY_SCOPES[scope].prefix)) {
     const { bucket, windowMs, max } = API_KEY_SCOPES[scope].rateLimit;
-    const invalid = `${bucket}:invalid`;
-    // Avalancha de claves inválidas: se corta antes de consultar la base de datos.
+    // Claves inválidas: contador por IP del cliente, consultado antes de la
+    // base de datos. Una avalancha solo bloquea a la IP que la envía; el resto
+    // de IPs, y sus claves válidas, sigue entrando. Esa IP queda bloqueada
+    // también con una clave válida: si no, la respuesta diría qué clave es
+    // buena y el límite no frenaría la fuerza bruta.
+    const invalid = `${bucket}:invalid:${clientIp(req.headers)}`;
     if (isRateLimited(invalid, { windowMs, max })) return tooMany();
     const key = await deps.findActiveKey(hashApiKey(provided));
     // Una clave de otro ámbito no vale aquí, aunque exista y esté activa.
