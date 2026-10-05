@@ -47,6 +47,19 @@ export function isRateLimited(
   return (store().get(key) ?? []).filter((t) => t > cutoff).length >= opts.max;
 }
 
+/**
+ * IP del cliente para los contadores por IP: primera entrada de
+ * `x-forwarded-for`, si no `x-real-ip`, si no "local". Solo es fiable si el
+ * proxy de delante (Caddy, Traefik) fija esas cabeceras.
+ */
+export function clientIp(headers: Headers | null | undefined): string {
+  return (
+    headers?.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+    headers?.get("x-real-ip") ||
+    "local"
+  );
+}
+
 /** Solo para tests. */
 export function resetRateLimit(): void {
   store().clear();
