@@ -106,6 +106,20 @@ describe("authenticateExport — clave por organización", () => {
   it("fila con ámbito distinto del prefijo → 401 (manda el ámbito guardado)", async () => {
     expect(status(await authenticateExport(req(exWrongScope.plain), fakeDeps(KEYS, ["org_a"])))).toBe(401);
   });
+
+  it("clave válida de una organización que ya no existe → 401, también con ?org= de otra", async () => {
+    const orphan = generateApiKey("export");
+    const keys: KeyRow[] = [
+      ...KEYS,
+      { id: "k_o", organizationId: "org_borrada", scope: "export", hash: orphan.hash, revoked: false },
+    ];
+    for (const q of ["", "?org=org_a"]) {
+      const res = (await authenticateExport(req(orphan.plain, q), fakeDeps(keys, ["org_a", "org_b"]))) as Response;
+      expect(res).toBeInstanceOf(Response);
+      expect(res.status).toBe(401);
+      expect(((await res.json()) as { error: { code: string } }).error.code).toBe("unauthorized");
+    }
+  });
 });
 
 describe("authenticateExport — clave de instancia heredada EXPORT_API_KEY", () => {
