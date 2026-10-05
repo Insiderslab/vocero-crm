@@ -4,7 +4,7 @@
 **Contesto:** istanza CRM con 2 organizzazioni, InsidersLab e La Bambola. Con C1, la vecchia chiave d'istanza `BOT_API_KEY` vale solo se esiste **una** organizzazione: con due risponde `401 instance_key_multi_org`. Ogni bot esterno deve quindi ricevere una chiave `vbk_…` della propria organizzazione **prima** che il nuovo codice vada in produzione, altrimenti il bot si ferma.
 **Riferimenti:** `docs/lavoro/2026-10-04-c1-chiavi-bot.md`, `src/server/bot/auth.ts`, `src/server/api-keys.ts`.
 
-> In questo documento non ci sono segreti. Dove serve una chiave è indicato `<CHIAVE_…>`: la chiave vera si copia una sola volta dalla risposta dell'API e si incolla direttamente nella configurazione del bot, mai in chat, ticket, log o git.
+> In questo documento non ci sono segreti. Dove serve una chiave è indicato `<CHIAVE_…>`: la chiave vera si copia una sola volta dalla pagina **Impostazioni → Chiavi API** e si incolla direttamente nella configurazione del bot, mai in chat, ticket, log o git.
 
 ## 0. Prima di iniziare (checklist)
 
@@ -57,29 +57,17 @@ Le migrazioni si applicano da sole all'avvio del container (`Dockerfile`: `node 
 
 ## 3. Una chiave `vbk_` per organizzazione
 
-Oggi **non c'è una pagina nel pannello** per le chiavi: si usa l'API di impostazioni, che richiede la sessione di un utente **owner o admin** e crea la chiave **nell'organizzazione attiva** della sessione.
+Le chiavi si gestiscono dalla pagina **Impostazioni → Chiavi API** (`/settings/api-keys`). La pagina è visibile solo a **owner o admin** (le API sottostanti, `/api/settings/bot-keys` e `/api/settings/export-keys`, rispondono `403` agli altri ruoli) e crea la chiave **nell'organizzazione attiva** della sessione.
 
 Per ciascuna organizzazione (prima InsidersLab, poi La Bambola):
 
 1. Accedere al CRM come owner/admin.
 2. Selezionare l'organizzazione con il selettore in alto (`org-switcher`) e ricaricare la pagina. Controllare che il nome mostrato sia quello giusto: **la chiave nasce nell'organizzazione attiva**.
-3. Dalla console del browser, sulla stessa scheda (il cookie di sessione viene inviato da solo):
-   ```js
-   const r = await fetch("/api/settings/bot-keys", {
-     method: "POST",
-     headers: { "content-type": "application/json" },
-     body: JSON.stringify({ label: "bot-<organizzazione>-2026-10" }),
-   });
-   console.log(r.status, await r.json());
-   ```
-   Atteso `201` con `{ id, label, keyPrefix, key }`. Il campo `key` (`vbk_…`) si vede **una sola volta**: copiarlo subito nel posto in cui lo userà il bot (passo 4). Annotare **solo** `id` e `keyPrefix` (12 caratteri) nella tabella del passo 0.
-4. Controllo dell'elenco (non mostra mai la chiave intera):
-   ```js
-   (await (await fetch("/api/settings/bot-keys")).json()).keys
-   ```
-   Atteso: una chiave attiva per l'organizzazione attiva; la chiave dell'altra organizzazione **non** compare.
+3. Aprire **Impostazioni → Chiavi API**, sezione **Chiavi del bot (vbk_)**. Scrivere un nome (es. `bot-<organizzazione>-2026-10`) e premere **Crea chiave**.
+   La chiave (`vbk_…`) compare **una sola volta** nel riquadro verde: premere **Copia chiave** e incollarla subito nel posto in cui la userà il bot (passo 4), poi **Nascondi**. Ricaricando la pagina la chiave intera non si vede più. Annotare **solo** il nome e il prefisso mostrato nell'elenco (12 caratteri) nella tabella del passo 0.
+4. Controllo dell'elenco nella stessa sezione (non mostra mai la chiave intera): attesa una chiave attiva per l'organizzazione attiva; la chiave dell'altra organizzazione **non** compare.
 
-Errori possibili: `403 forbidden` (l'utente non è owner/admin di quell'organizzazione), `401` (sessione scaduta).
+Errori possibili: la pagina mostra solo l'avviso "Solo il proprietario o un amministratore…" (l'utente non è owner/admin di quell'organizzazione); messaggio d'errore sotto il modulo o pagina di accesso (sessione scaduta: rientrare).
 
 ## 4. Configurazione del bot per organizzazione
 
@@ -100,7 +88,7 @@ unset VBK
 
 - Atteso `200` con i dati del contatto di **quella** organizzazione. Un numero che esiste solo nell'**altra** organizzazione non deve mai restituire i suoi dati (atteso: risposta senza contatto o `404`; controllare il comportamento esatto nella route).
 - Con la vecchia `BOT_API_KEY` la stessa chiamata deve dare `401` con codice `instance_key_multi_org`.
-- `GET /api/settings/bot-keys` (passo 3.4): `lastUsedAt` valorizzato dopo la prima chiamata del bot.
+- Pagina **Chiavi API** (passo 3.4): dopo la prima chiamata del bot la chiave mostra "ultimo uso" con data e ora (prima: "mai usata").
 - Prova funzionale: un messaggio di prova per organizzazione arriva e il bot risponde nella conversazione giusta.
 
 ## 6. Rimozione di `BOT_API_KEY`
@@ -113,18 +101,14 @@ Solo quando entrambi i bot funzionano con la propria chiave `vbk_` da almeno un 
 ## 7. Se il rilascio include C2 (chiavi di export `vex_`)
 
 Con C2 anche `EXPORT_API_KEY` vale solo con **una** organizzazione e `?org=` non sceglie più l'organizzazione. L'endpoint delle chiavi `vex_` esiste solo **dopo** il passo 2, e con 2 organizzazioni la vecchia `EXPORT_API_KEY` risponde `401 instance_key_multi_org` appena il codice è in linea: l'export resta quindi fermo dal passo 2 finché i consumatori non hanno la chiave nuova. Mettere in pausa i consumatori di `/api/export/*` (n8n, notebook, script) prima del passo 2, poi subito dopo il passo 2:
-1. Per ogni organizzazione creare una chiave di export come al passo 3, ma con `POST /api/settings/export-keys` (prefisso `vex_`).
+1. Per ogni organizzazione creare una chiave di export come al passo 3, ma nella sezione **Chiavi di export (vex_)** della stessa pagina.
 2. Aggiornare ogni consumatore di `/api/export/*` (n8n, notebook, script) con la chiave della sua organizzazione. `?org=` si può togliere; se resta deve essere l'id o lo slug della stessa organizzazione, altrimenti `403 org_mismatch`.
 3. Verifica: `GET /api/export/leads` con la chiave di InsidersLab restituisce `"org": "InsidersLab"`; con `?org=<slug-la-bambola>` restituisce `403`. Una chiave `vbk_` su `/api/export/*` dà `401`, e una `vex_` su `/api/bot/*` dà `401`.
 4. Rimuovere `EXPORT_API_KEY` con lo stesso criterio del passo 6.
 
 ## 8. Revoca di una chiave (in qualsiasi momento)
 
-Dalla console del browser, con l'organizzazione giusta attiva:
-```js
-await fetch("/api/settings/bot-keys/<id>", { method: "DELETE" })   // 204
-```
-(per le chiavi di export: `/api/settings/export-keys/<id>`). Una chiave di un'altra organizzazione o di un altro ambito risponde `404`. Effetto immediato: la chiamata successiva con quella chiave riceve `401`.
+Da **Impostazioni → Chiavi API**, con l'organizzazione giusta attiva: premere **Revoca** accanto alla chiave (sezione bot o export) e confermare. La chiave resta nell'elenco con l'etichetta **Revocata**. La pagina elenca solo le chiavi dell'organizzazione attiva e di quella sezione (l'API risponde `404` a una chiave di un'altra organizzazione o di un altro ambito). Effetto immediato: la chiamata successiva con quella chiave riceve `401`.
 
 ## Rollback
 
@@ -147,3 +131,4 @@ Ordine: prima il codice, poi (solo se necessario) i dati.
 - La migrazione `0009` (e `0010`) non è stata applicata a un PostgreSQL reale.
 - I nomi del servizio (`postgres`), dell'utente e del database vengono da `docker-compose.yml`; in Coolify possono essere diversi.
 - La risposta di `/api/bot/context` per un numero inesistente nell'organizzazione non è stata provata: controllarla in `src/app/api/bot/context/route.ts` prima della verifica.
+- La pagina **Chiavi API** è coperta da test (solo owner/admin la vedono; le API rifiutano gli altri ruoli), ma non è stata provata in un browser contro un database reale.

@@ -8,6 +8,7 @@ const messages: typeof base = {
     branding: "Marchio",
     templates: "Modelli",
     team: "Team",
+    apiKeys: "Chiavi API",
   },
   branding: {
     title: "Marchio del CRM",
@@ -61,6 +62,39 @@ const messages: typeof base = {
     membersTitle: "Membri",
     owner: "Proprietario",
     member: "Membro",
+  },
+  apiKeys: {
+    forbidden:
+      "Solo il proprietario o un amministratore dell'organizzazione gestisce le chiavi API.",
+    bot: {
+      title: "Chiavi del bot (vbk_)",
+      description:
+        "Per il cervello esterno che usa /api/bot/*. Ogni chiave vale solo per questa organizzazione.",
+    },
+    export: {
+      title: "Chiavi di export (vex_)",
+      description:
+        "Per script e automazioni in sola lettura su /api/export/*. Ogni chiave vale solo per questa organizzazione.",
+    },
+    labelLabel: "Nome della chiave",
+    labelPlaceholder: "es. bot di produzione, n8n",
+    submit: "Crea chiave",
+    createError: "Impossibile creare la chiave",
+    created: "Chiave «{{label}}» creata ✓",
+    shareNow:
+      "Copiala ora: non verrà più mostrata. Salvala nel gestore dei segreti del servizio che la userà.",
+    copy: "Copia chiave",
+    copied: "Copiata ✓",
+    hide: "Nascondi",
+    empty: "Ancora nessuna chiave di questo tipo.",
+    createdAt: "creata {{date}}",
+    lastUsed: "ultimo uso {{date}}",
+    neverUsed: "mai usata",
+    revoke: "Revoca",
+    revoked: "Revocata",
+    confirmRevoke:
+      "Revocare la chiave «{{label}}»? Il servizio che la usa smetterà subito di funzionare.",
+    revokeError: "Impossibile revocare la chiave",
   },
   templates: {
     intro:

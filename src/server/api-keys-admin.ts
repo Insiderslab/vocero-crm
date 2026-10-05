@@ -12,7 +12,8 @@ import { generateApiKey, type ApiKeyScope } from "@/server/api-keys";
  * siempre dentro de la organización de la sesión y del ámbito de la ruta.
  */
 
-function canManage(role: string): boolean {
+/** Una sola regla para la API y la página de configuración: solo owner/admin. */
+export function canManageApiKeys(role: string): boolean {
   return role === "owner" || role === "admin";
 }
 
@@ -26,7 +27,7 @@ const createSchema = z.object({
 /** GET (listar, nunca hash ni texto plano) y POST (crear) de un ámbito. */
 export function apiKeyCollectionHandlers(scope: ApiKeyScope) {
   const GET = withAuth(async (session) => {
-    if (!canManage(session.role)) return forbidden();
+    if (!canManageApiKeys(session.role)) return forbidden();
     const rows = await getDb()
       .select({
         id: schema.botApiKey.id,
@@ -59,7 +60,7 @@ export function apiKeyCollectionHandlers(scope: ApiKeyScope) {
 
   /** Crea una clave para la organización activa. El texto plano sale UNA vez. */
   const POST = withAuth(async (session, req: Request) => {
-    if (!canManage(session.role)) return forbidden();
+    if (!canManageApiKeys(session.role)) return forbidden();
     const body = await parseBody(req, createSchema);
     if (!body.ok) return body.response;
 
@@ -87,7 +88,7 @@ export function apiKeyCollectionHandlers(scope: ApiKeyScope) {
 export function apiKeyRevokeHandler(scope: ApiKeyScope) {
   return withAuth(
     async (session, _req: Request, ctx: { params: Promise<{ id: string }> }) => {
-      if (!canManage(session.role)) return forbidden();
+      if (!canManageApiKeys(session.role)) return forbidden();
       const { id } = await ctx.params;
       const db = getDb();
       const rows = await db

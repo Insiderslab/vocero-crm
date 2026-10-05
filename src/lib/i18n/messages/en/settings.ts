@@ -8,6 +8,7 @@ const messages: typeof base = {
     branding: "Brand",
     templates: "Templates",
     team: "Team",
+    apiKeys: "API keys",
   },
   branding: {
     title: "CRM brand",
@@ -60,6 +61,39 @@ const messages: typeof base = {
     membersTitle: "Members",
     owner: "Owner",
     member: "Member",
+  },
+  apiKeys: {
+    forbidden:
+      "Only the organization owner or an administrator can manage API keys.",
+    bot: {
+      title: "Bot keys (vbk_)",
+      description:
+        "For the external brain that uses /api/bot/*. Each key works only for this organization.",
+    },
+    export: {
+      title: "Export keys (vex_)",
+      description:
+        "For read-only scripts and automations on /api/export/*. Each key works only for this organization.",
+    },
+    labelLabel: "Key name",
+    labelPlaceholder: "e.g. production bot, n8n",
+    submit: "Create key",
+    createError: "Could not create the key",
+    created: "Key “{{label}}” created ✓",
+    shareNow:
+      "Copy it now: it will not be shown again. Store it in the secret manager of the service that will use it.",
+    copy: "Copy key",
+    copied: "Copied ✓",
+    hide: "Hide",
+    empty: "No keys of this type yet.",
+    createdAt: "created {{date}}",
+    lastUsed: "last used {{date}}",
+    neverUsed: "never used",
+    revoke: "Revoke",
+    revoked: "Revoked",
+    confirmRevoke:
+      "Revoke the key “{{label}}”? The service using it will stop working immediately.",
+    revokeError: "Could not revoke the key",
   },
   templates: {
     intro:

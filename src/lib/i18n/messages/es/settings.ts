@@ -6,6 +6,7 @@ const messages = {
     branding: "Marca",
     templates: "Plantillas",
     team: "Equipo",
+    apiKeys: "Claves de API",
   },
   branding: {
     title: "Marca del CRM",
@@ -59,6 +60,39 @@ const messages = {
     membersTitle: "Miembros",
     owner: "Propietario",
     member: "Miembro",
+  },
+  apiKeys: {
+    forbidden:
+      "Solo el propietario o un administrador de la organización gestiona las claves de API.",
+    bot: {
+      title: "Claves del bot (vbk_)",
+      description:
+        "Para el cerebro externo que usa /api/bot/*. Cada clave vale solo para esta organización.",
+    },
+    export: {
+      title: "Claves de extracción (vex_)",
+      description:
+        "Para scripts y automatizaciones de solo lectura sobre /api/export/*. Cada clave vale solo para esta organización.",
+    },
+    labelLabel: "Nombre de la clave",
+    labelPlaceholder: "p. ej. bot de producción, n8n",
+    submit: "Crear clave",
+    createError: "No se pudo crear la clave",
+    created: "Clave «{{label}}» creada ✓",
+    shareNow:
+      "Cópiala ahora: no se volverá a mostrar. Guárdala en el gestor de secretos del servicio que la usará.",
+    copy: "Copiar clave",
+    copied: "Copiada ✓",
+    hide: "Ocultar",
+    empty: "Aún no hay claves de este tipo.",
+    createdAt: "creada {{date}}",
+    lastUsed: "último uso {{date}}",
+    neverUsed: "sin uso",
+    revoke: "Revocar",
+    revoked: "Revocada",
+    confirmRevoke:
+      "¿Revocar la clave «{{label}}»? El servicio que la usa dejará de funcionar de inmediato.",
+    revokeError: "No se pudo revocar la clave",
   },
   templates: {
     intro:
