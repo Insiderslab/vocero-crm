@@ -49,3 +49,20 @@ export function renderBody(body: string, variables: string[] = []): string {
     return variables[Number(index) - 1] ?? "";
   });
 }
+
+/**
+ * Códigos de idioma de plantilla que ofrece el formulario (formato de Meta).
+ * Una sola fuente para el selector y su valor por defecto.
+ */
+export const TEMPLATE_LANGUAGES = ["it", "es_MX", "es", "es_AR", "en_US"] as const;
+
+/**
+ * Idioma por defecto de una plantilla nueva según el idioma de la interfaz:
+ * así una organización que trabaja en italiano no hereda "es_MX" y una en
+ * español no hereda "it".
+ */
+export function defaultTemplateLanguage(uiLocale: string): (typeof TEMPLATE_LANGUAGES)[number] {
+  if (uiLocale === "it") return "it";
+  if (uiLocale === "en") return "en_US";
+  return "es_MX";
+}

@@ -4,7 +4,12 @@ import { useCallback, useEffect, useState } from "react";
 import { RefreshCw } from "lucide-react";
 import type { TemplateDto } from "@/lib/types";
 import { useT } from "@/lib/i18n/client";
-import { countVariables, validateBodyVariables } from "@/lib/templates";
+import {
+  countVariables,
+  defaultTemplateLanguage,
+  TEMPLATE_LANGUAGES,
+  validateBodyVariables,
+} from "@/lib/templates";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -126,9 +131,9 @@ export function TemplatesClient() {
 }
 
 function CreateForm({ onCreated }: { onCreated: () => void }) {
-  const { t } = useT();
+  const { t, locale } = useT();
   const [name, setName] = useState("");
-  const [language, setLanguage] = useState("es_MX");
+  const [language, setLanguage] = useState<string>(defaultTemplateLanguage(locale));
   const [category, setCategory] = useState<"UTILITY" | "MARKETING">("UTILITY");
   const [body, setBody] = useState("");
   const [saving, setSaving] = useState(false);
@@ -188,10 +193,11 @@ function CreateForm({ onCreated }: { onCreated: () => void }) {
               onChange={(e) => setLanguage(e.target.value)}
               className="flex h-9 w-full rounded-md border border-input bg-card px-3 text-sm"
             >
-              <option value="es_MX">es_MX</option>
-              <option value="es">es</option>
-              <option value="es_AR">es_AR</option>
-              <option value="en_US">en_US</option>
+              {TEMPLATE_LANGUAGES.map((code) => (
+                <option key={code} value={code}>
+                  {code}
+                </option>
+              ))}
             </select>
           </div>
           <div className="space-y-1.5">
