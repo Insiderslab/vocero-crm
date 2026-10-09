@@ -1,7 +1,7 @@
 # Procedura di rilascio C1 — chiavi bot per organizzazione (con C2 se incluso)
 
 **Per chi:** l'owner (unico autorizzato ad agire in produzione, Legge Zero). **Nessun agente esegue questi passi.**
-**Contesto:** istanza CRM con 2 organizzazioni, InsidersLab e La Bambola. Con C1, la vecchia chiave d'istanza `BOT_API_KEY` vale solo se esiste **una** organizzazione: con due risponde `401 instance_key_multi_org`. Ogni bot esterno deve quindi ricevere una chiave `vbk_…` della propria organizzazione **prima** che il nuovo codice vada in produzione, altrimenti il bot si ferma.
+**Contesto:** istanza CRM con 2 organizzazioni. Al controllo del 9/10/2026 (pannello Admin) erano «Negocio de Stefano Finoti» e «Hair extension Clinic»: InsidersLab e La Bambola **non esistono** in produzione. Prima del rilascio rileggere l'elenco dal pannello Admin (`GET /api/admin/orgs`) e usare i nomi reali. Con C1, la vecchia chiave d'istanza `BOT_API_KEY` vale solo se esiste **una** organizzazione: con due risponde `401 instance_key_multi_org`. Ogni bot esterno deve quindi ricevere una chiave `vbk_…` della propria organizzazione **prima** che il nuovo codice vada in produzione, altrimenti il bot si ferma.
 **Riferimenti:** `docs/lavoro/2026-10-04-c1-chiavi-bot.md`, `src/server/bot/auth.ts`, `src/server/api-keys.ts`.
 
 > In questo documento non ci sono segreti. Dove serve una chiave è indicato `<CHIAVE_…>`: la chiave vera si copia una sola volta dalla pagina **Impostazioni → Chiavi API** e si incolla direttamente nella configurazione del bot, mai in chat, ticket, log o git.
@@ -13,8 +13,8 @@
 
 | Organizzazione | Bot / servizio che chiama `/api/bot/*` | Dove si configura la chiave | Consumatori di `/api/export/*` (solo se C2) |
 |---|---|---|---|
-| InsidersLab | … | … (variabile d'ambiente del bot, n8n, …) | … |
-| La Bambola | … | … | … |
+| Organizzazione A (dal pannello Admin) | … | … (variabile d'ambiente del bot, n8n, …) | … |
+| Organizzazione B (dal pannello Admin) | … | … | … |
 
 - [ ] Conteggio organizzazioni in produzione verificato (atteso: 2). Comando in sola lettura, sul server:
   ```sh
@@ -59,7 +59,7 @@ Le migrazioni si applicano da sole all'avvio del container (`Dockerfile`: `node 
 
 Le chiavi si gestiscono dalla pagina **Impostazioni → Chiavi API** (`/settings/api-keys`). La pagina è visibile solo a **owner o admin** (le API sottostanti, `/api/settings/bot-keys` e `/api/settings/export-keys`, rispondono `403` agli altri ruoli) e crea la chiave **nell'organizzazione attiva** della sessione.
 
-Per ciascuna organizzazione (prima InsidersLab, poi La Bambola):
+Per ciascuna organizzazione elencata nel pannello Admin, una alla volta:
 
 1. Accedere al CRM come owner/admin.
 2. Selezionare l'organizzazione con il selettore in alto (`org-switcher`) e ricaricare la pagina. Controllare che il nome mostrato sia quello giusto: **la chiave nasce nell'organizzazione attiva**.
@@ -103,7 +103,7 @@ Solo quando entrambi i bot funzionano con la propria chiave `vbk_` da almeno un 
 Con C2 anche `EXPORT_API_KEY` vale solo con **una** organizzazione e `?org=` non sceglie più l'organizzazione. L'endpoint delle chiavi `vex_` esiste solo **dopo** il passo 2, e con 2 organizzazioni la vecchia `EXPORT_API_KEY` risponde `401 instance_key_multi_org` appena il codice è in linea: l'export resta quindi fermo dal passo 2 finché i consumatori non hanno la chiave nuova. Mettere in pausa i consumatori di `/api/export/*` (n8n, notebook, script) prima del passo 2, poi subito dopo il passo 2:
 1. Per ogni organizzazione creare una chiave di export come al passo 3, ma nella sezione **Chiavi di export (vex_)** della stessa pagina.
 2. Aggiornare ogni consumatore di `/api/export/*` (n8n, notebook, script) con la chiave della sua organizzazione. `?org=` si può togliere; se resta deve essere l'id o lo slug della stessa organizzazione, altrimenti `403 org_mismatch`.
-3. Verifica: `GET /api/export/leads` con la chiave di InsidersLab restituisce `"org": "InsidersLab"`; con `?org=<slug-la-bambola>` restituisce `403`. Una chiave `vbk_` su `/api/export/*` dà `401`, e una `vex_` su `/api/bot/*` dà `401`.
+3. Verifica: `GET /api/export/leads` con la chiave dell'organizzazione A restituisce `"org"` uguale al nome di A; con `?org=<slug-di-B>` restituisce `403`. Una chiave `vbk_` su `/api/export/*` dà `401`, e una `vex_` su `/api/bot/*` dà `401`.
 4. Rimuovere `EXPORT_API_KEY` con lo stesso criterio del passo 6.
 
 ## 8. Revoca di una chiave (in qualsiasi momento)
