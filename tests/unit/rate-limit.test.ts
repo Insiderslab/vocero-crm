@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   AUTH_RATE_LIMIT,
+  SWEEP_EVERY,
+  authRateLimitAllowed,
+  rateLimitSize,
   checkRateLimit,
   clientIp,
   isRateLimited,
@@ -86,5 +89,56 @@ describe("clientIp: la IP de los contadores por IP", () => {
     expect(clientIp(h({}))).toBe("local");
     expect(clientIp(undefined)).toBe("local");
     expect(clientIp(null)).toBe("local");
+  });
+});
+
+describe("login/registro: el límite cuenta por IP del cliente (clientIp)", () => {
+  beforeEach(() => resetRateLimit());
+  const from = (ip: string) => new Headers({ "x-forwarded-for": ip });
+
+  it("agotada una IP, esa IP recibe 429 y otra IP sigue entrando", () => {
+    for (let i = 0; i < AUTH_RATE_LIMIT.max; i++) {
+      expect(authRateLimitAllowed("/sign-in/email", from("203.0.113.7"))).toBe(true);
+    }
+    expect(authRateLimitAllowed("/sign-in/email", from("203.0.113.7"))).toBe(false);
+    expect(authRateLimitAllowed("/sign-in/email", from("198.51.100.20"))).toBe(true);
+  });
+
+  it("la IP sale de x-forwarded-for (primera entrada), no de una constante", () => {
+    for (let i = 0; i < AUTH_RATE_LIMIT.max; i++) {
+      authRateLimitAllowed("/sign-up/email", from("203.0.113.7, 10.0.0.1"));
+    }
+    expect(authRateLimitAllowed("/sign-up/email", from("203.0.113.7, 10.0.0.2"))).toBe(false);
+    expect(authRateLimitAllowed("/sign-up/email", from("203.0.113.8"))).toBe(true);
+  });
+
+  it("solo limita login y registro", () => {
+    for (let i = 0; i < AUTH_RATE_LIMIT.max + 5; i++) {
+      expect(authRateLimitAllowed("/get-session", from("203.0.113.7"))).toBe(true);
+    }
+  });
+});
+
+describe("barrido de entradas caducadas", () => {
+  beforeEach(() => resetRateLimit());
+  const opts = { windowMs: 1000, max: 5 };
+
+  it("las claves caducadas se eliminan tras SWEEP_EVERY accesos", () => {
+    for (let i = 0; i < 100; i++) checkRateLimit(`old:${i}`, opts, 1_000);
+    expect(rateLimitSize()).toBe(100);
+    for (let i = 0; i < SWEEP_EVERY; i++) checkRateLimit("live", opts, 10_000);
+    expect(rateLimitSize()).toBe(1);
+  });
+
+  it("no elimina entradas aún vigentes", () => {
+    for (let i = 0; i < 10; i++) checkRateLimit(`v:${i}`, opts, 10_000);
+    for (let i = 0; i < SWEEP_EVERY; i++) checkRateLimit("live", opts, 10_200);
+    expect(rateLimitSize()).toBe(11);
+  });
+
+  it("no barre antes de SWEEP_EVERY (amortizado)", () => {
+    checkRateLimit("old", opts, 1_000);
+    for (let i = 0; i < SWEEP_EVERY - 3; i++) checkRateLimit("live", opts, 10_000);
+    expect(rateLimitSize()).toBe(2);
   });
 });

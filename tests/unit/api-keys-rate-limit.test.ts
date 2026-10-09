@@ -188,3 +188,57 @@ describe("claves inválidas: contador por IP del cliente", () => {
     for (let i = 0; i < max; i++) expect(await callFrom(keyA.plain, "export", d, OTHER)).toBe(200);
   });
 });
+
+/**
+ * Clave de instancia: los fallos cuentan por IP del cliente y el contador de
+ * la instancia solo se consume tras una comparación correcta. Una avalancha
+ * de x-api-key falsas no bloquea la clave de instancia legítima.
+ */
+describe("clave de instancia: fallos por IP, contador tras comparación correcta", () => {
+  beforeEach(() => resetRateLimit());
+  afterEach(() => vi.unstubAllEnvs());
+
+  const INSTANCE = "clave-export-de-instancia-0123456789";
+  const ATTACKER = "203.0.113.7";
+  const OTHER = "198.51.100.20";
+
+  const from = (key: string | null, xff: string) =>
+    new Request("http://localhost/api/x", {
+      headers: { ...(key ? { "x-api-key": key } : {}), "x-forwarded-for": xff },
+    });
+  const status = async (key: string | null, xff: string) => {
+    const r = await authenticateApiKey(from(key, xff), "export", deps());
+    return r instanceof Response ? r.status : 200;
+  };
+
+  it("una avalancha de claves sin prefijo no bloquea la clave de instancia legítima", async () => {
+    vi.stubEnv("EXPORT_API_KEY", INSTANCE);
+    const { max } = API_KEY_SCOPES.export.rateLimit;
+    for (let i = 0; i < max + 5; i++) await status(`falsa_${i}`, ATTACKER);
+    expect(await status(INSTANCE, OTHER)).toBe(200);
+  });
+
+  it("la IP que inunda queda en 429, incluso con la clave buena", async () => {
+    vi.stubEnv("EXPORT_API_KEY", INSTANCE);
+    const { max } = API_KEY_SCOPES.export.rateLimit;
+    for (let i = 0; i < max; i++) expect(await status(`falsa_${i}`, ATTACKER)).toBe(401);
+    expect(await status("otra_falsa", ATTACKER)).toBe(429);
+    expect(await status(INSTANCE, ATTACKER)).toBe(429);
+  });
+
+  it("sin cabecera x-api-key también cuenta como fallo por IP", async () => {
+    vi.stubEnv("EXPORT_API_KEY", INSTANCE);
+    const { max } = API_KEY_SCOPES.export.rateLimit;
+    for (let i = 0; i < max; i++) expect(await status(null, ATTACKER)).toBe(401);
+    expect(await status(null, ATTACKER)).toBe(429);
+    expect(await status(INSTANCE, OTHER)).toBe(200);
+  });
+
+  it("los fallos no consumen el contador de la instancia; los aciertos sí", async () => {
+    vi.stubEnv("EXPORT_API_KEY", INSTANCE);
+    const { max } = API_KEY_SCOPES.export.rateLimit;
+    for (let i = 0; i < max - 1; i++) await status(`falsa_${i}`, `10.0.0.${i % 200}`);
+    for (let i = 0; i < max; i++) expect(await status(INSTANCE, OTHER)).toBe(200);
+    expect(await status(INSTANCE, OTHER)).toBe(429);
+  });
+});

@@ -25,9 +25,9 @@ type ScopeConfig = {
   /**
    * Límite por ventana. Se cuenta por organización (`<bucket>:org:<id>`), así
    * una organización no agota el límite de otra. Aparte, con el mismo límite:
-   * `<bucket>:invalid:<ip>` (claves del ámbito que no existen o están
-   * revocadas, por IP del cliente) y `<bucket>:instance` (clave de instancia
-   * heredada).
+   * `<bucket>:invalid:<ip>` (claves del ámbito inexistentes, revocadas o de
+   * instancia erróneas, por IP del cliente) y `<bucket>:instance` (clave de
+   * instancia heredada, solo tras comparación correcta).
    */
   rateLimit: { bucket: string; windowMs: number; max: number };
 };
@@ -53,22 +53,28 @@ function rateLimited(scope: ApiKeyScope, sub: string): Response | null {
   return checkRateLimit(`${bucket}:${sub}`, { windowMs, max }).allowed ? null : tooMany();
 }
 
-/** Comprueba la clave de instancia heredada del ámbito. null = válida. */
+/**
+ * Comprueba la clave de instancia heredada del ámbito. null = válida.
+ * Los fallos cuentan por IP del cliente (`<bucket>:invalid:<ip>`); el contador
+ * de la instancia solo se consume tras una comparación correcta, así una
+ * avalancha de claves falsas no bloquea la clave legítima.
+ */
 export function requireInstanceKey(req: Request, scope: ApiKeyScope): Response | null {
-  const limited = rateLimited(scope, "instance");
-  if (limited) return limited;
+  const { bucket, windowMs, max } = API_KEY_SCOPES[scope].rateLimit;
+  const invalid = `${bucket}:invalid:${clientIp(req.headers)}`;
+  if (isRateLimited(invalid, { windowMs, max })) return tooMany();
 
+  const fail = () => {
+    checkRateLimit(invalid, { windowMs, max });
+    return apiError(401, "unauthorized", "No autorizado");
+  };
   const expected = process.env[API_KEY_SCOPES[scope].instanceEnv];
   const provided = req.headers.get("x-api-key");
-  if (!expected || expected.length < 16 || !provided) {
-    return apiError(401, "unauthorized", "No autorizado");
-  }
+  if (!expected || expected.length < 16 || !provided) return fail();
   const a = Buffer.from(provided);
   const b = Buffer.from(expected);
-  if (a.length !== b.length || !timingSafeEqual(a, b)) {
-    return apiError(401, "unauthorized", "No autorizado");
-  }
-  return null;
+  if (a.length !== b.length || !timingSafeEqual(a, b)) return fail();
+  return rateLimited(scope, "instance");
 }
 
 /** SHA-256 hex de una clave (las claves son aleatorias de 32 bytes). */
