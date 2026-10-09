@@ -5,6 +5,7 @@ import common from "./es/common";
 import contacts from "./es/contacts";
 import inbox from "./es/inbox";
 import lab from "./es/lab";
+import legal from "./es/legal";
 import nav from "./es/nav";
 import pipeline from "./es/pipeline";
 import settings from "./es/settings";
@@ -18,6 +19,7 @@ const es = {
   contacts,
   inbox,
   lab,
+  legal,
   nav,
   pipeline,
   settings,

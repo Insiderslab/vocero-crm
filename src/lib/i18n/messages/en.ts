@@ -6,6 +6,7 @@ import common from "./en/common";
 import contacts from "./en/contacts";
 import inbox from "./en/inbox";
 import lab from "./en/lab";
+import legal from "./en/legal";
 import nav from "./en/nav";
 import pipeline from "./en/pipeline";
 import settings from "./en/settings";
@@ -19,6 +20,7 @@ const en: typeof es = {
   contacts,
   inbox,
   lab,
+  legal,
   nav,
   pipeline,
   settings,
