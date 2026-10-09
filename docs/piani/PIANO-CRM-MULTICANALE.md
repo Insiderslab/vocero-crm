@@ -71,7 +71,33 @@ I file degli agenti sono in `.claude/agents/`: `crm-esecutore.md` (sonnet), `crm
 | M2.1 | **Moduli attivabili per organizzazione** (`org_module`): ogni funzione si accende o si spegne per cliente | Il contratto `heili.module.v1` in versione ridotta | Sonnet / Opus |
 | M2.2 | **Pacchetti di settore v1** (ristorazione, edilizia, agenzia): fasi della pipeline, profilo dell'agente, modelli della base di conoscenza, automazioni, moduli attivi. Sono dati, non codice | Haiku prepara le bozze, l'orchestratore le rivede | Sonnet / Sonnet |
 | M2.3 | **Procedura guidata superadmin:** crea l'organizzazione, invita il titolare (spec 004: inviti con link), sceglie il pacchetto, apre il Laboratorio | `specs/custom-heili/004-registro-e-invitaciones.md` | Sonnet / Opus (inviti = sicurezza) |
-| M2.4 | Collegamento dei canali dal pannello: oggi manuale, l'Embedded Signup arriva quando Meta abilita il Tech Provider | Interfaccia e stati; nessuna dipendenza bloccante | Sonnet / Sonnet |
+| M2.4 | Collegamento dei canali: vedi la sezione **K** qui sotto | — | — |
+
+
+### K — Collegamento semplice dei canali (requisito dell'owner, 10/10/2026)
+**Obiettivo:** il cliente apre la pagina **«Canali»** e collega ogni canale con **un pulsante e il login ufficiale**. Niente token da copiare, niente ID da cercare, niente tecnico. Ogni canale mostra uno stato: collegato, da ricollegare, in scadenza.
+
+**Stato di oggi:**
+- **WhatsApp nel CRM:** si collega a mano (token e Phone Number ID incollati, `src/server/whatsapp/connect.ts`).
+- **Instagram:** heili-dm ha già un collegamento OAuth funzionante con Business Login for Instagram (`heili-dm/lib/meta/oauth.ts`): stato firmato e token cifrato AES-GCM. **Si riusa.**
+
+| ID | Pacchetto | Flusso per il cliente | Prerequisito esterno | Esecutore / verifica |
+|---|---|---|---|---|
+| K0 | **Verifica (Opus, 1 giorno):** una sola configurazione di Embedded Signup **v4** / Facebook Login for Business può collegare insieme WhatsApp, Messenger e Instagram (pulsante unico «Collega Meta»)? Si può consolidare su **una sola app Meta** per il CRM (oggi ce ne sono tre: «Whatpp Business Insiderslab», «Whapi by Heili», «Dm Heili»)? | — | — | Opus |
+| K1 | **Pagina «Canali» e stati:** una scheda per canale, controllo di salute, avviso prima della scadenza, scollegamento. Callback di **deautorizzazione** e di **cancellazione dati** richiesti da Meta | Vede tutto in un posto | — | Sonnet / Opus |
+| K2 | **WhatsApp con Embedded Signup v4:** popup Meta, scelta o creazione del WABA e del numero, scambio del codice lato server, token aziendale cifrato, iscrizione automatica del WABA ai webhook, registrazione del numero | «Collega WhatsApp» → login Meta → fatto | **Tech Provider** + accesso avanzato a `whatsapp_business_management` e `whatsapp_business_messaging` | Sonnet (alto) / **Opus** |
+| K3 | **Instagram con Business Login for Instagram** (non serve una Pagina Facebook), riusando `heili-dm/lib/meta/oauth.ts`. Scope `instagram_business_manage_messages`, iscrizione ai webhook | «Collega Instagram» → login Instagram → fatto | **App Review** dello scope di messaggistica | Sonnet / Opus |
+| K4 | **Messenger con Facebook Login for Business:** scelta della Pagina, token della Pagina cifrato, iscrizione della Pagina ai webhook | «Collega Facebook» → scegli la Pagina → fatto | **App Review** dei permessi di messaggistica delle Pagine (nomi esatti da confermare in K0) | Sonnet / Opus |
+| K5 | **Email, versione 1 (senza audit):** indirizzo di ricezione dedicato per organizzazione, con l'**inoltro** impostato dal cliente (guida passo-passo con un pulsante «copia»). Invio dal **dominio del cliente**, verificato con record DNS da copiare. **Versione 2:** «Accedi con Microsoft». **Versione 3:** «Accedi con Google», solo dopo aver valutato l'audit di sicurezza annuale richiesto per leggere Gmail | v1: copia un indirizzo e 3 record DNS · v2/v3: un clic | v2: verifica dell'editore Microsoft · v3: verifica Google, probabilmente con assessment CASA | Sonnet / Opus |
+| K6 | **Invito «Collega i tuoi canali»:** link sicuro, a tempo, che apre solo la pagina Canali. Il cliente collega da solo, senza dare password all'agenzia | Riceve un link, clicca, collega | — | Sonnet / Opus |
+| K7 | Materiale per l'**App Review di Meta**: privacy, termini, URL di cancellazione dati, video dimostrativi. Agenti `public-site-builder` e skill `whatsapp-meta-app-review` già nel repo | — | — | Sonnet / Sonnet |
+
+**Ordine:**
+1. **K0, K1, K6 e K7** subito dopo M1. Non dipendono da Meta, e K7 serve proprio per ottenere le approvazioni.
+2. **K2, K3 e K4** appena arrivano le approvazioni Meta.
+3. **K5 v1** in parallelo.
+
+**Attenzione:** Meta ritira Embedded Signup v2 e v3 il **15/10/2026**. Il nostro codice oggi non usa Embedded Signup, quindi non si rompe nulla. Il nuovo flusso si costruisce **direttamente su v4**.
 
 ### M3 — Instagram e Messenger (2–3 settimane, **dopo l'App Review di Meta**)
 - **M3.0 (Opus, mezza giornata):** riusare il codice Instagram di **heili-dm** (DM, finestra di 24 ore, già in produzione) dentro l'adattatore, oppure scrivere un adattatore nuovo. Decisione da sottoporre all'owner.
