@@ -118,3 +118,23 @@ gateway; se limpiarán cuando se complete la migración de todas las orgs).
 5. **Verificación en vivo**: enviar texto, plantilla y adjunto desde el CRM;
    entrante real debe llegar vía Wapi al inbox del CRM; estados
    sent→delivered→read avanzan; en Wapi, el inbox propio sigue registrando.
+
+## Addendum C3 (2026-10-10) — clave Wapi por organización
+
+La `WAPI_API_KEY` global con `WAPI_ORG_IDS` vacía (= "todas las orgs") hacía que
+varias organizaciones del CRM usaran la clave de UNA organización de Wapi (fuga
+de aislamiento entre clientes). Desde C3:
+
+- Cada organización guarda **su** clave `hlp_live_…` (tabla `wapi_credentials`,
+  AES-256-GCM con la `ENCRYPTION_KEY` de la instancia, gestionada por
+  owner/admin en Ajustes → WhatsApp, API `/api/settings/whatsapp/wapi-key`).
+  La clave en claro no sale nunca en una respuesta (solo los últimos 4).
+- Enrutamiento, con `WAPI_BASE_URL` definida: clave propia → Wapi con esa clave;
+  sin clave propia → la global solo en **modo heredado** (`WAPI_ORG_IDS` con
+  exactamente UNA organización, y es esa); `WAPI_ORG_IDS` con varias
+  organizaciones y sin clave propia → bloqueada (no se hace ninguna llamada);
+  cualquier otro caso → Meta directo con el token propio. Sin `WAPI_BASE_URL`
+  todo va directo a Meta.
+- La descarga de media solo envía la clave de Wapi a una URL del propio gateway
+  (mismo origen que `WAPI_BASE_URL`) y el token Meta jamás al gateway.
+- Pasos de rilascio: `docs/ops/rilascio-c3.md`.
