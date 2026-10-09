@@ -81,6 +81,40 @@ Ogni funzione è un **modulo** (`heili.module.v1`): dati, permessi, eventi, acce
 5. **Secondo modulo ARM: «Reputazione nelle AI»**, integrando Limelit Open come servizio (Apache-2.0), da valutare quando esce dalla versione preliminare.
 6. **Automazioni per settore:** prova di Activepieces incorporato (MIT), con un flusso per pacchetto.
 
+## 6. Clientify come banco di prova (non open source)
+Clientify è un SaaS chiuso: **il suo codice sorgente non è stato scansionato**. Il 5/10/2026, nella sessione «CRM con automazione WhatsApp», è stato analizzato tramite il connettore l'**account Clientify dell'agenzia**: capacità e dati, in sola lettura. Il resoconto è nel repo `Insiderslab/Insiderslab`, branch `claude/exciting-rubin-mow1yu`, cartella `crm-whatsapp/` (`ANALISI-STATO-2026-10-05.md` e `ANALISI-COMPLETA-2026-10-09.md`).
+
+**Fatti emersi:**
+- Modulo Comunicazioni con **1 canale WhatsApp Web** attivo, 788 contatti, 3 pipeline, automazione «Nuevo Lead» pubblicata.
+- L'addon «API KEY Advanced» **non è attivo**, quindi la Team Inbox non è automatizzabile via API.
+- Clientify ha il **controllo completo dei WABA di Lumii e di Insiderslab Team**: rischio di due bot sullo stesso numero. Per ogni numero va scritto chi lo usa.
+- Esiste un export dei contatti (`clientify_contatti_28_08_2026.xls` su Drive), utile per la migrazione verso il nostro CRM.
+- Su Drive c'è un contratto partner con Clientify (Condiciones Especiales Contrato Partner). **Da rileggere** prima di vendere un prodotto concorrente.
+
+**Mappa delle funzioni**, ricavata dalle funzioni del connettore Clientify, confrontata con il nostro CRM:
+
+| Funzione Clientify | Nel nostro CRM (vocero-crm) | Nota |
+|---|---|---|
+| Contatti, aziende, opportunità, pipeline, tag, campi personalizzati, segmenti, liste | ✅ contatti, pipeline, lead, tag, `ficha` libera | Mancano aziende (B2B) e segmenti/liste |
+| Inbox multicanale | 🟡 solo WhatsApp | Livello canali M1 (scheda multicanale) |
+| Agente AI con base di conoscenza, strumenti, scopo, anteprima | ✅ agente, KB, **Laboratorio con casi di test** | Il nostro è più avanzato sulla verifica |
+| Automazioni (trigger e passi) | ✅ automazioni | Valutare Activepieces per i flussi per settore |
+| Modelli email e campagne, liste marketing | ❌ | Modulo «Campagne» (o Mautic come servizio) |
+| Landing page e moduli | ❌ | Modulo «Acquisizione» (endpoint dei form del sito già richiesto) |
+| Lead scoring | ❌ | Modulo semplice, regole nel pacchetto di settore |
+| Buyer persona, brand kit, identità aziendale | ❌ | Dati del pacchetto e del cliente (vanno anche nel Core) |
+| Preventivi, proposte, prodotti, firma elettronica | ❌ | Collegare preventivatore e listino, più Heili Legal per i contratti |
+| Riunioni e notetaker (riassunti da modelli) | ❌ | **Heili Meetings** (scheda nel Core) |
+| Prospector (ricerca e arricchimento di aziende e persone) | ❌ | Valutare fonti dati a pagamento; attenzione al GDPR |
+| Chiamate | ❌ | Fuori dal primo rilascio |
+| Cruscotto e metriche | 🟡 | Report per il cliente (manca, vedi analisi 9/10) |
+| **Reputazione: recensioni, menzioni, visibilità nelle AI** | ❌ | **Non è nel connettore Clientify**: è il nostro elemento distintivo (ARM) |
+
+**Lettura:**
+- Clientify copre bene vendite e marketing classici. Il nostro CRM è già più forte su WhatsApp e sull'agente AI verificato.
+- Lo spazio libero è la **reputazione (ARM) unita ai pacchetti di settore**.
+- I moduli che mancano rispetto a Clientify (campagne, landing, scoring, preventivi, riunioni) diventano moduli attivabili per pacchetto, non funzioni fisse.
+
 ## Fonti
 - Chatwoot: https://github.com/chatwoot/chatwoot · https://www.chatwoot.com/docs/product/others/enterprise-edition/
 - Twenty: https://marmelab.com/blog/2026/01/09/open-source-crm-benchmark-2026.html · https://ideaproof.io/open-source/project/twenty
