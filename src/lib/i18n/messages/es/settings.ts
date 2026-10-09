@@ -181,6 +181,38 @@ const messages = {
       "Verificación de firma activa (META_APP_SECRET configurado): cada evento se valida con x-hub-signature-256.",
     signatureInactive:
       "Sin App Secret configurado: el webhook queda protegido por la URL secreta (normal en modo agencia). Para la capa extra de firma, agrega META_APP_SECRET a la instancia.",
+    wapi: {
+      title: "Clave de Wapi de esta organización",
+      description:
+        "Si tu instancia usa el gateway Wapi, cada organización usa SU propia clave (hlp_live_…). Se guarda cifrada y nunca se vuelve a mostrar: solo ves los últimos 4 caracteres.",
+      forbidden:
+        "Solo el propietario o un administrador de la organización gestiona la clave de Wapi.",
+      gatewayOff:
+        "Esta instancia no tiene el gateway Wapi activo (WAPI_BASE_URL): la clave se puede guardar, pero hoy no se usa y todo va directo a Meta.",
+      routing: {
+        own_key: "Los envíos de esta organización van por Wapi con su clave propia.",
+        legacy_global:
+          "Modo heredado: esta organización usa la clave global de la instancia. Guarda una clave propia para dejar de depender de ella.",
+        blocked:
+          "Envíos bloqueados: la instancia tiene varias organizaciones en la lista de Wapi y esta no tiene clave propia. Guarda su clave abajo.",
+        direct: "Los envíos de esta organización van directos a Meta.",
+      },
+      configured: "Clave guardada (…{{last4}})",
+      notConfigured: "Sin clave propia",
+      keyLabel: "Clave de Wapi",
+      keyPlaceholder: "hlp_live_…",
+      save: "Guardar clave",
+      saving: "Guardando…",
+      saved: "Clave guardada ✓",
+      saveError: "No se pudo guardar la clave",
+      invalidFormat: "La clave debe empezar por hlp_live_",
+      remove: "Revocar clave",
+      confirmRemove:
+        "¿Revocar la clave de Wapi de esta organización? Los envíos por Wapi se detendrán hasta guardar otra.",
+      removeError: "No se pudo revocar la clave",
+      loadError:
+        "No se pudo cargar el estado de la clave de Wapi: recarga la página.",
+    },
   },
 };
 export default messages;

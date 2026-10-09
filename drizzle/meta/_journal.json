@@ -78,6 +78,13 @@
       "when": 1791227892724,
       "tag": "0010_warm_guardsmen",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1791588293170,
+      "tag": "0011_classy_bloodstorm",
+      "breakpoints": true
     }
   ]
 }

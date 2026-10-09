@@ -181,6 +181,38 @@ const messages: typeof base = {
       "Signature verification active (META_APP_SECRET configured): every event is validated with x-hub-signature-256.",
     signatureInactive:
       "No App Secret configured: the webhook is protected by the secret URL (normal in agency mode). For the extra signature layer, add META_APP_SECRET to the instance.",
+    wapi: {
+      title: "Wapi key for this organization",
+      description:
+        "If your instance uses the Wapi gateway, each organization uses ITS OWN key (hlp_live_…). It is stored encrypted and never shown again: you only see the last 4 characters.",
+      forbidden:
+        "Only the organization owner or an admin manages the Wapi key.",
+      gatewayOff:
+        "This instance has no Wapi gateway enabled (WAPI_BASE_URL): the key can be saved, but it is not used today and everything goes straight to Meta.",
+      routing: {
+        own_key: "This organization's sends go through Wapi with its own key.",
+        legacy_global:
+          "Legacy mode: this organization uses the instance-wide key. Save its own key to stop depending on it.",
+        blocked:
+          "Sends blocked: the instance lists several organizations for Wapi and this one has no key of its own. Save its key below.",
+        direct: "This organization's sends go straight to Meta.",
+      },
+      configured: "Key saved (…{{last4}})",
+      notConfigured: "No key of its own",
+      keyLabel: "Wapi key",
+      keyPlaceholder: "hlp_live_…",
+      save: "Save key",
+      saving: "Saving…",
+      saved: "Key saved ✓",
+      saveError: "Could not save the key",
+      invalidFormat: "The key must start with hlp_live_",
+      remove: "Revoke key",
+      confirmRemove:
+        "Revoke this organization's Wapi key? Sends through Wapi will stop until another key is saved.",
+      removeError: "Could not revoke the key",
+      loadError:
+        "Could not load the Wapi key status: reload the page.",
+    },
   },
 };
 export default messages;

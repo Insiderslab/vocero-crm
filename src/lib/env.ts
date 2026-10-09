@@ -23,9 +23,11 @@ const envSchema = z.object({
   META_GRAPH_API_VERSION: z.string().default("v25.0"),
   META_GRAPH_BASE_URL: z.string().url().default("https://graph.facebook.com"),
   // Fase 4 (custom heili.cloud): gateway propio Wapi. Si WAPI_BASE_URL existe,
-  // las llamadas Graph se desvían ahí con WAPI_API_KEY como bearer (las
-  // credenciales Meta viven solo en Wapi). WAPI_ORG_IDS (csv) limita el
-  // desvío a esas orgs (migración por org); ausente/vacía = todas.
+  // las llamadas Graph se desvían ahí (las credenciales Meta viven solo en
+  // Wapi). C3: el bearer es la clave Wapi PROPIA de cada organización (tabla
+  // wapi_credentials, cifrada). WAPI_API_KEY es solo el modo heredado de UNA
+  // organización: vale únicamente si WAPI_ORG_IDS (csv) contiene exactamente
+  // esa organización; con varias o vacía no se usa (fail-closed).
   WAPI_BASE_URL: z.string().url().optional(),
   WAPI_API_KEY: z.string().optional(),
   WAPI_ORG_IDS: z.string().optional(),

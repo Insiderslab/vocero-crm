@@ -182,6 +182,38 @@ const messages: typeof base = {
       "Verifica della firma attiva (META_APP_SECRET configurato): ogni evento viene validato con x-hub-signature-256.",
     signatureInactive:
       "Nessun App Secret configurato: il webhook resta protetto dall'URL segreto (normale in modalità agenzia). Per il livello extra di firma, aggiungi META_APP_SECRET all'istanza.",
+    wapi: {
+      title: "Chiave Wapi di questa organizzazione",
+      description:
+        "Se la tua istanza usa il gateway Wapi, ogni organizzazione usa la PROPRIA chiave (hlp_live_…). Viene salvata cifrata e non viene mai più mostrata: vedi solo gli ultimi 4 caratteri.",
+      forbidden:
+        "Solo il proprietario o un amministratore dell'organizzazione gestisce la chiave Wapi.",
+      gatewayOff:
+        "Questa istanza non ha il gateway Wapi attivo (WAPI_BASE_URL): la chiave si può salvare, ma oggi non viene usata e tutto va diretto a Meta.",
+      routing: {
+        own_key: "Gli invii di questa organizzazione passano da Wapi con la sua chiave.",
+        legacy_global:
+          "Modalità legacy: questa organizzazione usa la chiave globale dell'istanza. Salva una chiave propria per non dipendere più da quella.",
+        blocked:
+          "Invii bloccati: l'istanza elenca più organizzazioni per Wapi e questa non ha una chiave propria. Salva qui sotto la sua chiave.",
+        direct: "Gli invii di questa organizzazione vanno diretti a Meta.",
+      },
+      configured: "Chiave salvata (…{{last4}})",
+      notConfigured: "Nessuna chiave propria",
+      keyLabel: "Chiave Wapi",
+      keyPlaceholder: "hlp_live_…",
+      save: "Salva chiave",
+      saving: "Salvataggio…",
+      saved: "Chiave salvata ✓",
+      saveError: "Impossibile salvare la chiave",
+      invalidFormat: "La chiave deve iniziare con hlp_live_",
+      remove: "Revoca chiave",
+      confirmRemove:
+        "Revocare la chiave Wapi di questa organizzazione? Gli invii tramite Wapi si fermeranno finché non ne salvi un'altra.",
+      removeError: "Impossibile revocare la chiave",
+      loadError:
+        "Impossibile caricare lo stato della chiave Wapi: ricarica la pagina.",
+    },
   },
 };
 export default messages;
