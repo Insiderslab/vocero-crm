@@ -3,6 +3,8 @@ const messages = {
   loading: "Cargando…",
   title: "Agente de IA",
   saved: "Guardado ✓",
+    saveError: "No se pudo guardar; tus cambios siguen en el formulario",
+    unsaved: "Cambios sin guardar",
   statusOn: "Encendido",
   statusOff: "Apagado",
   toggleLabel: "Agente encendido",
@@ -26,6 +28,21 @@ const messages = {
     greetingPlaceholder: "Saludo para conversaciones nuevas",
     save: "Guardar comportamiento",
   },
+  restricted: {
+    title: "Acceso reservado",
+    description:
+      "Convierte el agente en un asistente interno del equipo: solo responde a los números de la lista. A los demás no les responde la IA ni ven el conocimiento.",
+    toggle: "Responder solo a los números de la lista",
+    listLabel: "Números permitidos (uno por línea, con «+» y código de país)",
+    listPlaceholder: "+39 347 123 4567\n+52 55 1234 5678",
+    outsiderLabel: "Respuesta para números no autorizados (opcional)",
+    outsiderPlaceholder: "Este número es de uso interno del equipo.",
+    outsiderHint: "Se envía una sola vez por conversación. Vacío = no se responde nada.",
+    save: "Guardar acceso reservado",
+    invalid: "Números no válidos: {{lines}}. Escribe cada número con «+» y el código de país, p. ej. +39 347 123 4567.",
+    saveError: "No se pudo guardar el acceso reservado",
+    count: "{{count}} números permitidos",
+  },
   kb: {
     title: "Knowledge base",
     description:
@@ -41,6 +58,7 @@ const messages = {
     blockPlaceholder: "Horarios, direcciones, políticas…",
     addBlock: "Agregar bloque",
     removeEntry: "Eliminar entrada",
+    saveError: "No se pudo guardar la entrada; lo escrito sigue aquí",
     empty: "Sin entradas todavía: agrega lo que el agente debe saber.",
   },
 };

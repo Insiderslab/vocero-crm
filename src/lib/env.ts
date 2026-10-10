@@ -40,6 +40,9 @@ const envSchema = z.object({
   OPENROUTER_BASE_URL: z.string().url().default("https://openrouter.ai/api"),
   OPENROUTER_MODEL: z.string().optional(),
   OPENROUTER_JUDGE_MODEL: z.string().optional(),
+  // Tope de tokens de salida por llamada. Sin él OpenRouter reserva el máximo
+  // del modelo (p. ej. 64 000) y con poco crédito responde 402 a cada turno.
+  OPENROUTER_MAX_TOKENS: z.coerce.number().int().min(1).max(200_000).default(2048),
   ALLOW_SIGNUP: z.string().optional(),
   // Correos (separados por coma) con poderes de super-admin de la instancia:
   // crear organizaciones y usuarios desde /admin. Sin ella, no hay super-admin.

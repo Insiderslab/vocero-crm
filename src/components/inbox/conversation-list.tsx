@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Search, Sparkles, UserRound, X } from "lucide-react";
+import { Search, Sparkles, Trash2, UserRound, X } from "lucide-react";
 import type { ConversationDto } from "@/lib/types";
 import { matchesQuery } from "@/lib/search";
 import { useT } from "@/lib/i18n/client";
@@ -52,6 +52,75 @@ function EmptyState({ onSeeded }: { onSeeded: () => void }) {
           {seeding ? t("inbox.empty.seeding") : t("inbox.empty.seed")}
         </Button>
       )}
+    </div>
+  );
+}
+
+/**
+ * 007 — "Quitar datos demo", junto a la carga de la demo. Como la demo solo
+ * se carga con la bandeja vacía, este control aparece cuando la organización
+ * TIENE datos demo (GET /api/seed/demo), con o sin conversaciones. Solo
+ * owner/admin (la API lo exige igual).
+ */
+function DemoRemoval({
+  refreshKey,
+  onRemoved,
+}: {
+  refreshKey: number;
+  onRemoved: () => void;
+}) {
+  const { t } = useT();
+  const canManage = isOrgAdmin(useRole());
+  const [hasDemo, setHasDemo] = useState(false);
+  const [removing, setRemoving] = useState(false);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    if (!canManage) return;
+    let alive = true;
+    void fetch("/api/seed/demo")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: { hasDemo?: boolean } | null) => {
+        if (alive) setHasDemo(Boolean(data?.hasDemo));
+      })
+      .catch(() => null);
+    return () => {
+      alive = false;
+    };
+  }, [canManage, refreshKey]);
+
+  if (!canManage || !hasDemo) return null;
+
+  async function remove() {
+    if (!window.confirm(t("inbox.empty.removeDemoConfirm"))) return;
+    setRemoving(true);
+    setFailed(false);
+    const res = await fetch("/api/seed/demo", { method: "DELETE" }).catch(
+      () => null
+    );
+    setRemoving(false);
+    if (!res?.ok) {
+      setFailed(true);
+      return;
+    }
+    setHasDemo(false);
+    onRemoved();
+  }
+
+  return (
+    <div className="flex items-center gap-2 border-b bg-secondary px-4 py-2 text-xs text-text-2">
+      <span className="min-w-0 flex-1">
+        {failed ? t("inbox.empty.removeDemoError") : t("inbox.empty.demoLoaded")}
+      </span>
+      <Button
+        size="sm"
+        variant="outline"
+        disabled={removing}
+        onClick={() => void remove()}
+      >
+        <Trash2 className="h-4 w-4" strokeWidth={1.7} />
+        {removing ? t("inbox.empty.removingDemo") : t("inbox.empty.removeDemo")}
+      </Button>
     </div>
   );
 }
@@ -193,6 +262,8 @@ export function ConversationList({
           </select>
         )}
       </div>
+
+      <DemoRemoval refreshKey={conversations.length} onRemoved={onSeeded} />
 
       <div className="flex-1 overflow-y-auto">
         {loading ? (

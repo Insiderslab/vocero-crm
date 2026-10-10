@@ -19,6 +19,11 @@ const messages: typeof base = {
     body: "When someone messages your WhatsApp number, their conversation will appear here in real time.",
     seed: "Load demo data",
     seeding: "Loading demo…",
+    removeDemo: "Remove demo data",
+    removingDemo: "Removing demo…",
+    demoLoaded: "This organization has demo data.",
+    removeDemoConfirm: "Remove the demo contacts, conversations and knowledge? Your real data is not touched.",
+    removeDemoError: "Could not remove the demo data",
   },
   filters: {
     all: "All",

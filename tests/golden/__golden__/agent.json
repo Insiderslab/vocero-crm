@@ -144,7 +144,8 @@
               "role": "user",
               "content": "Hola, quiero información"
             }
-          ]
+          ],
+          "max_tokens": 2048
         }
       },
       {
@@ -360,7 +361,8 @@
               "role": "user",
               "content": "Hola, quiero información"
             }
-          ]
+          ],
+          "max_tokens": 2048
         }
       },
       {
@@ -712,7 +714,8 @@
               "role": "user",
               "content": "¿Tienen cita mañana?"
             }
-          ]
+          ],
+          "max_tokens": 2048
         }
       }
     ],

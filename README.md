@@ -242,6 +242,7 @@ OPENROUTER_API_TOKEN=sk-or-...        # tu key
 OPENROUTER_MODEL=anthropic/claude-sonnet-4.5
 OPENROUTER_JUDGE_MODEL=               # opcional: modelo distinto para el juez del Laboratorio
 OPENROUTER_BASE_URL=https://openrouter.ai/api   # o tu proveedor OpenAI-compatible
+OPENROUTER_MAX_TOKENS=2048            # opcional: tope de salida por llamada (evita el 402 por reserva del máximo)
 ```
 
 Sin token, todo lo demás funciona; Agente y Laboratorio muestran cómo

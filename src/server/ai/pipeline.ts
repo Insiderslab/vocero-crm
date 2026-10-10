@@ -1,4 +1,4 @@
-import { asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { newId } from "@/lib/db/ids";
 import { scoped } from "@/lib/db/tenant";
@@ -11,6 +11,7 @@ import { SendError, sendText } from "@/server/inbox/send";
 import { AgentAction, degradeAction, resolveStage, type AgentActionType } from "@/server/ai/actions";
 import { matchesHandoffIntent } from "@/server/ai/handoff";
 import { buildAgentSystemPrompt } from "@/server/ai/prompts";
+import { isAllowedIdentity } from "@/server/ai/allowlist";
 
 /**
  * Turno del agente (FR-021..FR-025).
@@ -110,6 +111,29 @@ export async function runAgentTurn(conversationId: string): Promise<void> {
   // El toggle global aplica a conversaciones reales; el Laboratorio evalúa el
   // comportamiento configurado aunque el agente aún no esté encendido.
   if (!conversation.isTest && !profile.enabled) return;
+
+  // 007 — Acceso reservado (asistente interno): con la restricción
+  // encendida, un contacto fuera de la lista NO llega al modelo ni al KB (ni
+  // siquiera se leen). Como mucho recibe la respuesta fija, una vez. El
+  // Laboratorio no la aplica: evalúa el comportamiento configurado.
+  if (!conversation.isTest && profile.restrictToAllowlist) {
+    const contactRows = await db
+      .select({ waIdentity: schema.contact.waIdentity, phone: schema.contact.phone })
+      .from(schema.contact)
+      .where(
+        scoped(
+          schema.contact.organizationId,
+          organizationId,
+          eq(schema.contact.id, conversation.contactId)
+        )
+      )
+      .limit(1);
+    const contact = contactRows[0];
+    if (!contact || !isAllowedIdentity(profile, contact.waIdentity, contact.phone)) {
+      await replyToOutsider(conversation, profile.outsiderReply);
+      return;
+    }
+  }
 
   const history = await db
     .select()
@@ -227,6 +251,50 @@ async function deliverReply(
   } catch (err) {
     if (err instanceof SendError && err.code === "window_closed") {
       await applyHandoff(conversation.id, conversation.organizationId, "ventana");
+      return;
+    }
+    throw err;
+  }
+}
+
+/**
+ * 007 — Respuesta fija a quien no está en la lista. Una vez por conversación:
+ * si ya hay un saliente con ese texto exacto, no se reenvía. Va por el envío
+ * normal (`sendText`: ventana de 24 h, sandbox, credenciales); si el envío no
+ * es posible se registra y el turno termina sin handoff ni reintento.
+ * `aiGenerated`: es un mensaje automático del asistente, no de una persona.
+ */
+async function replyToOutsider(
+  conversation: Conversation,
+  text: string | null
+): Promise<void> {
+  if (!text?.trim()) return;
+  const db = getDb();
+  const already = await db
+    .select({ id: schema.message.id })
+    .from(schema.message)
+    .where(
+      and(
+        eq(schema.message.organizationId, conversation.organizationId),
+        eq(schema.message.conversationId, conversation.id),
+        eq(schema.message.direction, "out"),
+        eq(schema.message.text, text)
+      )
+    )
+    .limit(1);
+  if (already[0]) return;
+  try {
+    await sendText({
+      conversationId: conversation.id,
+      organizationId: conversation.organizationId,
+      text,
+      aiGenerated: true,
+    });
+  } catch (err) {
+    if (err instanceof SendError) {
+      console.warn(
+        `[agente] respuesta a externo no enviada (${err.code}) en ${conversation.id}`
+      );
       return;
     }
     throw err;

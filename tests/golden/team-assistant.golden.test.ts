@@ -1,0 +1,342 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { getDb, getSql } from "@/lib/db";
+import { demoRunId, removeDemo, seedDemo } from "@/server/seed/demo";
+import { waFixture } from "./fixtures/whatsapp";
+import { aiWillReply, conversationIdOf, postWebhook, recordedRequests } from "./harness";
+import { ORG_A, ORG_B } from "./setup";
+
+// IA configurada (proveedor sintético) y sin espera de coalesce, como agent.golden.
+vi.hoisted(() => {
+  process.env.OPENROUTER_API_TOKEN = "sk-or-golden-synthetic-token";
+  process.env.OPENROUTER_MODEL = "golden/modelo-sintetico";
+  process.env.AGENT_COALESCE_MS = "0";
+});
+
+/**
+ * 007 — Asistente interno (specs/custom-heili/007-assistente-interno.md).
+ * Aserciones EXPLÍCITAS (sin instantánea): este archivo no cambia ningún
+ * golden de comportamiento existente. PostgreSQL real, gestores verdaderos.
+ */
+
+const sql = () => getSql();
+const ANA = "525512345678"; // inbound-text-mx (5215512345678 normalizado)
+const OUTSIDER_REPLY = "Este número es de uso interno del equipo.";
+
+async function profile(opts: {
+  restrict: boolean;
+  allowed?: string[];
+  outsiderReply?: string | null;
+}): Promise<void> {
+  await sql()`
+    insert into agent_profile (id, organization_id, enabled, name, restrict_to_allowlist, allowed_identities, outsider_reply)
+    values ('agp_team_a', ${ORG_A}, true, 'Asistente del equipo', ${opts.restrict},
+            ${opts.allowed ?? []}, ${opts.outsiderReply ?? null})
+  `;
+  await sql()`
+    insert into kb_entry (id, organization_id, kind, question, answer)
+    values ('kb_team_secreto', ${ORG_A}, 'qa', '¿Clave del almacén?', 'SECRETO-INTERNO-42')
+  `;
+}
+
+const aiCalls = () => recordedRequests().filter((r) => r.to === "ai");
+const graphSends = () =>
+  recordedRequests().filter((r) => r.to === "graph" && r.method === "POST" && /\/messages$/.test(r.path));
+
+async function outbound(conversationId: string) {
+  return sql()<{ text: string | null; ai_generated: boolean; origin: string }[]>`
+    select text, ai_generated, origin from message
+    where conversation_id = ${conversationId} and direction = 'out' order by created_at
+  `;
+}
+
+async function legacyCheck(): Promise<Record<string, number>> {
+  const rows = await sql()<{ verifica: string; anomalie: string }[]>`
+    select verifica, anomalie from channels_legacy_check()
+  `;
+  return Object.fromEntries(rows.map((r) => [r.verifica, Number(r.anomalie)]));
+}
+
+describe("007 acceso reservado", () => {
+  it("externo: sin IA ni KB; la respuesta fija UNA vez por conversación, por Graph", async () => {
+    await profile({ restrict: true, allowed: ["393471234567"], outsiderReply: OUTSIDER_REPLY });
+    aiWillReply('{"action":"reply","text":"SECRETO-INTERNO-42"}');
+
+    await postWebhook(waFixture("inbound-text-mx"));
+    await postWebhook(waFixture("inbound-text-mx-again"));
+
+    expect(aiCalls()).toHaveLength(0);
+    const sends = graphSends();
+    expect(sends).toHaveLength(1);
+    expect(sends[0]?.body).toMatchObject({ to: ANA, type: "text", text: { body: OUTSIDER_REPLY } });
+    expect(JSON.stringify(recordedRequests())).not.toContain("SECRETO-INTERNO-42");
+
+    const cv = await conversationIdOf(ORG_A, ANA);
+    expect(await outbound(cv)).toEqual([
+      { text: OUTSIDER_REPLY, ai_generated: true, origin: "ai" },
+    ]);
+    // Ni handoff: el operador ve la conversación en la bandeja como siempre.
+    const [conv] = await sql()<{ handoff_at: Date | null; ai_enabled: boolean }[]>`
+      select handoff_at, ai_enabled from conversation where id = ${cv}
+    `;
+    expect(conv).toEqual({ handoff_at: null, ai_enabled: true });
+  });
+
+  it("externo sin respuesta configurada: silencio total (ni IA ni Graph)", async () => {
+    await profile({ restrict: true, allowed: ["393471234567"], outsiderReply: null });
+    await postWebhook(waFixture("inbound-text-mx"));
+    expect(aiCalls()).toHaveLength(0);
+    expect(graphSends()).toHaveLength(0);
+  });
+
+  it("número de la lista (forma 521 → 52): el agente normal responde", async () => {
+    await profile({ restrict: true, allowed: ["525512345678"], outsiderReply: OUTSIDER_REPLY });
+    aiWillReply('{"action":"reply","text":"Hola equipo, la clave es SECRETO-INTERNO-42"}');
+    await postWebhook(waFixture("inbound-text-mx"));
+
+    expect(aiCalls()).toHaveLength(1);
+    const sends = graphSends();
+    expect(sends).toHaveLength(1);
+    expect(sends[0]?.body).toMatchObject({ text: { body: "Hola equipo, la clave es SECRETO-INTERNO-42" } });
+    expect(JSON.stringify(sends)).not.toContain(OUTSIDER_REPLY);
+  });
+
+  it("restricción apagada (por defecto): el agente responde a cualquiera", async () => {
+    await profile({ restrict: false, allowed: [], outsiderReply: OUTSIDER_REPLY });
+    aiWillReply('{"action":"reply","text":"Respuesta normal"}');
+    await postWebhook(waFixture("inbound-text-mx"));
+    expect(aiCalls()).toHaveLength(1);
+    expect(graphSends().map((r) => r.body)).toMatchObject([{ text: { body: "Respuesta normal" } }]);
+  });
+
+  it("contacto solo-BSUID: nunca está en la lista (fail-closed)", async () => {
+    await profile({ restrict: true, allowed: ["525512345678"], outsiderReply: null });
+    await postWebhook(waFixture("inbound-bsuid-only"));
+    expect(aiCalls()).toHaveLength(0);
+    expect(graphSends()).toHaveLength(0);
+  });
+
+  it("contacto nacido solo-BSUID y luego con teléfono en la lista: responde la IA", async () => {
+    // inbound-phone-and-bsuid: wa_id 5215587654321 → teléfono 525587654321.
+    await profile({ restrict: true, allowed: ["525587654321"], outsiderReply: OUTSIDER_REPLY });
+    await postWebhook(waFixture("inbound-bsuid-only"));
+    expect(aiCalls()).toHaveLength(0); // aún sin teléfono: fuera
+    const [c] = await sql()<{ wa_identity: string; phone: string | null }[]>`
+      select wa_identity, phone from contact where organization_id = ${ORG_A}
+    `;
+    expect(c?.wa_identity.startsWith("bsuid:")).toBe(true);
+
+    aiWillReply('{"action":"reply","text":"Hola, ya te reconozco"}');
+    await postWebhook(waFixture("inbound-phone-and-bsuid"));
+    const [after] = await sql()<{ wa_identity: string; phone: string | null }[]>`
+      select wa_identity, phone from contact where organization_id = ${ORG_A}
+    `;
+    expect(after).toEqual({ wa_identity: c!.wa_identity, phone: "525587654321" });
+    expect(aiCalls()).toHaveLength(1);
+    expect(graphSends().map((r) => (r.body as { text?: { body?: string } }).text?.body)).toContain(
+      "Hola, ya te reconozco"
+    );
+  });
+
+  it("columnas nuevas con sus valores por defecto en un perfil existente", async () => {
+    await sql()`insert into agent_profile (id, organization_id) values ('agp_team_default', ${ORG_B})`;
+    const [row] = await sql()<{ restrict_to_allowlist: boolean; allowed_identities: string[]; outsider_reply: string | null }[]>`
+      select restrict_to_allowlist, allowed_identities, outsider_reply from agent_profile where id = 'agp_team_default'
+    `;
+    expect(row).toEqual({ restrict_to_allowlist: false, allowed_identities: [], outsider_reply: null });
+  });
+});
+
+async function demoContacts(org: string): Promise<number> {
+  const [row] = await sql()<{ n: number }[]>`
+    select count(*)::int as n from contact where organization_id = ${org} and phone like '52156123400%'
+  `;
+  return row?.n ?? 0;
+}
+
+async function count(table: string, org: string): Promise<number> {
+  const [row] = await sql().unsafe<{ n: number }[]>(
+    `select count(*)::int as n from "${table}" where organization_id = $1`,
+    [org]
+  );
+  return row?.n ?? 0;
+}
+
+describe("007 datos demo por organización", () => {
+  beforeEach(async () => {
+    // La demo coloca leads por nombre de etapa; con "Nuevo" basta (fallback).
+    for (const org of [ORG_A, ORG_B]) {
+      await sql()`insert into agent_profile (id, organization_id) values (${`agp_demo_${org}`}, ${org})`;
+    }
+  });
+
+  it("recargar la demo en A NO borra la demo de B (bug de la limpieza sin organización)", async () => {
+    await seedDemo(getDb(), ORG_B);
+    await seedDemo(getDb(), ORG_A);
+    expect(await demoContacts(ORG_B)).toBe(8);
+    await seedDemo(getDb(), ORG_A); // recarga (idempotente en A)
+    expect(await demoContacts(ORG_A)).toBe(8);
+    expect(await demoContacts(ORG_B)).toBe(8);
+    expect(await count("conversation", ORG_B)).toBe(8);
+    expect(await legacyCheck()).toMatchObject({ V3: 0, V4: 0, V5: 0 });
+  });
+
+  it("quitar la demo: solo la de la organización, conserva lo real y el KB editado; V3 = 0", async () => {
+    await seedDemo(getDb(), ORG_A);
+    await seedDemo(getDb(), ORG_B);
+    // Datos reales de A: un contacto que escribe y un KB propio + uno demo editado.
+    await postWebhook(waFixture("inbound-text-mx"));
+    await sql()`
+      insert into kb_entry (id, organization_id, kind, question, answer)
+      values ('kb_team_propio', ${ORG_A}, 'qa', '¿Turnos?', 'Lunes a viernes')
+    `;
+    await sql()`
+      update kb_entry set answer = answer || ' (editado)'
+      where organization_id = ${ORG_A} and question = '¿Cuál es el horario?'
+    `;
+    const kbB = await count("kb_entry", ORG_B);
+
+    const result = await removeDemo(getDb(), ORG_A);
+    expect(result).toEqual({ contacts: 8, kbEntries: 7 });
+
+    expect(await demoContacts(ORG_A)).toBe(0);
+    expect(await count("contact", ORG_A)).toBe(1); // Ana (real)
+    expect(await count("conversation", ORG_A)).toBe(1);
+    expect(await count("lead", ORG_A)).toBe(1);
+    expect(await count("contact_identity", ORG_A)).toBe(1);
+    const kbA = await sql()<{ id: string }[]>`select id from kb_entry where organization_id = ${ORG_A} order by id`;
+    expect(kbA).toHaveLength(2); // el propio + el demo editado
+    expect(kbA.map((r) => r.id)).toContain("kb_team_propio");
+
+    // B intacta.
+    expect(await demoContacts(ORG_B)).toBe(8);
+    expect(await count("message", ORG_B)).toBeGreaterThan(0);
+    expect(await count("kb_entry", ORG_B)).toBe(kbB);
+
+    expect(await legacyCheck()).toMatchObject({ V3: 0, V4: 0, V5: 0 });
+    // Idempotente.
+    expect(await removeDemo(getDb(), ORG_A)).toEqual({ contacts: 0, kbEntries: 0 });
+  });
+
+  it("quitar → volver a cargar la demo conserva el KB propio y las corridas propias del Laboratorio", async () => {
+    await seedDemo(getDb(), ORG_A);
+    // Lo del dueño: una entrada de KB y una corrida del Laboratorio con su caso.
+    await sql()`
+      insert into kb_entry (id, organization_id, kind, question, answer)
+      values ('kb_team_propio', ${ORG_A}, 'qa', '¿Turnos?', 'Lunes a viernes')
+    `;
+    await sql()`
+      insert into agent_test_run (id, organization_id, status, score)
+      values ('run_team_propia', ${ORG_A}, 'done', 91)
+    `;
+    await sql()`
+      insert into agent_test_case (id, organization_id, run_id, persona, status, transcript)
+      values ('case_team_propio', ${ORG_A}, 'run_team_propia', 'comprador_decidido', 'done',
+              ${JSON.stringify([{ role: "cliente", text: "¿Abren el domingo?" }])}::jsonb)
+    `;
+    // Una corrida demo de antes del ID fijo (ID al azar, mismos casos).
+    await sql()`
+      insert into agent_test_run (id, organization_id, status, score)
+      values ('run_demo_vieja', ${ORG_A}, 'done', 83)
+    `;
+    await sql()`
+      insert into agent_test_case (id, organization_id, run_id, persona, status, veredicto, hallazgos, transcript)
+      select 'case_vieja_' || id, organization_id, 'run_demo_vieja', persona, status, veredicto, hallazgos, transcript
+      from agent_test_case where run_id = ${demoRunId(ORG_A)}
+    `;
+
+    await removeDemo(getDb(), ORG_A);
+    await seedDemo(getDb(), ORG_A); // la bandeja quedó vacía: el botón vuelve a cargarla
+
+    const kb = await sql()<{ id: string }[]>`select id from kb_entry where organization_id = ${ORG_A}`;
+    expect(kb.map((r) => r.id)).toContain("kb_team_propio");
+    expect(kb).toHaveLength(8 + 1); // demo (una sola vez) + el propio
+    const runs = await sql()<{ id: string }[]>`
+      select id from agent_test_run where organization_id = ${ORG_A} order by id
+    `;
+    expect(runs.map((r) => r.id).sort()).toEqual([demoRunId(ORG_A), "run_team_propia"].sort());
+    expect(await sql()`select 1 from agent_test_case where id = 'case_team_propio'`).toHaveLength(1);
+    expect(await count("agent_test_case", ORG_A)).toBe(6 + 1);
+    // Otra organización: su Laboratorio no se toca.
+    expect(await count("agent_test_run", ORG_B)).toBe(0);
+  });
+
+  it("quitar la demo borra también los media_asset de sus mensajes (no los que usa otro mensaje ni los de otra organización)", async () => {
+    await seedDemo(getDb(), ORG_A);
+    await postWebhook(waFixture("inbound-text-mx")); // conversación real de A
+    await sql()`
+      insert into media_asset (id, organization_id, kind, fetch_status)
+      values ('ma_demo_solo', ${ORG_A}, 'image', 'available'),
+             ('ma_compartido', ${ORG_A}, 'image', 'available'),
+             ('ma_de_b', ${ORG_B}, 'image', 'available')
+    `;
+    const [demoMsg] = await sql()<{ id: string }[]>`
+      select m.id from message m join contact c on c.id = (select contact_id from conversation where id = m.conversation_id)
+      where m.organization_id = ${ORG_A} and c.phone like '52156123400%' order by m.id limit 1
+    `;
+    const [otroDemo] = await sql()<{ id: string }[]>`
+      select m.id from message m join contact c on c.id = (select contact_id from conversation where id = m.conversation_id)
+      where m.organization_id = ${ORG_A} and c.phone like '52156123400%' order by m.id desc limit 1
+    `;
+    const [realMsg] = await sql()<{ id: string }[]>`
+      select m.id from message m join contact c on c.id = (select contact_id from conversation where id = m.conversation_id)
+      where m.organization_id = ${ORG_A} and c.wa_identity = ${ANA} limit 1
+    `;
+    await sql()`update message set media_asset_id = 'ma_demo_solo' where id = ${demoMsg!.id}`;
+    await sql()`update message set media_asset_id = 'ma_compartido' where id in (${otroDemo!.id}, ${realMsg!.id})`;
+
+    await removeDemo(getDb(), ORG_A);
+
+    const left = await sql()<{ id: string }[]>`select id from media_asset order by id`;
+    expect(left.map((r) => r.id)).toEqual(["ma_compartido", "ma_de_b"]);
+  });
+
+  it("perfil del agente: la demo lo escribe solo si está intacto, no existe o ya es el de la demo; uno personalizado sobrevive a quitar → cargar", async () => {
+    const persona = async (org: string) =>
+      (await sql()<{ name: string; tone: string | null; instructions: string | null; greeting: string | null }[]>`
+        select name, tone, instructions, greeting from agent_profile where organization_id = ${org}
+      `)[0];
+
+    // Intacto (el del alta: solo defaults) → persona demo.
+    await seedDemo(getDb(), ORG_A);
+    expect((await persona(ORG_A))?.name).toBe("Martillito");
+    // Ya es el de la demo → recargar lo deja igual.
+    await seedDemo(getDb(), ORG_A);
+    expect((await persona(ORG_A))?.name).toBe("Martillito");
+
+    // El dueño lo personaliza (aunque sea un solo campo).
+    await sql()`
+      update agent_profile set name = 'Asistente del equipo', instructions = 'Solo uso interno.'
+      where organization_id = ${ORG_A}
+    `;
+    await removeDemo(getDb(), ORG_A);
+    await seedDemo(getDb(), ORG_A);
+    expect(await persona(ORG_A)).toMatchObject({ name: "Asistente del equipo", instructions: "Solo uso interno." });
+    // Cambiar solo el saludo de la persona demo también cuenta como personalizado.
+    await sql()`
+      update agent_profile set name = 'Martillito', instructions = null, tone = null, greeting = 'Hola, soy yo'
+      where organization_id = ${ORG_A}
+    `;
+    await seedDemo(getDb(), ORG_A);
+    expect((await persona(ORG_A))?.greeting).toBe("Hola, soy yo");
+
+    // Sin fila de perfil → se crea con la persona demo.
+    await sql()`delete from agent_profile where organization_id = ${ORG_B}`;
+    await seedDemo(getDb(), ORG_B);
+    expect((await persona(ORG_B))?.name).toBe("Martillito");
+  });
+
+  it("quitar la demo sin la FK en cascada de la fase B (fase B incompleta): V3 sigue en 0", async () => {
+    await seedDemo(getDb(), ORG_A);
+    await sql()`alter table contact_identity drop constraint contact_identity_contact_fk`;
+    try {
+      expect(await removeDemo(getDb(), ORG_A)).toMatchObject({ contacts: 8 });
+      expect(await count("contact_identity", ORG_A)).toBe(0);
+      expect(await legacyCheck()).toMatchObject({ V3: 0 });
+    } finally {
+      // La misma definición que la fase B del runner (scripts/migrate-channels.mjs).
+      await sql().unsafe(
+        'ALTER TABLE "contact_identity" ADD CONSTRAINT "contact_identity_contact_fk" FOREIGN KEY ("organization_id","contact_id") REFERENCES "public"."contact"("organization_id","id") ON DELETE cascade ON UPDATE no action'
+      );
+    }
+  });
+});
