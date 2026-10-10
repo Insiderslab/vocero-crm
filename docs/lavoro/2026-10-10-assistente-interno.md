@@ -109,3 +109,46 @@ Metodo: script nello scratchpad (non versionato) che cambia **un** frammento, es
 - Il test di sorveglianza su `agent-client.tsx` legge il sorgente con espressioni regolari: un refactor legittimo potrebbe doverlo aggiornare.
 - La CI su GitHub non è stata eseguita (nessun push).
 - Il valore 2048 per `max_tokens` basta al JSON dell'agente e del giudice di oggi. Un prompt che chiedesse risposte molto lunghe verrebbe troncato: in quel caso il turno ritenta e poi fa handoff `error`.
+
+## Revisione avversaria della PR #8 — correzioni (10/10/2026)
+
+Un commit per correzione, sullo stesso branch locale `team-assistant`. Nessun push.
+
+| # | Problema | Correzione | Commit |
+|---|---|---|---|
+| 1 | Dopo «Quitar datos demo» la posta torna vuota e ricaricare la demo cancellava **tutto** il KB e il Laboratorio del proprietario. | `seedDemo` cancella solo le voci KB identiche alla demo e la corsa demo. La corsa demo ora ha l'ID fisso `run_demo_<org>`; quelle vecchie con ID casuale si riconoscono perché hanno esattamente i casi della demo. | `b4967a6` |
+| 2 | Un contatto nato da un messaggio solo-BSUID tiene `wa_identity = bsuid:…` per sempre, quindi non risultava mai in lista. | La lista si confronta anche con `contact.phone` (solo cifre + `normalizeMx`). | `26e13ab` |
+| 3 | `347 123 4567` (formato locale) veniva accettato e non coincideva mai. | Il `+` iniziale è obbligatorio. Il 422 elenca le righe non valide, con messaggio i18n es/en/it. La schermata mostra i numeri salvati con `+` davanti, così un nuovo salvataggio li rivalida uguali. | `9a2ead8` |
+| 4 | Quello che si scriveva durante un salvataggio in corso andava perso. | Campi, checkbox e pulsanti sono disabilitati mentre il salvataggio è in corso (comportamento, accesso riservato, KB); l'interruttore dell'agente mentre il suo PUT è in corso. | `31bac4e` |
+| 5 | Refetch in ordine diverso: una risposta vecchia sovrascriveva quella nuova. | Contatore delle richieste (`createLatestGate`): si applica solo la risposta dell'ultima. | `ad167d7` |
+| 6 | Rimuovere la demo lasciava righe orfane in `media_asset` (la FK del messaggio è SET NULL). | Si raccolgono gli id e si cancellano nella stessa transazione, solo per l'organizzazione e solo se nessun altro messaggio li usa. **I file in `MEDIA_DIR` restano su disco**: la cancellazione da disco non è transazionale. | `490947a` |
+| 7 | La 0014 non aveva `lock_timeout`. | `SET LOCAL lock_timeout = '5s'`, come la 0013. Verificato che il migratore di Drizzle esegue tutte le migrazioni in sospeso in **una** transazione (`pg-core/dialect.js`, `session.transaction`), quindi `SET LOCAL` vale. Snapshot non rigenerato. | `0d469d7` |
+| 8 | Documentazione. | `.env.example`: `OPENROUTER_MAX_TOKENS` comprende anche i token di ragionamento. Spec: modificare `outsider_reply` fa inviare il testo nuovo una volta per conversazione (l'idempotenza è sul testo esatto). | `0c8a5b4` |
+
+**Test nuovi:**
+- golden:
+  - KB proprio e corsa propria del Laboratorio sopravvivono a rimozione → ricarica, e una corsa demo vecchia sparisce;
+  - `inbound-bsuid-only` seguito da `inbound-phone-and-bsuid`, con il telefono in lista → risponde l'IA;
+  - i `media_asset` dei messaggi demo vengono cancellati; restano quello usato anche da un messaggio reale e quello di B;
+- unità: `+` obbligatorio, ida y vuelta della schermata, `comparablePhone`, `createLatestGate`, sorveglianza sul sorgente (ogni campo è disabilitato durante il salvataggio, interruttore, refetch).
+
+**Gate:**
+- tsc e eslint verdi;
+- unità 1069/1069;
+- golden su una base **nuova** (`vocero_team_golden2`) 106/106; `__golden__` invariato rispetto a `cf9d810`;
+- `next build` verde;
+- E2E 167/167 su base nuova, V1–V6 = 0.
+
+**Sabotaggi** (script nello scratchpad, ogni file rimesso com'era, `git status` pulito alla fine). Ognuno fa fallire almeno un test:
+- seed che cancella tutto il KB; seed che cancella tutto il Laboratorio; corse demo vecchie non riconosciute;
+- allowlist che ignora `phone` (golden e unità); `+` facoltativo (5 rossi);
+- un campo non disabilitato durante il salvataggio; interruttore non bloccato;
+- gate sempre vero; refetch senza gate;
+- `media_asset` non cancellati; cancellati senza il `NOT EXISTS`.
+- La 0014 è stata provata a mano su una base con un lock tenuto 12 s:
+  - con la riga si ottiene `55P03` dopo 5 s e il tentativo successivo riesce;
+  - senza la riga non scatta nessun timeout e la migrazione resta in attesa del lock.
+
+**Da segnalare (non corretto, fuori dal mandato):**
+- `seedDemo` sovrascrive ancora il profilo dell'agente (nome «Martillito», tono, istruzioni, regole, saluto). Dopo rimozione → ricarica, il proprietario perde la configurazione del suo agente. Va deciso se la demo debba toccare il profilo.
+- `removeDemo` lascia la corsa demo del Laboratorio, come dice la spec; viene sostituita alla ricarica successiva.
