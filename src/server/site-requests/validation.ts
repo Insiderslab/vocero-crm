@@ -108,6 +108,46 @@ const fieldsSchema = z
     message: `máximo ${MAX_FIELDS} campos`,
   });
 
+/** Tope de `pageUrl` (se recorta, no se rechaza). */
+export const MAX_PAGE_URL = 500;
+
+/**
+ * pageUrl: solo http(s); si es larga se le quitan query y fragmento, y si aún
+ * no cabe se recorta. Lo que no es una URL http(s) se descarta (undefined).
+ */
+export function normalizePageUrl(v: unknown): string | undefined {
+  if (typeof v !== "string") return undefined;
+  const s = sanitizeSingleLine(v);
+  if (!s) return undefined;
+  let url: URL;
+  try {
+    url = new URL(s);
+  } catch {
+    return undefined;
+  }
+  if (url.protocol !== "https:" && url.protocol !== "http:") return undefined;
+  url.username = "";
+  url.password = "";
+  let out = url.href;
+  if (out.length > MAX_PAGE_URL) {
+    url.search = "";
+    url.hash = "";
+    out = url.href;
+  }
+  return out.length > MAX_PAGE_URL ? out.slice(0, MAX_PAGE_URL) : out;
+}
+
+/**
+ * locale: `en_US` → `en-US`; una etiqueta que no parece BCP 47 se descarta
+ * (undefined) en vez de rechazar la solicitud.
+ */
+export function normalizeLocaleTag(v: unknown): string | undefined {
+  if (typeof v !== "string") return undefined;
+  const s = sanitizeSingleLine(v).replace(/_/g, "-");
+  if (s.length === 0 || s.length > 20) return undefined;
+  return /^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$/.test(s) ? s : undefined;
+}
+
 /** Un campo vacío del formulario ("" o solo espacios) cuenta como ausente. */
 function optional<T extends z.ZodTypeAny>(schema: T) {
   return z.preprocess((v) => {
@@ -123,21 +163,10 @@ export const siteRequestSchema = z
     phone: optional(z.string().trim().max(40)),
     email: optional(z.string().trim().toLowerCase().max(254).email("email no válido")),
     message: multiLine(1, 4000),
-    pageUrl: optional(
-      z
-        .string()
-        .trim()
-        .max(500)
-        .url()
-        .refine((u) => /^https?:\/\//i.test(u), "solo http(s)")
-    ),
-    locale: optional(
-      z
-        .string()
-        .trim()
-        .max(20)
-        .regex(/^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$/, "locale no válido")
-    ),
+    // Metadatos opcionales: un valor raro NO hace perder la solicitud del
+    // visitante. pageUrl se recorta; locale inválido se descarta.
+    pageUrl: z.preprocess(normalizePageUrl, z.string().optional()),
+    locale: z.preprocess(normalizeLocaleTag, z.string().optional()),
     fields: fieldsSchema.optional(),
     [HONEYPOT_FIELD]: z.string().max(500).optional(),
   })
@@ -148,17 +177,53 @@ export const siteRequestSchema = z
         code: z.ZodIssueCode.custom,
         path: ["phone"],
         message: "hace falta el teléfono o el email",
+        params: { reason: "contact_required" },
       });
     }
     if (d.phone) {
       const n = normalizeSitePhone(d.phone);
       if (!n.ok) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["phone"], message: n.reason });
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["phone"],
+          message: n.reason,
+          params: { reason: "phone" },
+        });
       }
     }
   });
 
 export type SiteRequestInput = z.infer<typeof siteRequestSchema>;
+
+export type VisitorErrorKey = "contactRequired" | "phone" | "email" | "name" | "message" | "invalid";
+
+/**
+ * Motivo para el VISITANTE (nunca el texto crudo de Zod): el primer problema
+ * reconocible, o uno genérico. La ruta lo traduce al idioma de la solicitud.
+ */
+export function visitorErrorKey(issues: readonly z.ZodIssue[]): VisitorErrorKey {
+  for (const i of issues) {
+    const reason = i.code === z.ZodIssueCode.custom ? (i.params as { reason?: string } | undefined)?.reason : undefined;
+    if (reason === "contact_required") return "contactRequired";
+    if (reason === "phone" || i.path[0] === "phone") return "phone";
+    if (i.path[0] === "email") return "email";
+    if (i.path[0] === "name") return "name";
+    if (i.path[0] === "message") return "message";
+  }
+  return "invalid";
+}
+
+/**
+ * Texto para el visitante en su idioma (es/en/it por `locale` del body o por
+ * Accept-Language; si no, el de la instancia).
+ */
+export function visitorMessage(
+  key: VisitorErrorKey | "phoneRequired" | "generic",
+  locale: string | null
+): string {
+  const messages = messagesFor(labelLocale(locale)) as Record<string, unknown>;
+  return translate(messages, `inbox.siteRequest.errors.${key}`);
+}
 
 /** Datos ya normalizados que usa la ingesta. */
 export type SiteRequest = {

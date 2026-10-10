@@ -144,6 +144,25 @@ const messages: typeof base = {
     phone: "Phone",
     email: "Email",
     page: "Page",
+    /** Mensajes para el VISITANTE del sitio (respuesta 422 del formulario). */
+    errors: {
+      contactRequired:
+        "Please give your phone or your email so we can contact you.",
+      phone:
+        "Please give a valid phone number with the country code (e.g. +58 412 1234567).",
+      email:
+        "Please give a valid email.",
+      name:
+        "Please give your name.",
+      message:
+        "Please write your message (4000 characters at most).",
+      invalid:
+        "Please check the form fields.",
+      phoneRequired:
+        "Please give a phone number with the country code so we can contact you.",
+      generic:
+        "It could not be sent. Please try again.",
+    },
   },
 };
 export default messages;
