@@ -14,6 +14,9 @@ services:
       META_WEBHOOK_VERIFY_TOKEN: ${META_WEBHOOK_VERIFY_TOKEN}
       META_APP_SECRET: ${META_APP_SECRET:-}
       META_GRAPH_API_VERSION: ${META_GRAPH_API_VERSION:-v25.0}
+      # 009 — Embedded Signup (coexistence). Sin ellas el botón no aparece.
+      META_APP_ID: ${META_APP_ID:-}
+      META_ES_CONFIG_ID: ${META_ES_CONFIG_ID:-}
       WAPI_BASE_URL: ${WAPI_BASE_URL:-}
       WAPI_API_KEY: ${WAPI_API_KEY:-}
       WAPI_ORG_IDS: ${WAPI_ORG_IDS:-}
@@ -27,6 +30,16 @@ services:
       EXPORT_API_KEY: ${EXPORT_API_KEY:-}
       AUTOMATIONS_TICK_MS: ${AUTOMATIONS_TICK_MS:-}
       AGENT_COALESCE_MS: ${AGENT_COALESCE_MS:-6000}
+      # Páginas legales (PR #3): borrador visible hasta LEGAL_TEXTS_REVIEWED=true.
+      LEGAL_TEXTS_REVIEWED: ${LEGAL_TEXTS_REVIEWED:-}
+      LEGAL_ENTITY_NAME: ${LEGAL_ENTITY_NAME:-}
+      LEGAL_CONTACT_EMAIL: ${LEGAL_CONTACT_EMAIL:-}
+      # 008 — Adjuntos en un volumen: sin él quedaban dentro del contenedor
+      # (default ./.dev-media) y se perdían en cada rebuild. El Dockerfile ya
+      # prepara /data/media con el dueño correcto.
+      MEDIA_DIR: /data/media
+    volumes:
+      - vocero_media:/data/media
     depends_on:
       postgres:
         condition: service_healthy
@@ -68,6 +81,7 @@ services:
       retries: 5
 
 volumes:
+  vocero_media:
   vocero_pg:
   vocero_caddy_data:
   vocero_caddy_config:

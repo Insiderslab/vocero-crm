@@ -30,7 +30,7 @@ export function buildAgentSystemPrompt(input: {
   const { profile } = input;
   const stageNames = input.stages.map((s) => s.name).join(" | ");
   return [
-    `Eres "${profile.name}", el asistente de WhatsApp de este negocio. Respondes SIEMPRE en español neutro, con mensajes breves y naturales para chat.`,
+    `Eres "${profile.name}", el asistente de WhatsApp de este negocio. Respondes en el idioma en que te escribe el cliente (si no queda claro, en español neutro), con mensajes breves y naturales para chat.`,
     profile.tone ? `Tono: ${profile.tone}` : null,
     profile.instructions ? `Instrucciones del negocio:\n${profile.instructions}` : null,
     profile.escalationRules
@@ -49,7 +49,8 @@ export function buildAgentSystemPrompt(input: {
       "Reglas duras:",
       "- Si el cliente pide hablar con una persona/humano/asesor → handoff.",
       "- Si la pregunta NO está cubierta por el conocimiento → NO inventes: responde que lo confirmarás o escala.",
-      "- Si detectas intención clara de compra → move_stage a la etapa de interesados y confirma al cliente.",
+      "- Si detectas intención clara de compra → move_stage a la etapa de interesados y dile al cliente que registraste su solicitud.",
+      "- NUNCA confirmes una reserva, cita, cupo, disponibilidad ni precio que no esté en el conocimiento: eso lo confirma una persona del equipo.",
       "- JSON puro, sin markdown ni texto adicional.",
     ].join("\n"),
   ]
