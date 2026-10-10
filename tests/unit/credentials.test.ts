@@ -11,8 +11,9 @@ const mirrorCalls: { inTransaction: boolean }[] = [];
 
 vi.mock("@/lib/db", () => {
   // La escritura vieja y la doble escritura (channel_account) van en la
-  // misma transacción: el mock solo expone insert/execute en `tx`.
-  const tx = {
+  // misma transacción; la doble escritura, además, en un SAVEPOINT
+  // (`tx.transaction`) para que un fallo suyo no cancele la vieja.
+  const tx: Record<string, unknown> = {
     insert: () => ({
       values: (v: Record<string, unknown>) => {
         insertedRows.push(v);
@@ -28,6 +29,7 @@ vi.mock("@/lib/db", () => {
       return Promise.resolve([]);
     },
   };
+  tx.transaction = (fn: (t: typeof tx) => Promise<unknown>) => fn(tx);
   return {
     getDb: () => ({
       transaction: (fn: (t: typeof tx) => Promise<unknown>) => fn(tx),

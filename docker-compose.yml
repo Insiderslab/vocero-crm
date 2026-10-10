@@ -6,6 +6,10 @@ services:
   app:
     build: .
     restart: unless-stopped
+    # PID 1 = tini: el `sh -c` del CMD recibe SIGTERM y el servidor termina lo
+    # que está procesando (webhooks ya respondidos con 200) en vez de morir
+    # con SIGKILL a los 10 s en cada rilascio.
+    init: true
     environment:
       APP_BASE_URL: ${APP_BASE_URL}
       DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/vocero

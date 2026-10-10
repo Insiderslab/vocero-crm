@@ -19,6 +19,28 @@ export type DbExecutor =
   | Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0];
 
 /**
+ * Escritura en las estructuras NUEVAS, aislada en un SAVEPOINT: en R1 la
+ * fuente de verdad son las columnas viejas, así que un fallo aquí (una fila
+ * desalineada, un índice a medio crear) JAMÁS debe cancelar la escritura vieja
+ * — en la ingesta eso perdería el mensaje (el webhook ya respondió 200 a
+ * Meta). Se registra y la reconciliación del arranque lo repara (V1–V7).
+ */
+async function bestEffort(
+  tx: DbExecutor,
+  what: string,
+  fn: (sp: DbExecutor) => Promise<void>
+): Promise<void> {
+  try {
+    await tx.transaction(async (sp) => fn(sp));
+  } catch (err) {
+    console.error(
+      `[canali] doppia scrittura di ${what} fallita (la ripara la riconciliazione all'avvio):`,
+      err instanceof Error ? err.message : err
+    );
+  }
+}
+
+/**
  * Copia filas de `meta_credentials` a `channel_account` (y asigna la cuenta a
  * las conversaciones reales de su organización que no la tienen). Usa la
  * MISMA función SQL que la reconciliación del arranque: un único lugar decide
@@ -34,7 +56,9 @@ export async function mirrorWhatsappAccounts(
     metaCredentialsIds.map((id) => sql`${id}`),
     sql`, `
   );
-  await tx.execute(sql`select channels_legacy_sync_accounts(array[${ids}]::text[])`);
+  await bestEffort(tx, "channel_account", async (sp) => {
+    await sp.execute(sql`select channels_legacy_sync_accounts(array[${ids}]::text[])`);
+  });
 }
 
 /**
@@ -67,13 +91,20 @@ export async function insertWhatsappIdentity(
   tx: DbExecutor,
   contact: Pick<ContactRow, "id" | "organizationId" | "waIdentity" | "createdAt">
 ): Promise<void> {
-  await tx.insert(schema.contactIdentity).values({
-    id: newId("contactIdentity"),
-    organizationId: contact.organizationId,
-    contactId: contact.id,
-    channel: "whatsapp",
-    externalId: contact.waIdentity,
-    createdAt: contact.createdAt,
+  await bestEffort(tx, "contact_identity", async (sp) => {
+    await sp
+      .insert(schema.contactIdentity)
+      .values({
+        id: newId("contactIdentity"),
+        organizationId: contact.organizationId,
+        contactId: contact.id,
+        channel: "whatsapp",
+        externalId: contact.waIdentity,
+        createdAt: contact.createdAt,
+      })
+      // Una identidad huérfana (contacto borrado sin la FK en cascada, fase B
+      // incompleta) no bloquea el alta: V3 la reporta y el arranque la repara.
+      .onConflictDoNothing();
   });
 }
 

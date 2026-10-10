@@ -183,3 +183,21 @@ Binari chiamati direttamente (niente `pnpm`):
 - Le route HTTP con sessione (alta manuale del contatto, Laboratorio) non hanno un test golden della doppia scrittura: usano lo stesso helper `insertContactIfAbsent` coperto dai golden, e l'E2E crea contatti dall'interfaccia con V3 = 0 alla fine; il Laboratorio non è nell'E2E.
 - La lettura di `config.appDisconnectedAt` da TypeScript non esiste ancora (R2): il formato è definito, non usato.
 - `pnpm test:e2e` non è stato eseguito con `pnpm` ma con `node --env-file=… scripts/e2e-selftest.mjs` (stesso comando dello script).
+
+## Revisione avversaria indipendente (10/10/2026) e correzioni
+
+Esito: **approvabile** per la produzione attuale (2 organizzazioni, un numero, meno di 1.000 messaggi, rilascio con `docker compose`). Nessun bloccante. Corretti i due punti "da correggere" e due punti minori:
+
+1. **Una riga sporca nelle tabelle nuove poteva far perdere un messaggio WhatsApp.** Il webhook risponde 200 prima di elaborare, quindi un'eccezione della doppia scrittura avrebbe fatto perdere il messaggio. Ora le scritture sulle strutture nuove (`channel_account`, `contact_identity`) sono **isolate in un SAVEPOINT** (`bestEffort` in `src/server/channels/dual-write.ts`): se falliscono si scrive nel log `[canali] doppia scrittura … fallita`, la scrittura vecchia va avanti e la riconciliazione all'avvio ripara. L'identità usa anche `ON CONFLICT DO NOTHING`. Test: «un'identità residua … NON blocca l'alta di un contatto». Sabotaggio, togliendo savepoint e `ON CONFLICT`: il test fallisce.
+2. **Credenziali cancellate e ricreate con un id nuovo** (ripristino valido col codice vecchio): la riconciliazione falliva per tutte le organizzazioni e il numero non si poteva più ricollegare. Ora `channels_legacy_sync_accounts` ha un passo **(0)** che riaggancia l'account orfano della stessa organizzazione al nuovo id, e (1c) usa `ON CONFLICT DO NOTHING` su qualunque conflitto, che resta visibile in V1/V2. Test: «meta_credentials cancellata e ricreata …». Sabotaggio, togliendo il passo (0): 7 test falliscono.
+3. `docker-compose.yml`: `init: true`. Il PID 1 diventa tini, così il server riceve SIGTERM e completa i webhook in corso invece di essere ucciso dopo 10 secondi a ogni rilascio.
+4. Mock del test delle credenziali: ora supporta il savepoint (`tx.transaction`). L'asserzione «doppia scrittura nella stessa transazione» non è stata indebolita.
+
+Verifiche dopo le correzioni:
+- tsc, eslint, unit 993/993, golden **94/94** (i 77 di comportamento invariati), `next build`;
+- E2E 125/125 su un database nuovo, con V1–V6 a 0 e nessuna riga `doppia scrittura … fallita` nel log.
+
+Restano aperti, come punti minori annotati dal revisore:
+- il riepilogo all'avvio dovrebbe evidenziare di più "fase B incompleta";
+- i contatti del Laboratorio ricevono identità reali, e va deciso come instradarli in R2;
+- l'attesa del lock advisory può essere molto lunga in un caso patologico.

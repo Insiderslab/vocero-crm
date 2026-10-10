@@ -11,6 +11,7 @@ import {
   setAppDisconnected,
 } from "@/server/whatsapp/credentials";
 import { runStartup } from "../../scripts/migrate-channels.mjs";
+import { getOrCreateContactByIdentity } from "@/server/inbox/identity";
 import { waFixture } from "./fixtures/whatsapp";
 import { conversationIdOf, postWebhook } from "./harness";
 import * as r0 from "./legacy/r0-credentials";
@@ -483,6 +484,69 @@ describe("migration — T011 riconciliazione all'avvio (runner vero)", () => {
     expect(run.status).toBe(0);
     expect(`${run.stdout}${run.stderr}`).toMatch(/canali \(avvisa\): V1=1/);
     expect(`${run.stdout}${run.stderr}`).toContain("modalità «avvisa»");
+  });
+});
+
+describe("migration — revisione avversaria (PR #7)", () => {
+  it("meta_credentials cancellata e ricreata con un id nuovo (ripristino col codice vecchio) → l'account si riaggancia; il codice nuovo salva e la riconciliazione regge", async () => {
+    expect((await startup("avvisa")).code).toBe(0);
+    await sql()`delete from meta_credentials where organization_id = ${ORG_B}`;
+    await r0.saveCredentials({
+      organizationId: ORG_B,
+      wabaId: ORGS.B.wabaId,
+      phoneNumberId: ORGS.B.phoneNumberId,
+      token: ORGS.B.token,
+    });
+    expect((await legacyCheck()).V1).toBeGreaterThan(0);
+
+    const r1 = await startup("avvisa");
+    expect(r1.code).toBe(0);
+    expect(await legacyCheck()).toEqual(ALL_ZERO);
+    const [row] = await sql()<{ n: string }[]>`
+      select count(*)::text as n from channel_account
+       where organization_id = ${ORG_B}
+         and legacy_meta_credentials_id = (select id from meta_credentials where organization_id = ${ORG_B})
+    `;
+    expect(row?.n).toBe("1");
+
+    // Il codice nuovo può ricollegare il numero (prima: 23505 su channel_account_channel_ext_uq).
+    await saveCredentials({
+      organizationId: ORG_B,
+      wabaId: ORGS.B.wabaId,
+      phoneNumberId: ORGS.B.phoneNumberId,
+      token: "EAAGoldenRotatedAfterRecreateB",
+    });
+    expect(await legacyCheck()).toEqual(ALL_ZERO);
+    expect(await accountMismatches()).toEqual([]);
+  });
+
+  it("un'identità residua con lo stesso ID esterno NON blocca l'alta di un contatto: la scrittura vecchia vince, V3 lo segnala, l'avvio lo ripara", async () => {
+    expect((await startup("avvisa")).code).toBe(0);
+    const [other] = await sql()<{ id: string }[]>`
+      select id from contact where organization_id = ${ORG_A} order by created_at limit 1
+    `;
+    let otherId = other?.id;
+    if (!otherId) {
+      otherId = "ct_golden_other";
+      await sql()`insert into contact (id, organization_id, wa_identity, phone, name)
+                  values (${otherId}, ${ORG_A}, '5215599990000', '5215599990000', 'Altro')`;
+    }
+    // Identità "sporca": punta a un altro contatto con l'ID esterno che arriverà.
+    await sql()`insert into contact_identity (id, organization_id, contact_id, channel, external_id)
+                values ('ci_golden_stale', ${ORG_A}, ${otherId}, 'whatsapp', '5215512340000')`;
+
+    const { contact } = await getOrCreateContactByIdentity(ORG_A, {
+      identity: "5215512340000",
+      phone: "5215512340000",
+      waUserId: null,
+      profileName: "Nuovo",
+    });
+    expect(contact.waIdentity).toBe("5215512340000");
+    const [row] = await sql()<{ n: string }[]>`
+      select count(*)::text as n from contact where organization_id = ${ORG_A} and wa_identity = '5215512340000'
+    `;
+    expect(row?.n).toBe("1");
+    expect((await legacyCheck()).V3).toBeGreaterThan(0);
   });
 });
 

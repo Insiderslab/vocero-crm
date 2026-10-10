@@ -152,3 +152,9 @@ Per i numeri, sempre e solo `select * from channels_legacy_check();`. Non estrar
 - La durata su dati con la forma reale di produzione (più contatti per conversazione, allegati, indici gonfi) può essere diversa: le durate del primo avvio vanno annotate.
 - Il caso «più di 2 milioni di messaggi» (fase C dopo l'avvio) non è implementato.
 - I nomi del servizio (`postgres`), dell'utente e del database vengono da `docker-compose.yml`; in Coolify possono essere diversi.
+
+## Aggiornamento dopo la revisione avversaria (10/10/2026)
+- **V1 > 0 dopo un ripristino delle credenziali:** se una riga di `meta_credentials` viene cancellata e ricreata, al riavvio la riconciliazione riaggancia l'account della stessa organizzazione e V1 torna a 0. Se V1 resta > 0, c'è un conflitto vero (per esempio lo stesso `phone_number_id` in un'altra organizzazione): fermarsi e chiedere.
+- **Righe `[canali] doppia scrittura … fallita` nel log dell'app:** non si perde niente, perché la scrittura vecchia è andata a buon fine. Al prossimo riavvio la riconciliazione allinea. Se la riga si ripete a ogni messaggio, fermarsi e chiedere.
+- **`init: true`** nel compose: al rilascio il container vecchio si ferma in modo pulito, senza SIGKILL dopo 10 secondi.
+

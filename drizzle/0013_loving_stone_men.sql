@@ -95,6 +95,18 @@ $fn$;--> statement-breakpoint
 CREATE OR REPLACE FUNCTION channels_legacy_sync_accounts(only_ids text[]) RETURNS void
 LANGUAGE plpgsql AS $fn$
 BEGIN
+  -- (0) Riaggancia l'account orfano della STESSA organizzazione: se una riga
+  --     di meta_credentials viene cancellata e ricreata con un id nuovo (un
+  --     ripristino valido col codice vecchio), l'account esistente si sposta
+  --     sul nuovo id invece di far fallire l'INSERT di (1c) sull'indice
+  --     UNIQUE (channel, external_account_id) o (organization_id, channel).
+  UPDATE channel_account ca SET legacy_meta_credentials_id = mc.id
+    FROM meta_credentials mc
+   WHERE ca.organization_id = mc.organization_id AND ca.channel = 'whatsapp'
+     AND (only_ids IS NULL OR mc.id = ANY (only_ids))
+     AND NOT EXISTS (SELECT 1 FROM channel_account x WHERE x.legacy_meta_credentials_id = mc.id)
+     AND (ca.legacy_meta_credentials_id IS NULL
+          OR NOT EXISTS (SELECT 1 FROM meta_credentials m2 WHERE m2.id = ca.legacy_meta_credentials_id));
   -- (1a) Libera i numeri cambiati: tollera lo scambio di numeri tra due
   --      organizzazioni, che un solo UPDATE farebbe fallire sull'indice
   --      UNIQUE (channel, external_account_id).
@@ -131,7 +143,9 @@ BEGIN
          mc.id, mc.created_at, mc.updated_at
     FROM meta_credentials mc
    WHERE (only_ids IS NULL OR mc.id = ANY (only_ids))
-  ON CONFLICT (legacy_meta_credentials_id) DO NOTHING;
+  -- Qualunque conflitto residuo (non solo sull'id legacy) NON interrompe la
+  -- riconciliazione: lo riporta V1/V2 e lo vede chi rilascia.
+  ON CONFLICT DO NOTHING;
   -- (3) Conversazioni reali senza account: SOLO account della STESSA organizzazione.
   UPDATE conversation cv SET channel_account_id = ca.id
     FROM channel_account ca
