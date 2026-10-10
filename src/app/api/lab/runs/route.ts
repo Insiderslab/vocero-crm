@@ -1,5 +1,5 @@
 import { desc } from "drizzle-orm";
-import { apiError, withAuth } from "@/lib/api";
+import { apiError, withAuth, withAdminAuth } from "@/lib/api";
 import { getDb, schema } from "@/lib/db";
 import { scoped } from "@/lib/db/tenant";
 import { isAiConfigured } from "@/lib/env";
@@ -37,7 +37,7 @@ export const GET = withAuth(async (session) => {
   return Response.json({ runs: withDelta, aiConfigured: isAiConfigured() });
 });
 
-export const POST = withAuth(async (session) => {
+export const POST = withAdminAuth(async (session) => {
   if (!isAiConfigured()) {
     return apiError(
       409,

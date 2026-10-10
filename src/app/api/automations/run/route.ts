@@ -1,4 +1,4 @@
-import { withAuth } from "@/lib/api";
+import { withAdminAuth } from "@/lib/api";
 import { runAutomationsForOrg } from "@/server/automations/engine";
 
 export const dynamic = "force-dynamic";
@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
  * estadísticas del tick. Sirve para probar una regla recién creada sin
  * esperar al scheduler.
  */
-export const POST = withAuth(async (session) => {
+export const POST = withAdminAuth(async (session) => {
   const stats = await runAutomationsForOrg(session.organizationId);
   return Response.json({ stats });
 });

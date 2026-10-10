@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { z } from "zod";
-import { apiError, parseBody, withAuth } from "@/lib/api";
+import { apiError, parseBody, withAdminAuth } from "@/lib/api";
 import { getDb, schema } from "@/lib/db";
 import { scoped } from "@/lib/db/tenant";
 
@@ -15,7 +15,7 @@ const patchSchema = z.object({
 });
 
 /** Edita nombre/cadencia o pausa/reanuda una regla. */
-export const PATCH = withAuth(async (session, req: Request, ctx: Params) => {
+export const PATCH = withAdminAuth(async (session, req: Request, ctx: Params) => {
   const { id } = await ctx.params;
   const body = await parseBody(req, patchSchema);
   if (!body.ok) return body.response;
@@ -44,7 +44,7 @@ export const PATCH = withAuth(async (session, req: Request, ctx: Params) => {
 });
 
 /** Borra la regla; su bitácora cae en cascada. */
-export const DELETE = withAuth(async (session, _req: Request, ctx: Params) => {
+export const DELETE = withAdminAuth(async (session, _req: Request, ctx: Params) => {
   const { id } = await ctx.params;
   const db = getDb();
   const deleted = await db

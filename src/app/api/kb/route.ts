@@ -1,6 +1,6 @@
 import { asc } from "drizzle-orm";
 import { z } from "zod";
-import { apiError, parseBody, withAuth } from "@/lib/api";
+import { apiError, parseBody, withAuth, withAdminAuth } from "@/lib/api";
 import { getDb, schema } from "@/lib/db";
 import { newId } from "@/lib/db/ids";
 import { scoped } from "@/lib/db/tenant";
@@ -30,7 +30,7 @@ const createSchema = z
     }),
   ]);
 
-export const POST = withAuth(async (session, req: Request) => {
+export const POST = withAdminAuth(async (session, req: Request) => {
   const body = await parseBody(req, createSchema);
   if (!body.ok) return body.response;
 
