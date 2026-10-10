@@ -149,6 +149,21 @@ Un commit per correzione, sullo stesso branch locale `team-assistant`. Nessun pu
   - con la riga si ottiene `55P03` dopo 5 s e il tentativo successivo riesce;
   - senza la riga non scatta nessun timeout e la migrazione resta in attesa del lock.
 
-**Da segnalare (non corretto, fuori dal mandato):**
-- `seedDemo` sovrascrive ancora il profilo dell'agente (nome «Martillito», tono, istruzioni, regole, saluto). Dopo rimozione → ricarica, il proprietario perde la configurazione del suo agente. Va deciso se la demo debba toccare il profilo.
+**Da segnalare:**
 - `removeDemo` lascia la corsa demo del Laboratorio, come dice la spec; viene sostituita alla ricarica successiva.
+
+### Profilo dell'agente e demo (decisione dell'orchestratore)
+
+Prima `seedDemo` sovrascriveva sempre il profilo dell'agente con la persona demo («Martillito»): dopo rimozione → ricarica il proprietario perdeva la sua configurazione. Decisione: la demo scrive la persona solo se:
+- la riga del profilo non esiste (viene creata);
+- il profilo è ancora quello intatto della creazione dell'organizzazione (`provisionOrganization` inserisce solo id e organizzazione, quindi nome = default dello schema «Asistente», letto da `schema.agentProfile.name.default`, e tono, istruzioni, regole e saluto a NULL);
+- il profilo è già esattamente la persona demo.
+
+In tutti gli altri casi non tocca nessun campo, anche se il proprietario ne ha cambiato uno solo. Lettura e scrittura avvengono in una transazione con `SELECT … FOR UPDATE`. Non tocca né `enabled` né i campi 007.
+
+- Commit: `9cae898`.
+- Golden: un profilo intatto prende la persona; ricaricare con la persona già scritta la lascia uguale; il profilo personalizzato sopravvive a rimozione → ricarica; la persona con il solo saluto cambiato non viene sovrascritta; senza riga del profilo viene creata.
+- Sabotaggi, entrambi con 1 test rosso:
+  - sovrascrittura sempre (la guardia tolta);
+  - default confrontato con un nome sbagliato.
+- Gate: tsc, eslint, unità, golden su base nuova, `next build` (sotto). E2E non rieseguito: lo script non è cambiato e le organizzazioni dell'E2E hanno profili intatti, quindi il comportamento lì è lo stesso.

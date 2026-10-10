@@ -47,6 +47,11 @@ también cuando la organización TIENE datos demo (`GET /api/seed/demo` →
    las entradas de KB que coinciden EXACTAMENTE (tipo + textos) con `DEMO_KB`.
 3. No toca: contactos reales, KB editado o propio, perfil del agente, corridas
    del Laboratorio, otras organizaciones.
+   Volver a cargar la demo (la bandeja quedó vacía) tampoco pisa lo del dueño:
+   `seedDemo` borra solo el KB idéntico a la demo y la corrida demo, y escribe
+   la persona demo del agente SOLO si el perfil no existe, sigue intacto (el
+   del alta: nombre "Asistente", resto NULL) o ya es exactamente el de la
+   demo; un perfil personalizado (aunque sea un campo) no se toca.
 4. Todo en una transacción; respuesta `{ ok, contacts, kbEntries }` con lo
    borrado. Repetirlo → `{ contacts: 0, kbEntries: 0 }`.
 5. Tras el borrado `channels_legacy_check()` sigue con V3 = 0.
