@@ -9,6 +9,7 @@ const messages: typeof base = {
     templates: "Modelli",
     team: "Team",
     apiKeys: "Chiavi API",
+    site: "Sito web",
   },
   branding: {
     title: "Marchio del CRM",
@@ -235,6 +236,59 @@ const messages: typeof base = {
       removeError: "Impossibile revocare la chiave",
       loadError:
         "Impossibile caricare lo stato della chiave Wapi: ricarica la pagina.",
+    },
+  },
+  /** 008 — Formulario del sitio web (clave vsk_, orígenes, fragmento). */
+  site: {
+    forbidden:
+      "Solo il proprietario o un amministratore dell'organizzazione configura il modulo del sito.",
+    keyTitle: "Chiave del sito (vsk_)",
+    keyDescription:
+      "Il modulo di contatto o di prenotazione del tuo sito la invia con ogni richiesta, che arriva nella posta come conversazione e nella Pipeline come lead. La chiave resta visibile nel codice del sito: la proteggono le origini autorizzate, i limiti e il campo trappola. Puoi ruotarla quando vuoi.",
+    noKey:
+      "Ancora nessuna chiave: il modulo del sito non può inviare nulla.",
+    activeKey: "Chiave attiva {{prefix}}… · creata {{created}} · {{used}}",
+    lastUsed: "ultimo uso {{date}}",
+    neverUsed: "mai usata",
+    create: "Crea chiave",
+    rotate: "Ruota chiave",
+    revoke: "Revoca",
+    confirmRotate:
+      "Ruotare la chiave? Quella attuale smette subito di funzionare: dovrai incollare la nuova nel sito.",
+    confirmRevoke:
+      "Revocare la chiave? Il modulo del sito smette subito di funzionare.",
+    created: "Chiave creata ✓",
+    shareNow:
+      "Copiala ora: non verrà più mostrata. Lo snippet qui sotto la contiene già.",
+    copy: "Copia chiave",
+    copied: "Copiato ✓",
+    hide: "Nascondi",
+    keyError: "Impossibile cambiare la chiave",
+    loadError:
+      "Impossibile caricare la configurazione del sito: ricarica la pagina.",
+    originsTitle: "Origini autorizzate",
+    originsDescription:
+      "Gli indirizzi del tuo sito da cui il browser può inviare il modulo, uno per riga (es. https://labambola.com). Senza origini, solo un server può inviare richieste.",
+    originsPlaceholder: "https://www.tuosito.it",
+    originsSave: "Salva origini",
+    originsSaved: "Origini salvate ✓",
+    originsError: "Impossibile salvare le origini",
+    snippetTitle: "Snippet per il tuo sito",
+    snippetDescription:
+      "Incolla questo modulo nella pagina di contatto o di prenotazione. Puoi cambiare testi e stili; non togliere il campo «website» (è la trappola per i bot). Per campi in più usa name=\"fields[chiave]\".",
+    snippetPlaceholderNote:
+      "La chiave non si può rileggere: sostituisci vsk_LA_TUA_CHIAVE con la tua, oppure ruota la chiave per avere lo snippet completo.",
+    placeholderKey: "vsk_LA_TUA_CHIAVE",
+    snippetCopy: "Copia snippet",
+    endpoint: "Indirizzo del modulo: {{url}}",
+    form: {
+      name: "Nome",
+      phone: "Telefono (con prefisso internazionale, es. +58 412 1234567)",
+      email: "Email",
+      message: "Messaggio",
+      submit: "Invia",
+      thanks: "Grazie! Ti contatteremo presto.",
+      error: "Invio non riuscito. Riprova.",
     },
   },
 };

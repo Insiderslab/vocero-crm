@@ -83,6 +83,19 @@ export function whatsappMessageIds(waMessageId: string | null) {
   };
 }
 
+/**
+ * 008 — Campos de canal de una solicitud del formulario del sitio: canal
+ * `web`, sin ID de proveedor (ni `wa_message_id` ni `external_message_id`).
+ * No hay identidad ni cuenta `web`: al sitio no se le responde.
+ */
+export function webMessageIds() {
+  return {
+    waMessageId: null,
+    channel: "web" as const,
+    externalMessageId: null,
+  };
+}
+
 type ContactInsert = typeof schema.contact.$inferInsert;
 type ContactRow = typeof schema.contact.$inferSelect;
 

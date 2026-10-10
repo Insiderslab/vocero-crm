@@ -176,6 +176,19 @@ export function ContactPanel({
               <p className="text-xs text-text-3">
                 {formatPhone(conversation.contact.phone)}
               </p>
+              {conversation.contact.email && (
+                <p className="truncate text-xs text-text-3">
+                  {conversation.contact.email}
+                  {conversation.contact.emailUnverified && (
+                    <span
+                      className="ml-1 text-[10.5px] text-text-4"
+                      data-testid="email-unverified"
+                    >
+                      ({t("inbox.emailUnverified")})
+                    </span>
+                  )}
+                </p>
+              )}
             </div>
           </div>
 

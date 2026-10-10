@@ -61,6 +61,9 @@ const messages: typeof base = {
     aiBadge: "IA",
     manualTitle: "Inviato manualmente dall'app WhatsApp Business",
     manualBadge: "Cellulare",
+    webTitle:
+      "Arrivata dal modulo del sito web: rispondi con un modello, al telefono o per email",
+    webBadge: "Sito web",
     notDelivered: "Non consegnato.",
     noReason: "Meta non ha indicato il motivo.",
   },
@@ -131,6 +134,35 @@ const messages: typeof base = {
     sending: "Invio in corso…",
     send: "Invia modello",
     sendFailed: "Impossibile inviare il modello",
+  },
+  /** 008 — junto al email de un contacto creado por el formulario del sitio. */
+  emailUnverified: "dal modulo web, non verificata",
+  /** 008 — Etiquetas del mensaje de una solicitud del sitio web. */
+  siteRequest: {
+    title: "Richiesta dal sito web",
+    name: "Nome",
+    phone: "Telefono",
+    email: "Email",
+    page: "Pagina",
+    /** Mensajes para el VISITANTE del sitio (respuesta 422 del formulario). */
+    errors: {
+      contactRequired:
+        "Indica il tuo telefono o la tua email per poterti ricontattare.",
+      phone:
+        "Indica un telefono valido con il prefisso internazionale (es. +58 412 1234567).",
+      email:
+        "Indica un'email valida.",
+      name:
+        "Indica il tuo nome.",
+      message:
+        "Scrivi il tuo messaggio (al massimo 4000 caratteri).",
+      invalid:
+        "Controlla i campi del modulo.",
+      phoneRequired:
+        "Indica un telefono con prefisso internazionale per poterti ricontattare.",
+      generic:
+        "Invio non riuscito. Riprova.",
+    },
   },
 };
 export default messages;

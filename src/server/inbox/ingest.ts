@@ -379,7 +379,8 @@ export async function ingestInboundMessage(input: {
 
   const { contact } = await getOrCreateContactByIdentity(
     organizationId,
-    input.identity
+    input.identity,
+    { verifiedInbound: true }
   );
   const conversation = await getOrCreateConversation(
     organizationId,
@@ -459,6 +460,9 @@ export function serializeMessage(
     error: m.error,
     aiGenerated: m.aiGenerated,
     origin: m.origin,
+    // 008 — Solo para canales distintos de WhatsApp: el contrato (y los
+    // golden) de los mensajes de WhatsApp no cambian.
+    ...(m.channel === "web" ? { channel: "web" as const } : {}),
     media: media
       ? {
           assetId: media.id,

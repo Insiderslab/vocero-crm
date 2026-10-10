@@ -61,6 +61,9 @@ const messages: typeof base = {
     aiBadge: "AI",
     manualTitle: "Sent manually from the WhatsApp Business app",
     manualBadge: "Phone",
+    webTitle:
+      "Arrived through the website form: reply with a template, by phone or by email",
+    webBadge: "Website",
     notDelivered: "Not delivered.",
     noReason: "Meta did not provide a reason.",
   },
@@ -131,6 +134,35 @@ const messages: typeof base = {
     sending: "Sending…",
     send: "Send template",
     sendFailed: "The template could not be sent",
+  },
+  /** 008 — junto al email de un contacto creado por el formulario del sitio. */
+  emailUnverified: "from the web form, not verified",
+  /** 008 — Etiquetas del mensaje de una solicitud del sitio web. */
+  siteRequest: {
+    title: "Request from the website",
+    name: "Name",
+    phone: "Phone",
+    email: "Email",
+    page: "Page",
+    /** Mensajes para el VISITANTE del sitio (respuesta 422 del formulario). */
+    errors: {
+      contactRequired:
+        "Please give your phone or your email so we can contact you.",
+      phone:
+        "Please give a valid phone number with the country code (e.g. +58 412 1234567).",
+      email:
+        "Please give a valid email.",
+      name:
+        "Please give your name.",
+      message:
+        "Please write your message (4000 characters at most).",
+      invalid:
+        "Please check the form fields.",
+      phoneRequired:
+        "Please give a phone number with the country code so we can contact you.",
+      generic:
+        "It could not be sent. Please try again.",
+    },
   },
 };
 export default messages;

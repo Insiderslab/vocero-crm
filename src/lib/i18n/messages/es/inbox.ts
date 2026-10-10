@@ -59,6 +59,9 @@ const messages = {
     aiBadge: "IA",
     manualTitle: "Enviado a mano desde la app de WhatsApp Business",
     manualBadge: "Celular",
+    webTitle:
+      "Llegó por el formulario del sitio web: responde con una plantilla, por teléfono o por email",
+    webBadge: "Sitio web",
     notDelivered: "No se entregó.",
     noReason: "Meta no informó el motivo.",
   },
@@ -129,6 +132,35 @@ const messages = {
     sending: "Enviando…",
     send: "Enviar plantilla",
     sendFailed: "No se pudo enviar la plantilla",
+  },
+  /** 008 — junto al email de un contacto creado por el formulario del sitio. */
+  emailUnverified: "del formulario web, no verificado",
+  /** 008 — Etiquetas del mensaje de una solicitud del sitio web. */
+  siteRequest: {
+    title: "Solicitud desde el sitio web",
+    name: "Nombre",
+    phone: "Teléfono",
+    email: "Email",
+    page: "Página",
+    /** Mensajes para el VISITANTE del sitio (respuesta 422 del formulario). */
+    errors: {
+      contactRequired:
+        "Indica tu teléfono o tu email para que podamos contactarte.",
+      phone:
+        "Indica un teléfono válido con el código de país (ej. +58 412 1234567).",
+      email:
+        "Indica un email válido.",
+      name:
+        "Indica tu nombre.",
+      message:
+        "Escribe tu mensaje (máximo 4000 caracteres).",
+      invalid:
+        "Revisa los datos del formulario.",
+      phoneRequired:
+        "Indica un teléfono con código de país para que podamos contactarte.",
+      generic:
+        "No se pudo enviar. Inténtalo de nuevo.",
+    },
   },
 };
 export default messages;

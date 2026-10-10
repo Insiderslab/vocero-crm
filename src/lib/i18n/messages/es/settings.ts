@@ -7,6 +7,7 @@ const messages = {
     templates: "Plantillas",
     team: "Equipo",
     apiKeys: "Claves de API",
+    site: "Sitio web",
   },
   branding: {
     title: "Marca del CRM",
@@ -234,6 +235,59 @@ const messages = {
       removeError: "No se pudo revocar la clave",
       loadError:
         "No se pudo cargar el estado de la clave de Wapi: recarga la página.",
+    },
+  },
+  /** 008 — Formulario del sitio web (clave vsk_, orígenes, fragmento). */
+  site: {
+    forbidden:
+      "Solo el propietario o un administrador de la organización configura el formulario del sitio.",
+    keyTitle: "Clave del sitio (vsk_)",
+    keyDescription:
+      "El formulario de contacto o de reservas de tu sitio la manda con cada solicitud, que llega a la bandeja como una conversación y al Pipeline como un lead. La clave queda visible en el código de tu sitio: lo que la protege son los orígenes autorizados, los límites y el campo trampa. Puedes rotarla cuando quieras.",
+    noKey:
+      "Aún no hay clave: el formulario del sitio no puede enviar nada.",
+    activeKey: "Clave activa {{prefix}}… · creada {{created}} · {{used}}",
+    lastUsed: "último uso {{date}}",
+    neverUsed: "nunca usada",
+    create: "Crear clave",
+    rotate: "Rotar clave",
+    revoke: "Revocar",
+    confirmRotate:
+      "¿Rotar la clave? La actual deja de funcionar ahora: tendrás que pegar la nueva en el sitio.",
+    confirmRevoke:
+      "¿Revocar la clave? El formulario del sitio deja de funcionar ahora.",
+    created: "Clave creada ✓",
+    shareNow:
+      "Cópiala ahora: no se volverá a mostrar. El fragmento de abajo ya la incluye.",
+    copy: "Copiar clave",
+    copied: "Copiado ✓",
+    hide: "Ocultar",
+    keyError: "No se pudo cambiar la clave",
+    loadError:
+      "No se pudo cargar la configuración del sitio: recarga la página.",
+    originsTitle: "Orígenes autorizados",
+    originsDescription:
+      "Las direcciones de tu sitio desde las que el navegador puede enviar el formulario, una por línea (ej. https://labambola.com). Sin orígenes, solo un servidor puede enviar solicitudes.",
+    originsPlaceholder: "https://www.tusitio.com",
+    originsSave: "Guardar orígenes",
+    originsSaved: "Orígenes guardados ✓",
+    originsError: "No se pudieron guardar los orígenes",
+    snippetTitle: "Fragmento para tu sitio",
+    snippetDescription:
+      "Pega este formulario en la página de contacto o de reservas. Puedes cambiar textos y estilos; no quites el campo «website» (es la trampa para bots). Para campos extra usa name=\"fields[clave]\".",
+    snippetPlaceholderNote:
+      "La clave no se puede volver a leer: sustituye vsk_TU_CLAVE por la tuya, o rota la clave para obtener el fragmento completo.",
+    placeholderKey: "vsk_TU_CLAVE",
+    snippetCopy: "Copiar fragmento",
+    endpoint: "Dirección del formulario: {{url}}",
+    form: {
+      name: "Nombre",
+      phone: "Teléfono (con código de país, ej. +58 412 1234567)",
+      email: "Email",
+      message: "Mensaje",
+      submit: "Enviar",
+      thanks: "¡Gracias! Te contactaremos pronto.",
+      error: "No se pudo enviar. Inténtalo de nuevo.",
     },
   },
 };

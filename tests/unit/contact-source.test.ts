@@ -34,7 +34,8 @@ describe("fuente efectiva", () => {
 describe("catálogo de fuentes", () => {
   it("es cerrado y cubre lo que el dueño pidió", () => {
     expect([...SOURCE_VALUES].sort()).toEqual(
-      ["anuncio", "conocido", "organico", "otro", "referido"].sort()
+      // 008: "sito" la pone la solicitud del formulario del sitio web.
+      ["anuncio", "conocido", "organico", "otro", "referido", "sito"].sort()
     );
   });
 

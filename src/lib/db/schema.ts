@@ -20,6 +20,17 @@ export const CHANNEL_KINDS = ["whatsapp", "instagram", "messenger", "email"] as 
 export type ChannelKind = (typeof CHANNEL_KINDS)[number];
 const CHANNEL_KINDS_SQL = sql.raw(CHANNEL_KINDS.map((c) => `'${c}'`).join(", "));
 
+/**
+ * 008 (custom heili) — Canales de un MENSAJE: los de arriba más `web` (una
+ * solicitud del formulario del sitio). Solo el mensaje: `web` no es una
+ * cuenta (`channel_account`) ni una identidad (`contact_identity`), porque al
+ * sitio no se le responde. drizzle/0015 cambia el CHECK NOT VALID y el runner
+ * lo valida (fase B, por nombre).
+ */
+export const MESSAGE_CHANNELS = [...CHANNEL_KINDS, "web"] as const;
+export type MessageChannel = (typeof MESSAGE_CHANNELS)[number];
+const MESSAGE_CHANNELS_SQL = sql.raw(MESSAGE_CHANNELS.map((c) => `'${c}'`).join(", "));
+
 /* ============================================================
  * Auth (Better Auth + plugin organization)
  * ============================================================ */
@@ -131,6 +142,13 @@ export const contact = pgTable(
     /** Business-Scoped User ID si se conoce (003). */
     waUserId: text("wa_user_id"),
     name: text("name").notNull(),
+    /**
+     * 008 — Email como ATRIBUTO (como `phone`), en minúsculas. NO es una
+     * identidad: hasta R3 la única llave es `wa_identity`. Lo escribe la
+     * solicitud del sitio; sirve para encontrar al contacto cuando el
+     * formulario trae solo el email.
+     */
+    email: text("email"),
     notes: text("notes"),
     /**
      * Ficha de calificación que levanta un cerebro externo por
@@ -147,7 +165,8 @@ export const contact = pgTable(
      * que ya existían.
      */
     source: text("source", {
-      enum: ["anuncio", "organico", "referido", "conocido", "otro"],
+      // 008: "sito" = llegó por el formulario del sitio web.
+      enum: ["anuncio", "organico", "referido", "conocido", "otro", "sito"],
     }),
     archivedAt: timestamp("archived_at"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
@@ -400,8 +419,11 @@ export const message = pgTable(
     }),
     waTimestamp: timestamp("wa_timestamp"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
-    /** 005 (R1) — Canal del mensaje. R1 lo escribe y no lo lee. */
-    channel: text("channel", { enum: CHANNEL_KINDS })
+    /**
+     * 005 (R1) — Canal del mensaje. R1 lo escribe; lo lee solo el agente
+     * (008) para no contestar por WhatsApp a una solicitud `web`.
+     */
+    channel: text("channel", { enum: MESSAGE_CHANNELS })
       .notNull()
       .default("whatsapp"),
     /**
@@ -419,7 +441,7 @@ export const message = pgTable(
     ),
     // 005 — drizzle/0013 crea el CHECK NOT VALID y el runner lo valida; el
     // índice se crea CONCURRENTLY en el runner (fase B), no en drizzle/0013.
-    check("message_channel_ck", sql`${t.channel} in (${CHANNEL_KINDS_SQL})`),
+    check("message_channel_ck", sql`${t.channel} in (${MESSAGE_CHANNELS_SQL})`),
     uniqueIndex("message_org_channel_ext_uq").on(
       t.organizationId,
       t.channel,
@@ -656,7 +678,8 @@ export const wapiCredentials = pgTable(
 
 /**
  * Claves de servicio POR organización (custom heili.cloud): `/api/bot/*`
- * (scope "bot", `vbk_…`) y `/api/export/*` (scope "export", `vex_…`, C2).
+ * (scope "bot", `vbk_…`), `/api/export/*` (scope "export", `vex_…`, C2) y el
+ * formulario del sitio `/api/public/site-requests` (scope "site", `vsk_…`, 008).
  * El nombre de la tabla es histórico (C1).
  * Solo se guarda el SHA-256 de la clave (alta entropía): el texto plano se
  * muestra una única vez al crearla. La organización se deriva SIEMPRE de la
@@ -671,7 +694,7 @@ export const botApiKey = pgTable(
       .references(() => organization.id, { onDelete: "cascade" }),
     label: text("label").notNull(),
     // Ámbito de la clave (C2): "bot" (/api/bot/*) o "export" (/api/export/*).
-    scope: text("scope", { enum: ["bot", "export"] }).notNull().default("bot"),
+    scope: text("scope", { enum: ["bot", "export", "site"] }).notNull().default("bot"),
     keyPrefix: text("key_prefix").notNull(),
     keyHash: text("key_hash").notNull(),
     createdBy: text("created_by").notNull(),
@@ -682,7 +705,34 @@ export const botApiKey = pgTable(
   (t) => [
     uniqueIndex("bot_api_key_hash_uq").on(t.keyHash),
     index("bot_api_key_org_idx").on(t.organizationId, t.createdAt),
+    // 008 — Una sola clave del sitio ACTIVA por organización, garantizado por
+    // la base de datos (además del lock de la rotación).
+    uniqueIndex("bot_api_key_site_active_uq")
+      .on(t.organizationId)
+      .where(sql`${t.scope} = 'site' and ${t.revokedAt} is null`),
   ]
+);
+
+/**
+ * 008 — Configuración del formulario del sitio, una fila por organización.
+ * Hoy solo las origenes autorizadas (CORS), en forma canónica `URL.origin`.
+ * La clave vive en `bot_api_key` (scope "site"): una activa por organización.
+ */
+export const siteRequestConfig = pgTable(
+  "site_request_config",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    allowedOrigins: text("allowed_origins")
+      .array()
+      .notNull()
+      .default(sql`'{}'`),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("site_request_config_org_uq").on(t.organizationId)]
 );
 
 export const agentProfile = pgTable(
