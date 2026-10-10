@@ -60,3 +60,17 @@ export async function readSaveResult<J = unknown>(res: Response | null): Promise
   }
   return { ok: true, json: json ?? null };
 }
+
+/**
+ * Secuencia de peticiones de lectura: solo la ÚLTIMA iniciada puede aplicar
+ * su respuesta. Dos refetch en vuelo (guardar el perfil y luego el KB, por
+ * ejemplo) pueden volver en desorden; sin esto, la respuesta vieja que llega
+ * tarde pisaría a la nueva.
+ */
+export function createLatestGate(): { begin: () => number; isLatest: (ticket: number) => boolean } {
+  let last = 0;
+  return {
+    begin: () => ++last,
+    isLatest: (ticket) => ticket === last,
+  };
+}

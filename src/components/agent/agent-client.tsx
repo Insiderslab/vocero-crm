@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useReducer, useState } from "react";
+import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { Plus, Sparkles, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useT } from "@/lib/i18n/client";
 import {
+  createLatestGate,
   initServerForm,
   readSaveResult,
   serverFormReducer,
@@ -69,12 +70,17 @@ export function AgentClient() {
   // Un segundo clic con el primer PUT en vuelo mandaría el mismo valor viejo.
   const [toggling, setToggling] = useState(false);
 
+  // Solo la respuesta del ÚLTIMO refetch se aplica (las viejas se ignoran).
+  const refetchGate = useRef(createLatestGate());
+
   const refetch = useCallback(async () => {
+    const ticket = refetchGate.current.begin();
     const [p, kb, size] = await Promise.all([
       fetch("/api/agent/profile").then((r) => (r.ok ? r.json() : null)),
       fetch("/api/kb").then((r) => (r.ok ? r.json() : null)),
       fetch("/api/kb/size").then((r) => (r.ok ? r.json() : null)),
     ]).catch(() => [null, null, null]);
+    if (!refetchGate.current.isLatest(ticket)) return;
     if (p) {
       setProfile(p.profile);
       setRestriction(p.restriction ?? null);

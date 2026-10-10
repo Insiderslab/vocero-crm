@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  createLatestGate,
   initServerForm,
   readSaveResult,
   serverFormReducer,
@@ -93,6 +94,20 @@ describe("readSaveResult", () => {
   });
 });
 
+describe("createLatestGate (refetch en desorden)", () => {
+  it("solo la última petición iniciada aplica su respuesta", () => {
+    const gate = createLatestGate();
+    const primera = gate.begin();
+    const segunda = gate.begin();
+    // La segunda vuelve antes: se aplica; la primera llega tarde: se ignora.
+    expect(gate.isLatest(segunda)).toBe(true);
+    expect(gate.isLatest(primera)).toBe(false);
+    const tercera = gate.begin();
+    expect(gate.isLatest(segunda)).toBe(false);
+    expect(gate.isLatest(tercera)).toBe(true);
+  });
+});
+
 describe("agent-client usa estas reglas (vigilancia)", () => {
   const src = readFileSync(
     path.resolve(import.meta.dirname, "..", "..", "src", "components", "agent", "agent-client.tsx"),
@@ -122,6 +137,11 @@ describe("agent-client usa estas reglas (vigilancia)", () => {
       .map(({ i }) => i + 1);
     expect(sinBloqueo).toEqual([]);
     expect(src.match(/^\s*onChange=\{/gm)?.length).toBeGreaterThanOrEqual(11);
+  });
+
+  it("refetch descarta respuestas viejas (secuencia de peticiones)", () => {
+    expect(src).toMatch(/const ticket = refetchGate\.current\.begin\(\);/);
+    expect(src).toMatch(/if \(!refetchGate\.current\.isLatest\(ticket\)\) return;\s*\n\s*if \(p\) \{/);
   });
 
   it("el interruptor del agente se bloquea mientras su PUT está en vuelo", () => {
