@@ -142,6 +142,13 @@ export async function getActiveSiteKey(organizationId: string): Promise<SiteKeyI
     : null;
 }
 
+type Tx = Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0];
+
+/** Lock de la transacción por organización para rotar/revocar la clave del sitio. */
+async function lockSiteKeys(tx: Tx, organizationId: string): Promise<void> {
+  await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`site-key:${organizationId}`}))`);
+}
+
 /** Revoca las claves activas del sitio de la organización. Devuelve cuántas. */
 async function revokeActive(
   tx: Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0],
@@ -173,6 +180,10 @@ export async function rotateSiteKey(
   const key = generateApiKey("site");
   const id = newId("botApiKey");
   const revoked = await getDb().transaction(async (tx) => {
+    // Dos rotaciones a la vez (dos pestañas, doble clic) se serializan: la
+    // segunda espera, revoca la de la primera y crea la suya. El índice
+    // `bot_api_key_site_active_uq` lo garantiza además en la base de datos.
+    await lockSiteKeys(tx, organizationId);
     const n = await revokeActive(tx, organizationId);
     await tx.insert(schema.botApiKey).values({
       id,
@@ -190,5 +201,8 @@ export async function rotateSiteKey(
 
 /** Revoca la clave del sitio (idempotente). */
 export async function revokeSiteKey(organizationId: string): Promise<number> {
-  return getDb().transaction((tx) => revokeActive(tx, organizationId));
+  return getDb().transaction(async (tx) => {
+    await lockSiteKeys(tx, organizationId);
+    return revokeActive(tx, organizationId);
+  });
 }

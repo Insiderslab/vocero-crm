@@ -408,6 +408,33 @@ describe("008 claves", () => {
     expect(row!.n).toBe(1);
   });
 
+  it("rotaciones concurrentes: siempre UNA activa, y la última es la que funciona", async () => {
+    const results = await Promise.all(
+      Array.from({ length: 6 }, () => rotateSiteKey(ORG_A, "u_golden"))
+    );
+    const [row] = await sql()<{ n: number }[]>`
+      select count(*)::int as n from bot_api_key
+      where organization_id = ${ORG_A} and scope = 'site' and revoked_at is null`;
+    expect(row!.n).toBe(1);
+    const working = [];
+    for (const [i, r] of results.entries()) {
+      if ((await send(form({ message: `rot${i}` }), { key: r.key, ip: `203.0.113.${60 + i}` })).status === 202) working.push(i);
+    }
+    expect(working).toHaveLength(1);
+  });
+
+  it("la base de datos impide dos claves del sitio activas en la misma organización", async () => {
+    await expect(
+      sql()`insert into bot_api_key (id, organization_id, label, scope, key_prefix, key_hash, created_by)
+            values ('bk_dup', ${ORG_A}, 'x', 'site', 'vsk_dup', 'hash_dup', 'u')`
+    ).rejects.toThrow(/bot_api_key_site_active_uq/);
+    // Revocadas o de otro ámbito: sin límite.
+    await sql()`insert into bot_api_key (id, organization_id, label, scope, key_prefix, key_hash, created_by, revoked_at)
+                values ('bk_old', ${ORG_A}, 'x', 'site', 'vsk_old', 'hash_old', 'u', now())`;
+    await sql()`insert into bot_api_key (id, organization_id, label, scope, key_prefix, key_hash, created_by)
+                values ('bk_bot1', ${ORG_A}, 'x', 'bot', 'vbk_1', 'hash_b1', 'u'), ('bk_bot2', ${ORG_A}, 'x', 'bot', 'vbk_2', 'hash_b2', 'u')`;
+  });
+
   it("sin clave, inventada, o una clave de bot → 401", async () => {
     expect((await send(form(), { key: null })).status).toBe(401);
     expect((await send(form(), { key: "vsk_inventada" })).status).toBe(401);

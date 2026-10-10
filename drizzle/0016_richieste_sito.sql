@@ -8,6 +8,10 @@
 -- istruzioni di catalogo, senza scansioni né riscritture:
 --   * tabella nuova (vuota) `site_request_config` con il suo indice;
 --   * `contact.email` (colonna nullable senza default: solo catalogo);
+--   * indice univoco parziale `bot_api_key_site_active_uq`: una sola chiave
+--     del sito ATTIVA per organizzazione. `bot_api_key` è piccola (chiavi di
+--     servizio) e fino a qui nessuna riga ha scope 'site': il CREATE INDEX
+--     non CONCURRENTLY dura millisecondi e non può fallire;
 --   * `message_channel_ck` sostituito dalla versione con 'web', NOT VALID.
 --     Lo valida il runner (fase B di `scripts/migrate-channels.mjs`, passo
 --     `VALIDATE CONSTRAINT "message_channel_ck"`, già presente per nome),
@@ -27,5 +31,6 @@ CREATE TABLE "site_request_config" (
 ALTER TABLE "site_request_config" ADD CONSTRAINT "site_request_config_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 CREATE UNIQUE INDEX "site_request_config_org_uq" ON "site_request_config" USING btree ("organization_id");--> statement-breakpoint
 ALTER TABLE "contact" ADD COLUMN "email" text;--> statement-breakpoint
+CREATE UNIQUE INDEX "bot_api_key_site_active_uq" ON "bot_api_key" USING btree ("organization_id") WHERE "bot_api_key"."scope" = 'site' and "bot_api_key"."revoked_at" is null;--> statement-breakpoint
 ALTER TABLE "message" DROP CONSTRAINT "message_channel_ck";--> statement-breakpoint
 ALTER TABLE "message" ADD CONSTRAINT "message_channel_ck" CHECK ("message"."channel" in ('whatsapp', 'instagram', 'messenger', 'email', 'web')) NOT VALID;
