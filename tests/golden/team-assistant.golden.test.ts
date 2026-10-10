@@ -260,6 +260,36 @@ describe("007 datos demo por organización", () => {
     expect(await count("agent_test_run", ORG_B)).toBe(0);
   });
 
+  it("quitar la demo borra también los media_asset de sus mensajes (no los que usa otro mensaje ni los de otra organización)", async () => {
+    await seedDemo(getDb(), ORG_A);
+    await postWebhook(waFixture("inbound-text-mx")); // conversación real de A
+    await sql()`
+      insert into media_asset (id, organization_id, kind, fetch_status)
+      values ('ma_demo_solo', ${ORG_A}, 'image', 'available'),
+             ('ma_compartido', ${ORG_A}, 'image', 'available'),
+             ('ma_de_b', ${ORG_B}, 'image', 'available')
+    `;
+    const [demoMsg] = await sql()<{ id: string }[]>`
+      select m.id from message m join contact c on c.id = (select contact_id from conversation where id = m.conversation_id)
+      where m.organization_id = ${ORG_A} and c.phone like '52156123400%' order by m.id limit 1
+    `;
+    const [otroDemo] = await sql()<{ id: string }[]>`
+      select m.id from message m join contact c on c.id = (select contact_id from conversation where id = m.conversation_id)
+      where m.organization_id = ${ORG_A} and c.phone like '52156123400%' order by m.id desc limit 1
+    `;
+    const [realMsg] = await sql()<{ id: string }[]>`
+      select m.id from message m join contact c on c.id = (select contact_id from conversation where id = m.conversation_id)
+      where m.organization_id = ${ORG_A} and c.wa_identity = ${ANA} limit 1
+    `;
+    await sql()`update message set media_asset_id = 'ma_demo_solo' where id = ${demoMsg!.id}`;
+    await sql()`update message set media_asset_id = 'ma_compartido' where id in (${otroDemo!.id}, ${realMsg!.id})`;
+
+    await removeDemo(getDb(), ORG_A);
+
+    const left = await sql()<{ id: string }[]>`select id from media_asset order by id`;
+    expect(left.map((r) => r.id)).toEqual(["ma_compartido", "ma_de_b"]);
+  });
+
   it("quitar la demo sin la FK en cascada de la fase B (fase B incompleta): V3 sigue en 0", async () => {
     await seedDemo(getDb(), ORG_A);
     await sql()`alter table contact_identity drop constraint contact_identity_contact_fk`;

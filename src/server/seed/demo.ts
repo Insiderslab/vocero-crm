@@ -1,4 +1,4 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, notExists, sql } from "drizzle-orm";
 import type { getDb } from "@/lib/db";
 import { schema } from "@/lib/db";
 import { newId } from "@/lib/db/ids";
@@ -416,6 +416,20 @@ async function deleteDemoContacts(
     );
   const convIds = convs.map((c) => c.id);
   if (convIds.length > 0) {
+    // Adjuntos de esos mensajes: la FK del mensaje es SET NULL, así que sin
+    // esto las filas de media_asset quedarían huérfanas. (Los archivos en
+    // MEDIA_DIR no se tocan: el borrado de disco no es transaccional.)
+    const media = await tx
+      .selectDistinct({ id: schema.message.mediaAssetId })
+      .from(schema.message)
+      .where(
+        and(
+          eq(schema.message.organizationId, organizationId),
+          inArray(schema.message.conversationId, convIds),
+          isNotNull(schema.message.mediaAssetId)
+        )
+      );
+    const mediaIds = media.map((m) => m.id).filter((id): id is string => id !== null);
     await tx
       .delete(schema.message)
       .where(
@@ -424,6 +438,23 @@ async function deleteDemoContacts(
           inArray(schema.message.conversationId, convIds)
         )
       );
+    if (mediaIds.length > 0) {
+      // Solo los que ya no usa ningún otro mensaje.
+      await tx
+        .delete(schema.mediaAsset)
+        .where(
+          and(
+            eq(schema.mediaAsset.organizationId, organizationId),
+            inArray(schema.mediaAsset.id, mediaIds),
+            notExists(
+              tx
+                .select({ one: sql`1` })
+                .from(schema.message)
+                .where(eq(schema.message.mediaAssetId, schema.mediaAsset.id))
+            )
+          )
+        );
+    }
     await tx
       .delete(schema.conversation)
       .where(
