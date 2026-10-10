@@ -71,14 +71,23 @@ export function checkRateLimit(
   return { allowed: true, remaining: opts.max - bucket.length };
 }
 
+/** Intentos de la clave dentro de la ventana, sin consumir ninguno. */
+export function countInWindow(
+  key: string,
+  windowMs: number,
+  now: number = Date.now()
+): number {
+  const cutoff = now - windowMs;
+  return (store().get(key) ?? []).filter((t) => t > cutoff).length;
+}
+
 /** Consulta sin consumir: ¿la clave ya agotó su ventana? */
 export function isRateLimited(
   key: string,
   opts: { windowMs: number; max: number },
   now: number = Date.now()
 ): boolean {
-  const cutoff = now - opts.windowMs;
-  return (store().get(key) ?? []).filter((t) => t > cutoff).length >= opts.max;
+  return countInWindow(key, opts.windowMs, now) >= opts.max;
 }
 
 /**

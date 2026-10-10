@@ -2,7 +2,7 @@ import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { and, eq, isNull } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { apiError } from "@/lib/api";
-import { checkRateLimit, clientIp, isRateLimited } from "@/lib/rate-limit";
+import { checkRateLimit, clientIp, countInWindow } from "@/lib/rate-limit";
 
 /**
  * Claves de servicio POR organización (una sola fuente para `/api/bot/*` y
@@ -23,11 +23,14 @@ type ScopeConfig = {
   /** Variable de entorno de la clave de instancia heredada. */
   instanceEnv: "BOT_API_KEY" | "EXPORT_API_KEY";
   /**
-   * Límite por ventana. Se cuenta por organización (`<bucket>:org:<id>`), así
-   * una organización no agota el límite de otra. Aparte, con el mismo límite:
-   * `<bucket>:invalid:<ip>` (claves del ámbito inexistentes, revocadas o de
-   * instancia erróneas, por IP del cliente) y `<bucket>:instance` (clave de
-   * instancia heredada, solo tras comparación correcta).
+   * Límite por ventana (`max`). Se cuenta por organización
+   * (`<bucket>:org:<id>`), así una organización no agota el límite de otra.
+   * Aparte: `<bucket>:instance` (clave de instancia, solo tras comparación
+   * correcta) y dos contadores de FALLOS por IP del cliente, uno por tipo de
+   * clave para que el tráfico sin prefijo (escáneres, IP compartidas) no
+   * toque las claves por organización: `<bucket>:invalid:<ip>` (clave con
+   * prefijo del ámbito, inexistente, revocada o de otro ámbito) y
+   * `<bucket>:instance-invalid:<ip>` (el resto). Ver `ipFailureCounter`.
    */
   rateLimit: { bucket: string; windowMs: number; max: number };
 };
@@ -54,26 +57,64 @@ function rateLimited(scope: ApiKeyScope, sub: string): Response | null {
 }
 
 /**
+ * Multiplicador del umbral duro de fallos por IP: umbral blando = `max`,
+ * umbral duro = `max × INVALID_HARD_FACTOR`.
+ */
+export const INVALID_HARD_FACTOR = 4;
+
+type FailureKind = "invalid" | "instance-invalid";
+
+/**
+ * Contador de FALLOS por IP del cliente, con dos umbrales (una sola fuente
+ * para la clave de instancia y las claves por organización):
+ *
+ * - bajo el umbral blando (`max` fallos en la ventana): el fallo responde 401;
+ * - entre el blando y el duro: el fallo responde 429, pero la clave se sigue
+ *   VERIFICANDO, así una clave válida no queda bloqueada por los fallos de
+ *   otros que comparten IP (NAT, IP de salida de plataformas de automatización,
+ *   el valor "local" cuando no hay proxy). Coste acotado: la comparación de la
+ *   clave de instancia es en memoria y la consulta de una clave por
+ *   organización es por índice (hash);
+ * - desde el umbral duro (`max × INVALID_HARD_FACTOR`): `hardBlocked`, el
+ *   llamador responde 429 SIN comparar ni consultar la base de datos. Es el
+ *   freno a la fuerza bruta y al coste de las consultas: una IP no puede hacer
+ *   más de `max × INVALID_HARD_FACTOR` intentos por ventana.
+ *
+ * Solo los fallos consumen el contador; las claves válidas no.
+ */
+function ipFailureCounter(req: Request, scope: ApiKeyScope, kind: FailureKind) {
+  const { bucket, windowMs, max } = API_KEY_SCOPES[scope].rateLimit;
+  const key = `${bucket}:${kind}:${clientIp(req.headers)}`;
+  const hardMax = max * INVALID_HARD_FACTOR;
+  const failures = countInWindow(key, windowMs);
+  return {
+    hardBlocked: failures >= hardMax,
+    /** Registra un fallo y devuelve la respuesta: 401 bajo el umbral blando, 429 desde él. */
+    fail(): Response {
+      checkRateLimit(key, { windowMs, max: hardMax });
+      return failures >= max ? tooMany() : apiError(401, "unauthorized", "No autorizado");
+    },
+  };
+}
+
+/**
  * Comprueba la clave de instancia heredada del ámbito. null = válida.
- * Los fallos cuentan por IP del cliente (`<bucket>:invalid:<ip>`); el contador
- * de la instancia solo se consume tras una comparación correcta, así una
- * avalancha de claves falsas no bloquea la clave legítima.
+ * Los fallos (sin cabecera, variable de entorno ausente o corta, comparación
+ * errónea) cuentan por IP en `<bucket>:instance-invalid:<ip>`; el contador de
+ * la instancia solo se consume tras una comparación correcta, así una
+ * avalancha de claves falsas no bloquea la clave legítima (ni desde la misma
+ * IP, hasta el umbral duro; ni desde otra).
  */
 export function requireInstanceKey(req: Request, scope: ApiKeyScope): Response | null {
-  const { bucket, windowMs, max } = API_KEY_SCOPES[scope].rateLimit;
-  const invalid = `${bucket}:invalid:${clientIp(req.headers)}`;
-  if (isRateLimited(invalid, { windowMs, max })) return tooMany();
+  const ip = ipFailureCounter(req, scope, "instance-invalid");
+  if (ip.hardBlocked) return tooMany();
 
-  const fail = () => {
-    checkRateLimit(invalid, { windowMs, max });
-    return apiError(401, "unauthorized", "No autorizado");
-  };
   const expected = process.env[API_KEY_SCOPES[scope].instanceEnv];
   const provided = req.headers.get("x-api-key");
-  if (!expected || expected.length < 16 || !provided) return fail();
+  if (!expected || expected.length < 16 || !provided) return ip.fail();
   const a = Buffer.from(provided);
   const b = Buffer.from(expected);
-  if (a.length !== b.length || !timingSafeEqual(a, b)) return fail();
+  if (a.length !== b.length || !timingSafeEqual(a, b)) return ip.fail();
   return rateLimited(scope, "instance");
 }
 
@@ -140,20 +181,14 @@ export async function authenticateApiKey(
   const provided = req.headers.get("x-api-key") ?? "";
 
   if (provided.startsWith(API_KEY_SCOPES[scope].prefix)) {
-    const { bucket, windowMs, max } = API_KEY_SCOPES[scope].rateLimit;
-    // Claves inválidas: contador por IP del cliente, consultado antes de la
-    // base de datos. Una avalancha solo bloquea a la IP que la envía; el resto
-    // de IPs, y sus claves válidas, sigue entrando. Esa IP queda bloqueada
-    // también con una clave válida: si no, la respuesta diría qué clave es
-    // buena y el límite no frenaría la fuerza bruta.
-    const invalid = `${bucket}:invalid:${clientIp(req.headers)}`;
-    if (isRateLimited(invalid, { windowMs, max })) return tooMany();
+    // Fallos por IP del cliente (ver `ipFailureCounter`): una avalancha solo
+    // afecta a la IP que la envía, y esa IP sigue verificando su clave hasta
+    // el umbral duro; pasado el cual se responde 429 sin consultar la base de datos.
+    const ip = ipFailureCounter(req, scope, "invalid");
+    if (ip.hardBlocked) return tooMany();
     const key = await deps.findActiveKey(hashApiKey(provided));
     // Una clave de otro ámbito no vale aquí, aunque exista y esté activa.
-    if (!key || key.scope !== scope) {
-      checkRateLimit(invalid, { windowMs, max });
-      return apiError(401, "unauthorized", "No autorizado");
-    }
+    if (!key || key.scope !== scope) return ip.fail();
     // Límite propio de la organización de la clave.
     const limited = rateLimited(scope, `org:${key.organizationId}`);
     if (limited) return limited;

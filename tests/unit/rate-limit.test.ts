@@ -6,6 +6,7 @@ import {
   rateLimitSize,
   checkRateLimit,
   clientIp,
+  countInWindow,
   isRateLimited,
   resetRateLimit,
 } from "@/lib/rate-limit";
@@ -62,6 +63,21 @@ describe("rate limit por IP (FR-062: 10 / 10 min → 429)", () => {
     expect(
       isRateLimited("peek", AUTH_RATE_LIMIT, t0 + AUTH_RATE_LIMIT.windowMs + 500)
     ).toBe(false);
+  });
+});
+
+describe("countInWindow", () => {
+  beforeEach(() => resetRateLimit());
+
+  it("cuenta las marcas vigentes sin consumir ninguna", () => {
+    const w = { windowMs: 1000, max: 10 };
+    expect(countInWindow("c", w.windowMs, 5_000)).toBe(0);
+    checkRateLimit("c", w, 5_000);
+    checkRateLimit("c", w, 5_500);
+    expect(countInWindow("c", w.windowMs, 5_600)).toBe(2);
+    expect(countInWindow("c", w.windowMs, 5_600)).toBe(2);
+    expect(countInWindow("c", w.windowMs, 6_200)).toBe(1);
+    expect(countInWindow("c", w.windowMs, 7_000)).toBe(0);
   });
 });
 
@@ -140,5 +156,24 @@ describe("barrido de entradas caducadas", () => {
     checkRateLimit("old", opts, 1_000);
     for (let i = 0; i < SWEEP_EVERY - 3; i++) checkRateLimit("live", opts, 10_000);
     expect(rateLimitSize()).toBe(2);
+  });
+
+  it("finestras mixtas: un barrido provocado por tráfico de ventana corta no borra un contador de login de ventana larga", () => {
+    const t0 = 1_000_000;
+    for (let i = 0; i < AUTH_RATE_LIMIT.max; i++) checkRateLimit("/sign-in/email:x", AUTH_RATE_LIMIT, t0 + i);
+    // dos minutos después, 500 llamadas de API con ventana de 60 s disparan el barrido
+    const later = t0 + 2 * 60_000;
+    for (let i = 0; i < SWEEP_EVERY; i++) checkRateLimit("bot-api:org:a", { windowMs: 60_000, max: 10_000 }, later);
+    expect(rateLimitSize()).toBe(2);
+    expect(checkRateLimit("/sign-in/email:x", AUTH_RATE_LIMIT, later).allowed).toBe(false);
+  });
+
+  it("decide por la ÚLTIMA marca: un bucket con la primera marca caducada y la última viva no se borra", () => {
+    const w = { windowMs: 1000, max: 1 };
+    checkRateLimit("mixto", { windowMs: 1000, max: 5 }, 10_000);
+    checkRateLimit("mixto", { windowMs: 1000, max: 5 }, 10_900);
+    for (let i = 0; i < SWEEP_EVERY; i++) checkRateLimit("vivo", { windowMs: 1000, max: 10_000 }, 11_500);
+    expect(rateLimitSize()).toBe(2);
+    expect(isRateLimited("mixto", w, 11_500)).toBe(true);
   });
 });
