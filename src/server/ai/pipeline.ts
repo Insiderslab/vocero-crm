@@ -1,4 +1,4 @@
-import { and, asc, eq, isNotNull, isNull } from "drizzle-orm";
+import { and, asc, eq, isNotNull, isNull, ne } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { newId } from "@/lib/db/ids";
 import { scoped } from "@/lib/db/tenant";
@@ -459,10 +459,18 @@ export async function runAgentTurn(
     }
   }
 
+  // 008 — Las solicitudes web se excluyen EN LA CONSULTA, antes del LIMIT:
+  // 20 solicitudes del formulario no pueden empujar fuera el historial de
+  // WhatsApp (ni dejar al agente sin el último entrante de WhatsApp).
   const history = await db
     .select()
     .from(schema.message)
-    .where(eq(schema.message.conversationId, conversationId))
+    .where(
+      and(
+        eq(schema.message.conversationId, conversationId),
+        ne(schema.message.channel, "web")
+      )
+    )
     .orderBy(...MESSAGE_CHRONOLOGY_DESC)
     .limit(20);
   // 009 (E1a): el segundo intento solo responde si el entrante del turno
@@ -478,9 +486,9 @@ export async function runAgentTurn(
   history.reverse();
   // 008 — Una solicitud del formulario del sitio (`channel = web`) NO es un
   // mensaje de WhatsApp: no abre la ventana de 24 h y el agente jamás le
-  // contesta por WhatsApp (la responde el equipo a mano). Se busca el último
-  // entrante de WhatsApp; si solo hay solicitudes web, no hay turno (ni
-  // handoff "ventana": la conversación queda como está para el equipo).
+  // contesta por WhatsApp (la responde el equipo a mano). La consulta ya las
+  // excluye; el filtro se repite aquí como segunda barrera. Si solo hay
+  // solicitudes web, no hay turno (ni handoff "ventana").
   const lastInbound = [...history]
     .reverse()
     .find((m) => m.direction === "in" && m.channel !== "web");
