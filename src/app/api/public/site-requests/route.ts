@@ -1,7 +1,12 @@
 import { apiError } from "@/lib/api";
 import { checkRateLimit, clientIp } from "@/lib/rate-limit";
 import { authenticateSiteKey, consumeSiteKeyLimit } from "@/server/site-requests/auth";
-import { getAllowedOrigins, isOriginRegistered } from "@/server/site-requests/config";
+import {
+  cacheOriginRegistered,
+  cachedOriginRegistered,
+  getAllowedOrigins,
+  isOriginRegistered,
+} from "@/server/site-requests/config";
 import { ingestSiteRequest } from "@/server/site-requests/ingest";
 import {
   MAX_BODY_BYTES,
@@ -46,18 +51,28 @@ function reply(res: Response, cors: Record<string, string>): Response {
  * contra la organización de la clave. A cualquier otro: 403 sin CORS.
  */
 export async function OPTIONS(req: Request): Promise<Response> {
-  if (!checkRateLimit(`site-preflight:${clientIp(req.headers)}`, SITE_PREFLIGHT_LIMIT).allowed) {
-    return new Response(null, { status: 429 });
-  }
   const origin = req.headers.get("origin");
   // El navegador manda el origen ya en forma canónica; otra forma no se acepta.
   if (!origin || normalizeOrigin(origin) !== origin) return new Response(null, { status: 403 });
-  try {
-    if (!(await isOriginRegistered(origin))) return new Response(null, { status: 403 });
-  } catch (err) {
-    console.error("[sito] preflight fallido:", err instanceof Error ? err.message : "error");
-    return new Response(null, { status: 500 });
+
+  // Caché breve (30 s, tope de entradas): un origen ya visto no consulta la
+  // base de datos ni gasta límite. Solo las consultas a la base de datos
+  // cuentan para el límite por IP, así una IP que manda orígenes inventados
+  // no deja sin preflight a los visitantes del sitio real (ya en caché).
+  let allowed = cachedOriginRegistered(origin);
+  if (allowed === undefined) {
+    if (!checkRateLimit(`site-preflight:${clientIp(req.headers)}`, SITE_PREFLIGHT_LIMIT).allowed) {
+      return new Response(null, { status: 429 });
+    }
+    try {
+      allowed = await isOriginRegistered(origin);
+    } catch (err) {
+      console.error("[sito] preflight fallido:", err instanceof Error ? err.message : "error");
+      return new Response(null, { status: 500 });
+    }
+    cacheOriginRegistered(origin, allowed);
   }
+  if (!allowed) return new Response(null, { status: 403 });
   return new Response(null, { status: 204, headers: preflightHeaders(origin) });
 }
 

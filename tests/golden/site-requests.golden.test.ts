@@ -447,6 +447,18 @@ describe("008 CORS", () => {
     }
   });
 
+  it("preflight: una IP que inventa orígenes acaba en 429, pero el origen real (en caché) sigue con 204; guardar orígenes vacía la caché", async () => {
+    expect((await preflight(ORIGIN_A, "198.51.100.90")).status).toBe(204); // queda en caché
+    let limited = false;
+    for (let i = 0; i < 80; i++) {
+      if ((await preflight(`https://inventado${i}.example`, "198.51.100.90")).status === 429) limited = true;
+    }
+    expect(limited).toBe(true);
+    expect((await preflight(ORIGIN_A, "198.51.100.90")).status).toBe(204);
+    await setAllowedOrigins(ORG_A, []);
+    expect((await preflight(ORIGIN_A, "198.51.100.91")).status).toBe(403);
+  });
+
   it("POST con la clave de A desde el origen de B → 403 origin_not_allowed, nada escrito", async () => {
     const n0 = await counts();
     const r = await send(form(), { origin: ORIGIN_B });
