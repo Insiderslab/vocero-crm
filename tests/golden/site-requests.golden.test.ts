@@ -289,6 +289,26 @@ describe("008 crear vs reutilizar el contacto", () => {
     expect(await counts()).toEqual(n0);
   });
 
+  it("metadatos raros no hacen perder la solicitud; el 422 habla el idioma del visitante", async () => {
+    const r = await send(
+      form({ locale: "es_VE;<script>", pageUrl: `https://labambola.example/r?utm=${"x".repeat(900)}` })
+    );
+    expect(r.status).toBe(202);
+    const [m] = await sql()<{ text: string }[]>`select text from message where channel = 'web'`;
+    // locale descartado → etiquetas en el idioma de la instancia; URL sin la query.
+    expect(m!.text).toMatch(/: https:\/\/labambola\.example\/r$/);
+    expect(m!.text).not.toContain("utm=");
+
+    const it422 = await send(form({ phone: "0412 1234567", locale: "it" }), { ip: "203.0.113.30" });
+    expect(it422.status).toBe(422);
+    expect((it422.body?.error as { message: string }).message).toMatch(/^Indica un telefono valido/);
+    const en422 = await send(form({ phone: "", email: "x@nadie.example", locale: undefined }), {
+      ip: "203.0.113.31",
+      headers: { "accept-language": "en-GB,en;q=0.9" },
+    });
+    expect(en422.body?.error).toMatchObject({ code: "phone_required", message: expect.stringMatching(/^Please give a phone/) });
+  });
+
   it("contacto archivado: vuelve a la bandeja", async () => {
     await send(form());
     await sql()`update contact set archived_at = now() where wa_identity = ${LUCIA}`;

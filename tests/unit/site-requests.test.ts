@@ -21,8 +21,13 @@ import {
   parseOrigins,
   preflightHeaders,
   readBodyCapped,
+  MAX_PAGE_URL,
+  normalizeLocaleTag,
+  normalizePageUrl,
   sanitizeMultiLine,
   sanitizeSingleLine,
+  visitorErrorKey,
+  visitorMessage,
   siteRequestSchema,
   toSiteRequest,
 } from "@/server/site-requests/validation";
@@ -117,8 +122,6 @@ describe("siteRequestSchema", () => {
     ["message vacío", { message: "" }],
     ["message > 4000", { message: "x".repeat(4001) }],
     ["email inválido", { email: "no-es-email" }],
-    ["pageUrl no http", { pageUrl: "javascript:alert(1)" }],
-    ["locale raro", { locale: "es_VE;<script>" }],
     ["clave desconocida (strict)", { organizationId: "org_b" }],
     ["fields con valor no texto", { fields: { a: 1 } }],
     ["fields: clave > 40", { fields: { ["k".repeat(41)]: "v" } }],
@@ -352,6 +355,7 @@ describe("fragmento para el sitio", () => {
 
   it("los campos fields[x] van dentro de `fields`", () => {
     expect(snippet).toContain("/^fields\\[(.+)\\]$/");
+    expect(snippet).toContain("var KNOWN = { name: 1, phone: 1, email: 1, message: 1, website: 1 };");
   });
 
   it("escapa etiquetas y cadenas (no se puede cerrar el <script>)", () => {
@@ -412,5 +416,82 @@ describe("saneamiento: una línea, invisibles y controles (revisión PR #10)", (
   it("sanitizeSingleLine / sanitizeMultiLine directos", () => {
     expect(sanitizeSingleLine("  a \n\n b\u2029c  ")).toBe("a b c");
     expect(sanitizeMultiLine("a\r\nb\rc\u2028d")).toBe("a\nb\nc\nd");
+  });
+});
+
+describe("metadatos opcionales: no se pierde la solicitud (revisión PR #10)", () => {
+  it("locale inválido se descarta; en_US → en-US", () => {
+    expect(siteRequestSchema.parse({ ...valid, locale: "es_VE;<script>" }).locale).toBeUndefined();
+    expect(siteRequestSchema.parse({ ...valid, locale: "en_US" }).locale).toBe("en-US");
+    expect(siteRequestSchema.parse({ ...valid, locale: 42 }).locale).toBeUndefined();
+    expect(normalizeLocaleTag("x".repeat(30))).toBeUndefined();
+  });
+
+  it("pageUrl: no http(s) o no URL → se descarta; larga → sin query; aún larga → recortada", () => {
+    expect(siteRequestSchema.parse({ ...valid, pageUrl: "javascript:alert(1)" }).pageUrl).toBeUndefined();
+    expect(siteRequestSchema.parse({ ...valid, pageUrl: "no es url" }).pageUrl).toBeUndefined();
+    const longQuery = `https://labambola.example/reservas?utm=${"x".repeat(800)}#a`;
+    expect(normalizePageUrl(longQuery)).toBe("https://labambola.example/reservas");
+    const longPath = `https://labambola.example/${"p".repeat(800)}`;
+    expect(normalizePageUrl(longPath)).toHaveLength(MAX_PAGE_URL);
+    expect(normalizePageUrl("https://user:pw@labambola.example/x")).toBe("https://labambola.example/x");
+    expect(siteRequestSchema.safeParse({ ...valid, pageUrl: longQuery }).success).toBe(true);
+  });
+
+  it("motivo para el visitante: nunca el texto de Zod", () => {
+    const issues = (body: Record<string, unknown>) => {
+      const r = siteRequestSchema.safeParse({ ...valid, ...body });
+      return r.success ? [] : r.error.issues;
+    };
+    expect(visitorErrorKey(issues({ phone: "", email: "" }))).toBe("contactRequired");
+    expect(visitorErrorKey(issues({ phone: "0412 1234567" }))).toBe("phone");
+    expect(visitorErrorKey(issues({ email: "no" }))).toBe("email");
+    expect(visitorErrorKey(issues({ name: "" }))).toBe("name");
+    expect(visitorErrorKey(issues({ message: "x".repeat(4001) }))).toBe("message");
+    expect(visitorErrorKey(issues({ otra: 1 }))).toBe("invalid");
+  });
+
+  it("el mensaje sigue el idioma de la solicitud (it/es/en) o el de la instancia", () => {
+    expect(visitorMessage("phone", "es-VE")).toMatch(/^Indica un teléfono válido/);
+    expect(visitorMessage("phone", "en")).toMatch(/^Please give a valid phone/);
+    expect(visitorMessage("phone", "it")).toMatch(/^Indica un telefono valido/);
+    expect(visitorMessage("generic", "de")).toBe(visitorMessage("generic", null));
+    for (const loc of ["es", "en", "it"]) {
+      for (const k of ["contactRequired", "phone", "email", "name", "message", "invalid", "phoneRequired", "generic"] as const) {
+        expect(visitorMessage(k, loc)).not.toMatch(/^inbox\./);
+      }
+    }
+  });
+
+  it("el fragmento manda a «fields» los name desconocidos y no los ficheros", () => {
+    const snippet = buildSiteSnippet({ endpoint: "https://crm.example/x", siteKey: "vsk_a", labels: {
+      name: "N", phone: "P", email: "E", message: "M", submit: "S", thanks: "T", error: "X" } });
+    const js = snippet.slice(snippet.indexOf("<script>") + 8, snippet.indexOf("</script>"));
+    // Se ejecuta el JS con un DOM mínimo y se captura el body del fetch.
+    let sent: Record<string, unknown> | null = null;
+    let submit: ((e: { preventDefault(): void }) => void) | null = null;
+    const entries: [string, unknown][] = [
+      ["name", "Ana"], ["phone", "+58 412 1234567"], ["email", ""], ["message", "hola"],
+      ["website", ""], ["fecha", "2026-10-24"], ["fields[personas]", "4"], ["adjunto", { file: true }],
+    ];
+    const form = {
+      querySelector: () => ({ disabled: false, textContent: "" }),
+      addEventListener: (_: string, fn: typeof submit) => { submit = fn; },
+      reset() {},
+    };
+    const env = {
+      document: { getElementById: () => form, documentElement: { lang: "es" } },
+      location: { href: "https://labambola.example/reservas" },
+      FormData: function () { return { forEach: (cb: (v: unknown, k: string) => void) => entries.forEach(([k, v]) => cb(v, k)) }; },
+      fetch: (_u: string, init: { body: string }) => { sent = JSON.parse(init.body); return new Promise(() => {}); },
+    };
+    new Function(...Object.keys(env), js)(...Object.values(env));
+    submit!({ preventDefault() {} });
+    expect(sent).toEqual({
+      fields: { fecha: "2026-10-24", personas: "4" },
+      name: "Ana", phone: "+58 412 1234567", email: "", message: "hola", website: "",
+      pageUrl: "https://labambola.example/reservas", locale: "es",
+    });
+    expect(siteRequestSchema.safeParse(sent).success).toBe(true);
   });
 });

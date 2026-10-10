@@ -9,13 +9,17 @@ import {
   SITE_PREFLIGHT_LIMIT,
   corsHeaders,
   isHoneypotFilled,
+  normalizeLocaleTag,
   normalizeOrigin,
   originAllowed,
   preflightHeaders,
   readBodyCapped,
   siteRequestSchema,
   toSiteRequest,
+  visitorErrorKey,
+  visitorMessage,
 } from "@/server/site-requests/validation";
+import { negotiateLocale } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";
 
@@ -98,18 +102,26 @@ export async function POST(req: Request): Promise<Response> {
     if (raw === null) {
       return reply(apiError(413, "payload_too_large", "Solicitud demasiado grande"), cors);
     }
+    // Idioma de los mensajes para el visitante: `locale` del body si se puede
+    // leer, si no Accept-Language. Nunca el texto crudo de Zod.
     let json: unknown;
     try {
       json = JSON.parse(raw);
     } catch {
-      return reply(apiError(422, "invalid_body", "El body debe ser JSON válido"), cors);
+      json = null;
+    }
+    const requestLocale =
+      normalizeLocaleTag((json as { locale?: unknown } | null)?.locale) ??
+      negotiateLocale(req.headers.get("accept-language"));
+    if (json === null || typeof json !== "object") {
+      return reply(apiError(422, "invalid_body", visitorMessage("generic", requestLocale)), cors);
     }
     const parsed = siteRequestSchema.safeParse(json);
     if (!parsed.success) {
-      const detail = parsed.error.issues
-        .map((i) => `${i.path.join(".") || "body"}: ${i.message}`)
-        .join("; ");
-      return reply(apiError(422, "invalid_body", detail), cors);
+      return reply(
+        apiError(422, "invalid_body", visitorMessage(visitorErrorKey(parsed.error.issues), requestLocale)),
+        cors
+      );
     }
 
     // 5. Honeypot: misma respuesta que el éxito, nada escrito.
@@ -120,14 +132,7 @@ export async function POST(req: Request): Promise<Response> {
 
     const result = await ingestSiteRequest(organizationId, toSiteRequest(parsed.data));
     if (!result.ok) {
-      return reply(
-        apiError(
-          422,
-          "phone_required",
-          "Indica un número de teléfono con código de país para que podamos contactarte"
-        ),
-        cors
-      );
+      return reply(apiError(422, "phone_required", visitorMessage("phoneRequired", requestLocale)), cors);
     }
     return reply(Response.json({ ok: true }, { status: 202 }), cors);
   } catch (err) {

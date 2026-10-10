@@ -55,7 +55,7 @@ export function buildSiteSnippet(opts: {
   <label>${h(labels.phone)}<br><input name="phone" type="tel" required maxlength="40" autocomplete="tel" placeholder="+58 412 1234567"></label><br>
   <label>${h(labels.email)}<br><input name="email" type="email" maxlength="254" autocomplete="email"></label><br>
   <label>${h(labels.message)}<br><textarea name="message" required maxlength="4000" rows="4"></textarea></label><br>
-  <!-- Campi extra (es. data, persone): <input name="fields[data]"> -->
+  <!-- Campi extra (es. data, persone): <input name="data"> o <input name="fields[data]"> -->
   <!-- Trappola per i bot: non toglierla e non renderla visibile -->
   <div style="position:absolute;left:-10000px;top:auto;width:1px;height:1px;overflow:hidden" aria-hidden="true">
     <label>Website<input name="website" tabindex="-1" autocomplete="off"></label>
@@ -69,6 +69,7 @@ export function buildSiteSnippet(opts: {
   var KEY = ${jsString(siteKey)};
   var THANKS = ${jsString(labels.thanks)};
   var ERROR = ${jsString(labels.error)};
+  var KNOWN = { name: 1, phone: 1, email: 1, message: 1, website: 1 };
   var form = document.getElementById(${jsString(id)});
   if (!form) return;
   var out = form.querySelector("[data-esito]");
@@ -77,9 +78,11 @@ export function buildSiteSnippet(opts: {
     var data = new FormData(form);
     var body = { fields: {} };
     data.forEach(function (value, name) {
+      if (typeof value !== "string") return;
       var m = /^fields\\[(.+)\\]$/.exec(name);
-      if (m) { if (String(value).trim()) body.fields[m[1]] = String(value); }
-      else body[name] = String(value);
+      // Campos propios del sitio (fields[x] o cualquier otro name) van a «fields».
+      if (m || !KNOWN[name]) { if (value.trim()) body.fields[m ? m[1] : name] = value; }
+      else body[name] = value;
     });
     body.pageUrl = location.href;
     if (document.documentElement.lang) body.locale = document.documentElement.lang;
