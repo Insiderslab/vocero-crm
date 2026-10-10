@@ -34,13 +34,13 @@ description: "Compiti del livello canali comune (M1.2–M1.6)"
 
 **Scopo:** fissare il comportamento di oggi prima di toccarlo.
 
-- [ ] T001 [US1] Rigenera l'inventario con `plan.md` §5.12 su main+C3 e annota nel registro le differenze di riga rispetto a `plan.md` §5
-- [ ] T002 [US1] Configura `vitest.golden.config.ts` e lo script `test:golden` in `package.json`. Senza `DATABASE_URL_GOLDEN` il test fallisce con un messaggio chiaro (niente `skip`)
-- [ ] T003 [P] [US1] Crea `tests/golden/setup.ts` (migrazioni su DB pulito, organizzazioni A e B, ognuna con il suo numero) e `tests/golden/normalize.ts` (segnaposti per ID e orari, bearer → tipo)
-- [ ] T004 [P] [US1] Crea fixture **sintetiche** in `tests/golden/fixtures/whatsapp/` partendo da `src/server/dev/wa-mock-inbound.ts` e dalla forma documentata da Meta (nessun payload reale, D12)
-- [ ] T005 [US1][US2] Scrivi e **registra** i golden di `plan.md` §7.1 (inbound, status, echo, routing, webhook-auth, send, agent) sul codice invariato. Nello stesso commit: `__golden__/*.json`
-- [ ] T006 [US1] Aggiungi alla CI il servizio `postgres:16` e il passo `pnpm test:golden` in `.github/workflows/ci.yml` (D-CI)
-- [ ] T007 [US1] Sabotaggio dei golden di T005, uno per guardia di ADR §3.7 (sandbox, ordine stati→messaggi, `normalizeMx`, `onConflictDoNothing`, monotonìa, filtro organizzazione degli stati, pausa AI sull'eco): ogni inversione fa fallire almeno un golden. Esito nel registro
+- [x] T001 [US1] Rigenera l'inventario con `plan.md` §5.12 su main+C3 e annota nel registro le differenze di riga rispetto a `plan.md` §5
+- [x] T002 [US1] Configura `vitest.golden.config.ts` e lo script `test:golden` in `package.json`. Senza `DATABASE_URL_GOLDEN` il test fallisce con un messaggio chiaro (niente `skip`)
+- [x] T003 [P] [US1] Crea `tests/golden/setup.ts` (migrazioni su DB pulito, organizzazioni A e B, ognuna con il suo numero) e `tests/golden/normalize.ts` (segnaposti per ID e orari, bearer → tipo)
+- [x] T004 [P] [US1] Crea fixture **sintetiche** in `tests/golden/fixtures/whatsapp/` partendo da `src/server/dev/wa-mock-inbound.ts` e dalla forma documentata da Meta (nessun payload reale, D12)
+- [x] T005 [US1][US2] Scrivi e **registra** i golden di `plan.md` §7.1 (inbound, status, echo, routing, webhook-auth, send, agent) sul codice invariato. Nello stesso commit: `__golden__/*.json`
+- [x] T006 [US1] Aggiungi alla CI il servizio `postgres:16` e il passo `pnpm test:golden` in `.github/workflows/ci.yml` (D-CI)
+- [x] T007 [US1] Sabotaggio dei golden di T005, uno per guardia di ADR §3.7 (sandbox, ordine stati→messaggi, `normalizeMx`, `onConflictDoNothing`, monotonìa, filtro organizzazione degli stati, pausa AI sull'eco): ogni inversione fa fallire almeno un golden. Esito nel registro
 
 **Checkpoint:** golden verdi sul codice di oggi; CI con PostgreSQL verde.
 
