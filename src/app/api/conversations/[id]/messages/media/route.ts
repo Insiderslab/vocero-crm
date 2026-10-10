@@ -14,6 +14,7 @@ const SEND_ERROR_STATUS: Record<SendError["code"], number> = {
   window_closed: 409,
   meta_error: 422,
   meta_unavailable: 503,
+  wapi_key_missing: 409,
   upload_failed: 502,
 };
 

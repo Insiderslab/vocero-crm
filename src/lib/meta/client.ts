@@ -65,6 +65,21 @@ export function parseWapiOrgIds(csv: string | undefined): string[] {
     .filter(Boolean);
 }
 
+/**
+ * Aviso de arranque (sin secretos): WAPI_API_KEY definida con WAPI_ORG_IDS
+ * vacía. Antes (pre-C3) esa combinación desviaba TODAS las organizaciones a
+ * Wapi; ahora van DIRECTAS a Meta hasta tener clave propia. Devuelve el texto
+ * del aviso o null. No lee ni imprime el valor de la clave: solo si existe.
+ */
+export function wapiLegacyConfigWarning(env: {
+  WAPI_API_KEY?: string;
+  WAPI_ORG_IDS?: string;
+}): string | null {
+  if (!env.WAPI_API_KEY?.trim()) return null;
+  if (parseWapiOrgIds(env.WAPI_ORG_IDS).length > 0) return null;
+  return "[boot] WAPI_API_KEY está definida pero WAPI_ORG_IDS está vacía: desde C3 ninguna organización usa la clave global y todas van directas a Meta con su token propio. Carga la clave Wapi de cada organización (Configuración → WhatsApp) o fija WAPI_ORG_IDS con UNA organización (docs/ops/rilascio-c3.md §1).";
+}
+
 /** Etiqueta de enrutamiento para la UI/API de estado (nunca incluye claves). */
 export type GraphRoutingLabel = "own_key" | "legacy_global" | "blocked" | "direct";
 
@@ -112,6 +127,7 @@ export async function resolveGraphTransport(
       console.error(`[wapi] no se pudo leer la clave Wapi de la org ${organizationId}`);
       throw new MetaApiError("Clave Wapi de la organización no disponible", {
         status: 0,
+        reason: WAPI_KEY_MISSING,
       });
     }
   }
@@ -131,7 +147,7 @@ export async function resolveGraphTransport(
     }
     throw new MetaApiError(
       "Enrutamiento Wapi no permitido: la organización no tiene clave propia",
-      { status: 0 }
+      { status: 0, reason: WAPI_KEY_MISSING }
     );
   }
   if (route.kind === "wapi") {
@@ -140,15 +156,31 @@ export async function resolveGraphTransport(
   return { baseUrl: env.META_GRAPH_BASE_URL, token, via: "meta" };
 }
 
+/**
+ * Motivo dedicado: la organización está bloqueada o su clave Wapi no se puede
+ * leer. NO es una caída de Meta: las capas de servicio lo traducen al código
+ * `wapi_key_missing` (sin exponer ninguna clave) en vez de "Meta no disponible".
+ */
+export const WAPI_KEY_MISSING = "wapi_key_missing" as const;
+export const WAPI_KEY_MISSING_MESSAGE =
+  "La clave Wapi de esta organización falta o no se puede leer: configúrala en Configuración → WhatsApp";
+
 export class MetaApiError extends Error {
   status: number;
+  reason: typeof WAPI_KEY_MISSING | null;
   code: number | null;
   type: string | null;
   details: unknown;
 
   constructor(
     message: string,
-    opts: { status: number; code?: number | null; type?: string | null; details?: unknown }
+    opts: {
+      status: number;
+      code?: number | null;
+      type?: string | null;
+      details?: unknown;
+      reason?: typeof WAPI_KEY_MISSING;
+    }
   ) {
     super(message);
     this.name = "MetaApiError";
@@ -156,6 +188,12 @@ export class MetaApiError extends Error {
     this.code = opts.code ?? null;
     this.type = opts.type ?? null;
     this.details = opts.details;
+    this.reason = opts.reason ?? null;
+  }
+
+  /** Organización bloqueada o clave Wapi ilegible (ver WAPI_KEY_MISSING). */
+  get isWapiKeyMissing(): boolean {
+    return this.reason === WAPI_KEY_MISSING;
   }
 
   /**

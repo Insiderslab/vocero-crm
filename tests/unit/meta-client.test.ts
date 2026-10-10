@@ -407,3 +407,50 @@ describe("graphRequest (URL y bearer según transport)", () => {
     expect(init.headers.Authorization).toBe("Bearer token-wizard");
   });
 });
+
+describe("wapiLegacyConfigWarning (aviso de arranque, sin secretos)", () => {
+  const KEY = "hlp_live_SEGRETOSEGRETOSEGRETO";
+
+  it("clave global + WAPI_ORG_IDS vacía/ausente/solo espacios y comas → avisa", async () => {
+    const { wapiLegacyConfigWarning } = await import("@/lib/meta/client");
+    for (const ids of [undefined, "", "  ", " , ,"]) {
+      const w = wapiLegacyConfigWarning({ WAPI_API_KEY: KEY, WAPI_ORG_IDS: ids });
+      expect(w).toMatch(/WAPI_ORG_IDS/);
+      expect(w).toMatch(/rilascio-c3/);
+    }
+  });
+
+  it("el aviso no contiene la clave ni su prefijo", async () => {
+    const { wapiLegacyConfigWarning } = await import("@/lib/meta/client");
+    const w = wapiLegacyConfigWarning({ WAPI_API_KEY: KEY })!;
+    expect(w).not.toContain(KEY);
+    expect(w).not.toContain("SEGRETO");
+    expect(w).not.toContain("hlp_live_");
+  });
+
+  it("sin aviso si hay una o más organizaciones en la lista, o si no hay clave global", async () => {
+    const { wapiLegacyConfigWarning } = await import("@/lib/meta/client");
+    expect(wapiLegacyConfigWarning({ WAPI_API_KEY: KEY, WAPI_ORG_IDS: "org_a" })).toBeNull();
+    expect(wapiLegacyConfigWarning({ WAPI_API_KEY: KEY, WAPI_ORG_IDS: "org_a,org_b" })).toBeNull();
+    expect(wapiLegacyConfigWarning({ WAPI_ORG_IDS: "" })).toBeNull();
+    expect(wapiLegacyConfigWarning({ WAPI_API_KEY: "  ", WAPI_ORG_IDS: "" })).toBeNull();
+  });
+
+  it("warnWapiLegacyConfig escribe un console.warn solo en el caso heredado, sin la clave", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.stubEnv("WAPI_API_KEY", KEY);
+    vi.stubEnv("WAPI_ORG_IDS", "");
+    vi.doMock("@/lib/db", () => ({ getDb: () => ({}), schema: {} }));
+    const { warnWapiLegacyConfig } = await import("@/instrumentation-node");
+    warnWapiLegacyConfig();
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(warn.mock.calls)).not.toContain("SEGRETO");
+    warn.mockClear();
+    vi.stubEnv("WAPI_ORG_IDS", "org_a");
+    warnWapiLegacyConfig();
+    expect(warn).not.toHaveBeenCalled();
+    warn.mockRestore();
+    vi.unstubAllEnvs();
+    vi.doUnmock("@/lib/db");
+  });
+});

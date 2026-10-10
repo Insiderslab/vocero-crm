@@ -63,7 +63,16 @@ export function createFakeWapiDb() {
     }),
     insert: () => ({
       values: (v: Omit<WapiRow, "createdAt" | "updatedAt" | "revokedAt">) => ({
-        onConflictDoUpdate: async (c: { set: Partial<WapiRow> }) => {
+        onConflictDoUpdate: async (c: {
+          target: { name: string } | { name: string }[];
+          set: Partial<WapiRow>;
+        }) => {
+          // El indice unico real es SOLO (organization_id): un target distinto
+          // (otra columna, o varias) haria fallar el upsert en PostgreSQL.
+          const cols = (Array.isArray(c.target) ? c.target : [c.target]).map((t) => t.name);
+          if (cols.length !== 1 || cols[0] !== "organization_id") {
+            throw new Error(`onConflictDoUpdate con target inesperado: [${cols.join(", ")}]`);
+          }
           const s = store();
           s.writes += 1;
           const existing = s.rows.find((r) => r.organizationId === v.organizationId);

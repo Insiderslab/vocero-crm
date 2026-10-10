@@ -1,5 +1,6 @@
 import { eq } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
+import { wapiLegacyConfigWarning } from "@/lib/meta/client";
 
 /**
  * Limpieza al arranque (FR-034): corridas del Laboratorio que quedaron
@@ -51,4 +52,16 @@ export function startAutomationScheduler(): void {
   // Que el intervalo no mantenga vivo el proceso en pruebas/scripts.
   if (typeof timer.unref === "function") timer.unref();
   console.log(`[boot] scheduler de automatizaciones cada ${tickMs / 1000}s`);
+}
+
+/**
+ * Aviso de configuración Wapi heredada (C3): WAPI_API_KEY sin WAPI_ORG_IDS.
+ * Solo avisa (nunca bloquea el arranque) y no imprime ningún valor secreto.
+ */
+export function warnWapiLegacyConfig(): void {
+  const warning = wapiLegacyConfigWarning({
+    WAPI_API_KEY: process.env.WAPI_API_KEY,
+    WAPI_ORG_IDS: process.env.WAPI_ORG_IDS,
+  });
+  if (warning) console.warn(warning);
 }

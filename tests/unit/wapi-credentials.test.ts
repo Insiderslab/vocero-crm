@@ -108,6 +108,32 @@ describe("wapi_credentials por organización", () => {
     expect(wapiStore().writes).toBe(0);
   });
 
+  it("el doble verifica el target del upsert: solo organization_id (un target distinto falla)", async () => {
+    const { createFakeWapiDb } = await import("./helpers/fake-wapi-db");
+    const values = {
+      id: "x",
+      organizationId: "org_a",
+      keyCipher: "c",
+      keyIv: "i",
+      keyTag: "t",
+      keyLast4: "1111",
+      createdBy: "u",
+    };
+    const db = createFakeWapiDb();
+    await expect(
+      db.insert().values(values).onConflictDoUpdate({ target: [{ name: "id" }], set: {} })
+    ).rejects.toThrow(/target inesperado/);
+    await expect(
+      db
+        .insert()
+        .values(values)
+        .onConflictDoUpdate({ target: [{ name: "organization_id" }, { name: "id" }], set: {} })
+    ).rejects.toThrow(/target inesperado/);
+    await expect(
+      db.insert().values(values).onConflictDoUpdate({ target: [{ name: "organization_id" }], set: {} })
+    ).resolves.toBeUndefined();
+  });
+
   it("una fila manipulada (tag alterado) lanza al descifrar: nunca devuelve una clave", async () => {
     const { saveWapiKey, getWapiKeyByOrg } = await import("@/server/whatsapp/wapi-credentials");
     await saveWapiKey({ organizationId: "org_a", key: KEY_A, createdBy: "u_a" });

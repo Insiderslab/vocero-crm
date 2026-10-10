@@ -106,7 +106,27 @@ describe("graphRequest con claves reales por organización", () => {
     expect(calls[1]!.auth).toBe("Bearer meta-B");
   });
 
-  it("clave propia ilegible (fila alterada): no hay llamada y no cae a ninguna otra clave", async () => {
+  it("clave propia ilegible: el error lleva el motivo wapi_key_missing (no es una caída de Meta)", async () => {
+    const m = await load({ WAPI_BASE_URL: WAPI });
+    await m.saveWapiKey({ organizationId: "org_a", key: KEY_A, createdBy: "u" });
+    wapiStore().rows[0]!.keyTag = Buffer.alloc(16, 9).toString("base64");
+    stubFetch(() => json({ ok: true }));
+    const err = await m
+      .graphRequest("P_A/messages", { token: "meta-A", organizationId: "org_a" })
+      .catch((e: unknown) => e);
+    expect(err).toMatchObject({ name: "MetaApiError", status: 0, reason: "wapi_key_missing" });
+    expect((err as { isAuthError: boolean }).isAuthError).toBe(false);
+  });
+
+  it("organización bloqueada (lista ambigua): motivo wapi_key_missing", async () => {
+    const m = await load({ WAPI_BASE_URL: WAPI, WAPI_API_KEY: GLOBAL, WAPI_ORG_IDS: "org_a,org_b" });
+    stubFetch(() => json({ ok: true }));
+    await expect(
+      m.graphRequest("P_A/messages", { token: "meta-A", organizationId: "org_a" })
+    ).rejects.toMatchObject({ status: 0, reason: "wapi_key_missing" });
+  });
+
+  it("clave propia ilegible: no hay llamada y no cae a ninguna otra clave", async () => {
     const m = await load({ WAPI_BASE_URL: WAPI, WAPI_API_KEY: GLOBAL, WAPI_ORG_IDS: "org_a" });
     await m.saveWapiKey({ organizationId: "org_a", key: KEY_A, createdBy: "u" });
     wapiStore().rows[0]!.keyTag = Buffer.alloc(16, 9).toString("base64");
@@ -136,6 +156,58 @@ describe("graphRequest con claves reales por organización", () => {
       .catch((e: unknown) => e)) as Error & { details?: unknown };
     expect(err.name).toBe("MetaApiError");
     expect(JSON.stringify({ message: err.message, details: err.details })).not.toContain(KEY_A.slice(9));
+  });
+});
+
+describe("los registros de consola nunca contienen claves ni tokens", () => {
+  const SECRETS = [KEY_A, KEY_B, GLOBAL, "meta-A", "hlp_live_"];
+
+  function spyConsole() {
+    const spies = [
+      vi.spyOn(console, "error").mockImplementation(() => {}),
+      vi.spyOn(console, "warn").mockImplementation(() => {}),
+      vi.spyOn(console, "log").mockImplementation(() => {}),
+    ];
+    return () => JSON.stringify(spies.flatMap((s) => s.mock.calls), (_k, v) =>
+      v instanceof Error ? `${v.name}: ${v.message}` : v
+    );
+  }
+
+  it("rama de error de lectura/descifrado de la clave propia", async () => {
+    const m = await load({ WAPI_BASE_URL: WAPI, WAPI_API_KEY: GLOBAL, WAPI_ORG_IDS: "org_a" });
+    await m.saveWapiKey({ organizationId: "org_a", key: KEY_A, createdBy: "u" });
+    wapiStore().rows[0]!.keyTag = Buffer.alloc(16, 9).toString("base64");
+    stubFetch(() => json({ ok: true }));
+    const logged = spyConsole();
+    await m.graphRequest("P_A/messages", { token: "meta-A", organizationId: "org_a" }).catch(() => null);
+    const out = logged();
+    expect(out).toContain("org_a"); // el aviso existe (si no, el test no prueba nada)
+    for (const secret of SECRETS) expect(out).not.toContain(secret);
+    vi.restoreAllMocks();
+  });
+
+  it("rama de organización bloqueada (aviso de configuración ambigua)", async () => {
+    const m = await load({ WAPI_BASE_URL: WAPI, WAPI_API_KEY: GLOBAL, WAPI_ORG_IDS: "org_a,org_b" });
+    stubFetch(() => json({ ok: true }));
+    const logged = spyConsole();
+    await m.graphRequest("P_A/messages", { token: "meta-A", organizationId: "org_a" }).catch(() => null);
+    const out = logged();
+    expect(out).toContain("org_a");
+    for (const secret of SECRETS) expect(out).not.toContain(secret);
+    vi.restoreAllMocks();
+  });
+
+  it("descarga abortada por origen ajeno y llamada fallida con 401", async () => {
+    const m = await load({ WAPI_BASE_URL: WAPI });
+    await m.saveWapiKey({ organizationId: "org_a", key: KEY_A, createdBy: "u" });
+    const logged = spyConsole();
+    stubFetch(() => json({ url: "https://atacante.example.net/x", mime_type: "image/png" }));
+    await m.downloadGraphMedia("meta-A", "MID", { organizationId: "org_a" }).catch(() => null);
+    stubFetch(() => new Response(JSON.stringify({ error: { message: "Invalid", code: 190 } }), { status: 401 }));
+    await m.graphRequest("P_A/messages", { token: "meta-A", organizationId: "org_a" }).catch(() => null);
+    const out = logged();
+    for (const secret of SECRETS) expect(out).not.toContain(secret);
+    vi.restoreAllMocks();
   });
 });
 
@@ -189,6 +261,22 @@ describe("media por Wapi (subida y descarga)", () => {
     ).rejects.toMatchObject({ name: "MediaFetchError" });
     expect(calls).toHaveLength(1); // solo la metadata; la URL ajena no se contactó
     expect(JSON.stringify(calls)).not.toContain("atacante");
+  });
+
+  it.each([
+    ["host que imita al gateway (sufijo)", "https://wapi.example.com.evil.com/api/v1/graph/_media/P_A/MID"],
+    ["host que imita al gateway (userinfo)", "https://wapi.example.com@evil.com/x"],
+    ["mismo host con puerto distinto", "https://wapi.example.com:8443/api/v1/graph/_media/P_A/MID"],
+    ["mismo host con esquema distinto", "http://wapi.example.com/api/v1/graph/_media/P_A/MID"],
+  ])("descarga: %s no recibe ningún bearer (se aborta)", async (_n, url) => {
+    const m = await load({ WAPI_BASE_URL: WAPI });
+    await m.saveWapiKey({ organizationId: "org_a", key: KEY_A, createdBy: "u" });
+    stubFetch(() => json({ url, mime_type: "image/png" }));
+    await expect(
+      m.downloadGraphMedia("meta-A", "MID", { organizationId: "org_a" })
+    ).rejects.toMatchObject({ name: "MediaFetchError" });
+    expect(calls).toHaveLength(1); // solo la metadata hacia el gateway
+    expect(calls.map((c) => c.url)).not.toContain(url);
   });
 
   it("descarga sin clave propia (va a Meta): una URL que apunta al gateway NO recibe el token Meta", async () => {
