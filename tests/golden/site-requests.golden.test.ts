@@ -493,4 +493,20 @@ describe("008 el agente no contesta a una solicitud web", () => {
     expect(JSON.stringify(calls[1]!.body)).toContain("Hola, quiero información");
     expect(JSON.stringify(calls.map((c) => c.body))).not.toContain("MENSAJE-WEB-PRIVADO");
   });
+
+  it("con el acceso reservado (007) y respuesta a externos: una solicitud web no recibe la respuesta fija ni la IA", async () => {
+    await sql()`
+      insert into agent_profile (id, organization_id, enabled, name, restrict_to_allowlist, allowed_identities, outsider_reply)
+      values ('agp_site_restr', ${ORG_A}, true, 'Asistente', true, ${["393471234567"]}, 'Uso interno del equipo.')
+    `;
+    aiWillReply('{"action":"reply","text":"no debería salir"}');
+    await send(form());
+    const cv = await conversationIdOf(ORG_A, LUCIA);
+    await runAgentTurn(cv); // ni siquiera forzando el turno
+    await settle();
+    expect(aiCalls()).toEqual([]);
+    expect(graphCalls()).toEqual([]);
+    const out = await sql()`select id from message where conversation_id = ${cv} and direction = 'out'`;
+    expect(out).toEqual([]);
+  });
 });
