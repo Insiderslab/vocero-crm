@@ -7,6 +7,7 @@ import {
   normalizeRecipient,
   WAPI_KEY_MISSING_MESSAGE,
 } from "@/lib/meta/client";
+import { whatsappMessageIds } from "@/server/channels/dual-write";
 import { publish } from "@/server/events/bus";
 import {
   getCredentialsByOrg,
@@ -137,7 +138,7 @@ async function persistOutbound(input: {
       id: newId("message"),
       organizationId: input.organizationId,
       conversationId: input.conversationId,
-      waMessageId: input.waMessageId,
+      ...whatsappMessageIds(input.waMessageId),
       direction: "out",
       type: input.type,
       text: input.text,

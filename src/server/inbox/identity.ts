@@ -2,6 +2,7 @@ import { and, eq, or } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { newId } from "@/lib/db/ids";
 import { normalizeMx } from "@/lib/meta/client";
+import { insertContactIfAbsent } from "@/server/channels/dual-write";
 import type { WebhookMessage, WebhookValue } from "@/server/inbox/webhook";
 
 /**
@@ -121,24 +122,19 @@ export async function getOrCreateContactByIdentity(
     ? await lookupAddressBookName(organizationId, resolved.phone)
     : null;
 
-  const inserted = await db
-    .insert(schema.contact)
-    .values({
-      id: newId("contact"),
-      organizationId,
-      waIdentity: resolved.identity,
-      phone: resolved.phone,
-      waUserId: resolved.waUserId,
-      name:
-        addressBookName ||
-        resolved.profileName?.trim() ||
-        displayFallback(resolved),
-    })
-    .onConflictDoNothing({
-      target: [schema.contact.organizationId, schema.contact.waIdentity],
-    })
-    .returning();
-  if (inserted[0]) return { contact: inserted[0], isNew: true };
+  // 005 (R1): el contacto y su identidad WhatsApp, en una transacción.
+  const inserted = await insertContactIfAbsent({
+    id: newId("contact"),
+    organizationId,
+    waIdentity: resolved.identity,
+    phone: resolved.phone,
+    waUserId: resolved.waUserId,
+    name:
+      addressBookName ||
+      resolved.profileName?.trim() ||
+      displayFallback(resolved),
+  });
+  if (inserted) return { contact: inserted, isNew: true };
 
   // Carrera: otro request lo creó entre el SELECT y el INSERT.
   const raced = await db

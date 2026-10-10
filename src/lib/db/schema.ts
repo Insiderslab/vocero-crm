@@ -1,6 +1,7 @@
 import {
   boolean,
   check,
+  foreignKey,
   index,
   integer,
   jsonb,
@@ -10,6 +11,14 @@ import {
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
+
+/**
+ * 005 — Canales previstos (ADR 0001 §3.1). Añadir uno = valor nuevo +
+ * adaptador + migración del CHECK.
+ */
+export const CHANNEL_KINDS = ["whatsapp", "instagram", "messenger", "email"] as const;
+export type ChannelKind = (typeof CHANNEL_KINDS)[number];
+const CHANNEL_KINDS_SQL = sql.raw(CHANNEL_KINDS.map((c) => `'${c}'`).join(", "));
 
 /* ============================================================
  * Auth (Better Auth + plugin organization)
@@ -148,6 +157,9 @@ export const contact = pgTable(
     uniqueIndex("contact_org_wa_identity_uq").on(t.organizationId, t.waIdentity),
     index("contact_org_wa_user_id_idx").on(t.organizationId, t.waUserId),
     index("contact_org_name_idx").on(t.organizationId, t.name),
+    // 005 (R1) — Destino de las FK compuestas `(organization_id, contact_id)`.
+    // Se crea CONCURRENTLY en el runner (fase B), no en drizzle/0013.
+    uniqueIndex("contact_org_id_uq").on(t.organizationId, t.id),
   ]
 );
 
@@ -323,6 +335,12 @@ export const conversation = pgTable(
     lastInboundAt: timestamp("last_inbound_at"),
     lastMessageAt: timestamp("last_message_at"),
     unreadCount: integer("unread_count").notNull().default(0),
+    /**
+     * 005 (R1) — Cuenta de canal de la conversación. NULL en el Laboratorio
+     * (`is_test`, simula WhatsApp) y si la organización no tiene cuenta.
+     * R1 la escribe y no la lee (ADR 0001 §3.2).
+     */
+    channelAccountId: text("channel_account_id"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
@@ -332,6 +350,15 @@ export const conversation = pgTable(
       .on(t.organizationId, t.contactId)
       .where(sql`${t.isTest} = false`),
     index("conversation_org_last_idx").on(t.organizationId, t.lastMessageAt),
+    // 005 — Una conversación solo puede apuntar a una cuenta de SU
+    // organización. NO ACTION (no RESTRICT): el borrado en cascada de la
+    // organización no depende del orden. drizzle/0013 la crea NOT VALID; el
+    // runner la valida (fase B).
+    foreignKey({
+      name: "conversation_channel_account_fk",
+      columns: [t.organizationId, t.channelAccountId],
+      foreignColumns: [channelAccount.organizationId, channelAccount.id],
+    }),
   ]
 );
 
@@ -373,12 +400,30 @@ export const message = pgTable(
     }),
     waTimestamp: timestamp("wa_timestamp"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
+    /** 005 (R1) — Canal del mensaje. R1 lo escribe y no lo lee. */
+    channel: text("channel", { enum: CHANNEL_KINDS })
+      .notNull()
+      .default("whatsapp"),
+    /**
+     * 005 (R1) — ID del proveedor (WhatsApp: = wa_message_id). NULL en el
+     * Laboratorio y en los fallidos antes del envío. En R3 su índice por
+     * organización pasa a ser el árbitro de la idempotencia.
+     */
+    externalMessageId: text("external_message_id"),
   },
   (t) => [
     index("message_org_conv_idx").on(
       t.organizationId,
       t.conversationId,
       t.createdAt
+    ),
+    // 005 — drizzle/0013 crea el CHECK NOT VALID y el runner lo valida; el
+    // índice se crea CONCURRENTLY en el runner (fase B), no en drizzle/0013.
+    check("message_channel_ck", sql`${t.channel} in (${CHANNEL_KINDS_SQL})`),
+    uniqueIndex("message_org_channel_ext_uq").on(
+      t.organizationId,
+      t.channel,
+      t.externalMessageId
     ),
   ]
 );
@@ -473,6 +518,113 @@ export const metaCredentials = pgTable(
     uniqueIndex("meta_credentials_org_uq").on(t.organizationId),
     // El webhook enruta por phone_number_id: debe ser único en la instancia.
     uniqueIndex("meta_credentials_phone_uq").on(t.phoneNumberId),
+  ]
+);
+
+/**
+ * 005 (R1, ADR 0001 §3.2) — Cuenta de un canal conectada por una organización
+ * (≈ channel + inbox de Chatwoot). En R1 y R2 es una COPIA de
+ * `meta_credentials` (doble escritura + reconciliación al arrancar); la
+ * fuente de verdad sigue siendo `meta_credentials` hasta R3.
+ */
+export const channelAccount = pgTable(
+  "channel_account",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    channel: text("channel", { enum: CHANNEL_KINDS }).notNull(),
+    /** WA phone_number_id · IG user_id · ID de Página · dirección de email. */
+    externalAccountId: text("external_account_id").notNull(),
+    /** WA waba_id (eventos de plantillas). */
+    externalParentId: text("external_parent_id"),
+    displayName: text("display_name"),
+    verifiedName: text("verified_name"),
+    /** Token cifrado con lib/crypto (mismo formato que meta_credentials.token_*). */
+    secretCipher: text("secret_cipher"),
+    secretIv: text("secret_iv"),
+    secretTag: text("secret_tag"),
+    secretExpiresAt: timestamp("secret_expires_at"),
+    status: text("status", {
+      enum: ["connected", "reconnect_required", "expiring", "disconnected"],
+    })
+      .notNull()
+      .default("connected"),
+    /**
+     * Datos del canal NO secretos. WhatsApp (009, coexistence):
+     * `{ onboardingMode, appDisconnectedAt }`, copiados de meta_credentials
+     * por la función SQL `channels_legacy_wa_config` (única fuente del
+     * formato: la fecha va como en `to_jsonb(timestamp)`, sin zona = UTC).
+     */
+    config: jsonb("config").$type<Record<string, unknown>>(),
+    /** Rastro del backfill (fila de meta_credentials copiada). Se quita en R3. */
+    legacyMetaCredentialsId: text("legacy_meta_credentials_id").unique(
+      "channel_account_legacy_meta_credentials_id_unique"
+    ),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    // Guardia de aislamiento del enrutamiento: dos organizaciones no pueden
+    // reclamar el mismo número/cuenta (hoy meta_credentials_phone_uq).
+    uniqueIndex("channel_account_channel_ext_uq").on(t.channel, t.externalAccountId),
+    // M1: una cuenta por canal y organización (D4).
+    uniqueIndex("channel_account_org_channel_uq").on(t.organizationId, t.channel),
+    index("channel_account_channel_parent_idx").on(t.channel, t.externalParentId),
+    // Destino de las FK compuestas (organization_id, channel_account_id).
+    uniqueIndex("channel_account_org_id_uq").on(t.organizationId, t.id),
+    check("channel_account_channel_ck", sql`${t.channel} in (${CHANNEL_KINDS_SQL})`),
+    check(
+      "channel_account_status_ck",
+      sql`${t.status} in ('connected', 'reconnect_required', 'expiring', 'disconnected')`
+    ),
+    check(
+      "channel_account_secret_ck",
+      sql`(${t.secretCipher} is null) = (${t.secretIv} is null) and (${t.secretIv} is null) = (${t.secretTag} is null)`
+    ),
+  ]
+);
+
+/**
+ * 005 (R1, ADR 0001 §3.2) — Identidad de un contacto en un canal (≈
+ * contact_inboxes de Chatwoot). WhatsApp: `external_id` = `wa_identity`, una
+ * por contacto (D5). La FK compuesta impide apuntar a un contacto de otra
+ * organización incluso por un error del código.
+ */
+export const contactIdentity = pgTable(
+  "contact_identity",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    contactId: text("contact_id").notNull(),
+    channel: text("channel", { enum: CHANNEL_KINDS }).notNull(),
+    externalId: text("external_id").notNull(),
+    /** Solo para IDs con ámbito de cuenta (IGSID, PSID); NULL en WhatsApp. */
+    channelAccountId: text("channel_account_id"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    // El runner la crea (fase B) cuando existe contact_org_id_uq.
+    foreignKey({
+      name: "contact_identity_contact_fk",
+      columns: [t.organizationId, t.contactId],
+      foreignColumns: [contact.organizationId, contact.id],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "contact_identity_channel_account_fk",
+      columns: [t.organizationId, t.channelAccountId],
+      foreignColumns: [channelAccount.organizationId, channelAccount.id],
+    }),
+    uniqueIndex("contact_identity_org_channel_ext_uq").on(
+      t.organizationId,
+      t.channel,
+      t.externalId
+    ),
+    index("contact_identity_org_contact_idx").on(t.organizationId, t.contactId),
+    check("contact_identity_channel_ck", sql`${t.channel} in (${CHANNEL_KINDS_SQL})`),
   ]
 );
 

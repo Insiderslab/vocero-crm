@@ -2,6 +2,10 @@ import { and, eq, sql } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { newId } from "@/lib/db/ids";
 import { normalizeMx } from "@/lib/meta/client";
+import {
+  whatsappAccountIdOf,
+  whatsappMessageIds,
+} from "@/server/channels/dual-write";
 import { publish } from "@/server/events/bus";
 import { getCredentialsByPhoneNumberId } from "@/server/whatsapp/credentials";
 import { ensureAssetAvailable } from "@/server/whatsapp/media";
@@ -167,7 +171,13 @@ export async function getOrCreateConversation(
   const db = getDb();
   const inserted = await db
     .insert(schema.conversation)
-    .values({ id: newId("conversation"), organizationId, contactId })
+    .values({
+      id: newId("conversation"),
+      organizationId,
+      contactId,
+      // 005 (R1): la cuenta WhatsApp de la organización (NULL si no tiene).
+      channelAccountId: whatsappAccountIdOf(organizationId),
+    })
     .onConflictDoNothing()
     .returning();
   if (inserted[0]) return inserted[0];
@@ -296,7 +306,7 @@ async function ingestManualEcho(
       id: newId("message"),
       organizationId,
       conversationId: conversation.id,
-      waMessageId: echo.id,
+      ...whatsappMessageIds(echo.id),
       direction: "out",
       type: echo.type,
       text: echo.text?.body ?? null,
@@ -385,7 +395,7 @@ export async function ingestInboundMessage(input: {
       id: newId("message"),
       organizationId,
       conversationId: conversation.id,
-      waMessageId: input.waMessageId,
+      ...whatsappMessageIds(input.waMessageId),
       direction: "in",
       type: input.type,
       text: input.text,

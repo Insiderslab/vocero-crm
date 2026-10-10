@@ -3,6 +3,7 @@ import { getDb, schema } from "@/lib/db";
 import { newId } from "@/lib/db/ids";
 import { publish } from "@/server/events/bus";
 import { runAgentTurn } from "@/server/ai/pipeline";
+import { insertContactIfAbsent } from "@/server/channels/dual-write";
 import { renderKb } from "@/server/ai/prompts";
 import { computeScore, judgeCase } from "@/server/lab/judge";
 import { PERSONAS, type Persona } from "@/server/lab/personas";
@@ -237,21 +238,16 @@ async function upsertTestContact(
   persona: Persona
 ): Promise<string> {
   const db = getDb();
-  const inserted = await db
-    .insert(schema.contact)
-    .values({
-      id: newId("contact"),
-      organizationId,
-      phone: persona.phone,
-      waIdentity: persona.phone,
-      name: persona.contactName,
-      archivedAt: new Date(),
-    })
-    .onConflictDoNothing({
-      target: [schema.contact.organizationId, schema.contact.waIdentity],
-    })
-    .returning();
-  if (inserted[0]) return inserted[0].id;
+  // 005 (R1): el contacto y su identidad WhatsApp, en una transacción.
+  const inserted = await insertContactIfAbsent({
+    id: newId("contact"),
+    organizationId,
+    phone: persona.phone,
+    waIdentity: persona.phone,
+    name: persona.contactName,
+    archivedAt: new Date(),
+  });
+  if (inserted) return inserted.id;
   const rows = await db
     .select({ id: schema.contact.id })
     .from(schema.contact)

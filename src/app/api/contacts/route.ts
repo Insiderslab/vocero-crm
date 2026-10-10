@@ -7,6 +7,7 @@ import { scoped } from "@/lib/db/tenant";
 import { normalizeMx } from "@/lib/meta/client";
 import { digitsOnly, normalizeText } from "@/lib/search";
 import { serializeContact } from "@/server/contacts";
+import { insertContactIfAbsent } from "@/server/channels/dual-write";
 import { createLeadForContact } from "@/server/inbox/lead-activity";
 
 export const dynamic = "force-dynamic";
@@ -153,25 +154,19 @@ export const POST = withAuth(async (session, req: Request) => {
   const body = await parseBody(req, createSchema);
   if (!body.ok) return body.response;
 
-  const db = getDb();
   // 003: la identidad WhatsApp se deriva del teléfono normalizado.
   const phone = normalizeMx(body.data.phone);
-  const inserted = await db
-    .insert(schema.contact)
-    .values({
-      id: newId("contact"),
-      organizationId: session.organizationId,
-      name: body.data.name,
-      phone,
-      waIdentity: phone,
-      notes: body.data.notes ?? null,
-      source: body.data.source ?? null,
-    })
-    .onConflictDoNothing({
-      target: [schema.contact.organizationId, schema.contact.waIdentity],
-    })
-    .returning();
-  if (!inserted[0]) {
+  // 005 (R1): el contacto y su identidad WhatsApp, en una transacción.
+  const created = await insertContactIfAbsent({
+    id: newId("contact"),
+    organizationId: session.organizationId,
+    name: body.data.name,
+    phone,
+    waIdentity: phone,
+    notes: body.data.notes ?? null,
+    source: body.data.source ?? null,
+  });
+  if (!created) {
     return apiError(409, "duplicate", "Ya existe un contacto con ese teléfono");
   }
 
@@ -180,7 +175,7 @@ export const POST = withAuth(async (session, req: Request) => {
   // es la mitad de la función.
   const lead = await createLeadForContact({
     organizationId: session.organizationId,
-    contactId: inserted[0].id,
+    contactId: created.id,
     stageId: body.data.stageId,
     source: "dueno",
     actorUserId: session.userId,
@@ -194,7 +189,7 @@ export const POST = withAuth(async (session, req: Request) => {
   }
 
   return Response.json(
-    { contact: serializeContact(inserted[0]), lead: { id: lead.id } },
+    { contact: serializeContact(created), lead: { id: lead.id } },
     { status: 201 }
   );
 });

@@ -1,13 +1,17 @@
 /**
  * Migraciones al ARRANQUE del contenedor (no en pre-deploy: el pre-deploy de
  * plataformas como Coolify corre en el contenedor viejo). Se bundlea con
- * esbuild dentro de la imagen y corre antes de `node server.js`.
+ * esbuild dentro de la imagen (incluye `migrate-channels.mjs`) y corre antes
+ * de `node server.js`.
+ *
+ * 005 (R1): además de las migraciones de Drizzle, reconcilia y verifica el
+ * livello canali en CADA arranque (ADR 0001 §3.3, `migrate-channels.mjs`). La
+ * modalidad es una constante del release (`RELEASE_MODE`), nunca una variable
+ * de entorno.
  */
-import { drizzle } from "drizzle-orm/postgres-js";
-import { migrate } from "drizzle-orm/postgres-js/migrator";
-import postgres from "postgres";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { RELEASE_MODE, runStartup } from "./migrate-channels.mjs";
 
 const url = process.env.DATABASE_URL;
 if (!url) {
@@ -19,23 +23,4 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const migrationsFolder =
   process.env.MIGRATIONS_DIR ?? path.join(here, "drizzle");
 
-const maxAttempts = 15;
-for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-  const sql = postgres(url, { max: 1, onnotice: () => {} });
-  try {
-    await migrate(drizzle(sql), { migrationsFolder });
-    console.log("[migrate] migraciones aplicadas");
-    await sql.end();
-    process.exit(0);
-  } catch (err) {
-    await sql.end().catch(() => {});
-    if (attempt === maxAttempts) {
-      console.error("[migrate] falló tras varios intentos:", err);
-      process.exit(1);
-    }
-    console.log(
-      `[migrate] BD no lista (intento ${attempt}/${maxAttempts}), reintento en 2s…`
-    );
-    await new Promise((r) => setTimeout(r, 2000));
-  }
-}
+process.exit(await runStartup({ url, migrationsFolder, mode: RELEASE_MODE }));

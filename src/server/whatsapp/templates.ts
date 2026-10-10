@@ -13,6 +13,7 @@ import {
   WAPI_KEY_MISSING_MESSAGE,
 } from "@/lib/meta/client";
 import { scoped } from "@/lib/db/tenant";
+import { whatsappMessageIds } from "@/server/channels/dual-write";
 import { publish } from "@/server/events/bus";
 import {
   getCredentialsByOrg,
@@ -394,7 +395,7 @@ export async function sendTemplate(input: {
       id: newId("message"),
       organizationId: input.organizationId,
       conversationId: input.conversationId,
-      waMessageId,
+      ...whatsappMessageIds(waMessageId),
       direction: "out",
       type: "template",
       text: renderBody(template.body, values),

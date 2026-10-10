@@ -27,6 +27,9 @@ const prefixes = {
   botApiKey: "bk",
   wapiCredentials: "wk",
   addressBookEntry: "abk",
+  // 005 — livello canali (ADR 0001 §3.2)
+  channelAccount: "cha",
+  contactIdentity: "ci",
 } as const;
 
 export type IdKind = keyof typeof prefixes;

@@ -2,6 +2,11 @@ import { eq, inArray } from "drizzle-orm";
 import type { getDb } from "@/lib/db";
 import { schema } from "@/lib/db";
 import { newId } from "@/lib/db/ids";
+import {
+  insertWhatsappIdentity,
+  whatsappAccountIdOf,
+  whatsappMessageIds,
+} from "@/server/channels/dual-write";
 
 /**
  * Negocio de demostración "Ferretería El Martillo" (FR-075).
@@ -184,13 +189,20 @@ export async function seedDemo(
   let position = 0;
   for (const demo of DEMO_CONTACTS) {
     const contactId = newId("contact");
-    await db.insert(schema.contact).values({
-      id: contactId,
-      organizationId,
-      phone: demo.phone,
-      waIdentity: demo.phone,
-      name: demo.name,
-      notes: demo.notes ?? null,
+    // 005 (R1): el contacto y su identidad WhatsApp, en una transacción.
+    await db.transaction(async (tx) => {
+      const [created] = await tx
+        .insert(schema.contact)
+        .values({
+          id: contactId,
+          organizationId,
+          phone: demo.phone,
+          waIdentity: demo.phone,
+          name: demo.name,
+          notes: demo.notes ?? null,
+        })
+        .returning();
+      await insertWhatsappIdentity(tx, created!);
     });
 
     const lastInbound = demo.thread
@@ -206,6 +218,7 @@ export async function seedDemo(
       id: conversationId,
       organizationId,
       contactId,
+      channelAccountId: whatsappAccountIdOf(organizationId),
       lastInboundAt: new Date(now - lastInbound * HOURS),
       lastMessageAt: new Date(now - lastMessage * HOURS),
       unreadCount: demo.thread[demo.thread.length - 1]?.dir === "in" ? 1 : 0,
@@ -217,7 +230,7 @@ export async function seedDemo(
         id: newId("message"),
         organizationId,
         conversationId,
-        waMessageId: `wamid.demo.${newId("message")}`,
+        ...whatsappMessageIds(`wamid.demo.${newId("message")}`),
         direction: msg.dir,
         type: "text",
         text: msg.text,
