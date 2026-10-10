@@ -119,7 +119,7 @@ Nessun rilievo lasciato aperto. Restano **decisioni di prodotto** (sezione sotto
 3. `feat(ruoli): menu e pagine coerenti con il ruolo, /settings porta i member a una pagina visibile`.
 4. `test(ruoli): il guardrail non accetta export per destrutturazione né 'export *'`.
 
-## Inventario route → ruolo richiesto (95 handler, 76 file `route.ts`)
+## Inventario route → ruolo richiesto (95 handler, 69 file `route.ts`)
 
 La fonte è `tests/unit/helpers/route-roles.ts`: il test fallisce se una route o un metodo nuovo non è nell'inventario, se un'entrata non esiste più o se la funzione che protegge l'handler (letta dall'AST) non è quella della sua politica.
 
@@ -149,7 +149,7 @@ La fonte è `tests/unit/helpers/route-roles.ts`: il test fallisce se una route o
 **Qualsiasi membro autenticato (`withAuth`, il ruolo non si guarda), 32 handler** — lavoro quotidiano su contatti, conversazioni e pipeline, e letture:
 `agent/profile` GET, `templates` GET (serve al member per inviare un modello in una conversazione), `automations` GET, `automations/[id]/runs` GET, `kb` GET, `kb/size` GET, `lab/runs` GET, `lab/runs/[id]` GET, `contacts` GET/POST, `contacts/[id]` GET/PATCH, `contacts/[id]/tags` PUT, `contacts/[id]/start-conversation` POST, `conversations` GET, `conversations/[id]` PATCH, `conversations/[id]/messages` GET/POST, `.../messages/media` POST, `.../messages/template` POST (invio di un modello già approvato dentro una conversazione: è il lavoro del member, parla con Meta ma è il caso d'uso centrale), `pipeline/board` GET, `pipeline/leads/[id]` PATCH, `pipeline/stages` GET/POST, `pipeline/stages/[id]` PATCH/DELETE, `tags` GET/POST, `tags/[id]` DELETE, `media/[assetId]` GET, `my-orgs` GET, `settings/team` GET (**eccezione documentata**, già dalla prima tornata).
 
-**Altre forme di accesso, 40 handler:** `admin/orgs*` (super-admin, 4), `bot/*` (chiave di servizio del bot, 8), `export/*` (chiave di export, 4), `events` (SSE con sessione, 1), `webhooks/wa/[token]` (segmento segreto e firma di Meta, 2), `auth/*` (Better Auth, 2), `health` (1), `branding/favicon` GET (pubblica, 1), `settings/branding` GET (pubblica a progetto, **eccezione documentata**, 1), `dev/*` (mock con `mockGuard`, 404 in produzione, 12).
+**Altre forme di accesso, 36 handler:** `admin/orgs*` (super-admin, 4), `bot/*` (chiave di servizio del bot, 8), `export/*` (chiave di export, 4), `events` (SSE con sessione, 1), `webhooks/wa/[token]` (segmento segreto e firma di Meta, 2), `auth/*` (Better Auth, 2), `health` (1), `branding/favicon` GET (pubblica, 1), `settings/branding` GET (pubblica a progetto, **eccezione documentata**, 1), `dev/*` (mock con `mockGuard`, 404 in produzione, 12).
 
 ## Come funziona il guardrail e cosa non vede
 
