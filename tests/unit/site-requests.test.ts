@@ -21,6 +21,8 @@ import {
   parseOrigins,
   preflightHeaders,
   readBodyCapped,
+  sanitizeMultiLine,
+  sanitizeSingleLine,
   siteRequestSchema,
   toSiteRequest,
 } from "@/server/site-requests/validation";
@@ -367,5 +369,48 @@ describe("fragmento para el sitio", () => {
   it("el JS del fragmento es sintácticamente válido", () => {
     const js = snippet.slice(snippet.indexOf("<script>") + 8, snippet.indexOf("</script>"));
     expect(() => new Function(js)).not.toThrow();
+  });
+});
+
+describe("saneamiento: una línea, invisibles y controles (revisión PR #10)", () => {
+  it("name: saltos, tabuladores y U+2028/2029 → espacio; espacios colapsados", () => {
+    const r = siteRequestSchema.parse({ ...valid, name: "Ana\r\nTeléfono: +1 555\tX\u2028Y\u2029Z" });
+    expect(r.name).toBe("Ana Teléfono: +1 555 X Y Z");
+  });
+
+  it("name: bidi, ancho cero y C0/C1 fuera", () => {
+    const r = siteRequestSchema.parse({ ...valid, name: "A\u202Ena\u2066\u2069\u200B\u200C\u200D\uFEFF\u0000\u0007\u0085\u009F!" });
+    expect(r.name).toBe("Ana!");
+  });
+
+  it("name solo con invisibles → vacío → rechazado", () => {
+    expect(siteRequestSchema.safeParse({ ...valid, name: "\u200B\u202E\n\t" }).success).toBe(false);
+  });
+
+  it("claves de fields de una línea; valores multilínea (\\n se queda, \\r\\n y U+2028 → \\n)", () => {
+    const r = siteRequestSchema.parse({
+      ...valid,
+      fields: { "fe\ncha\u202E": "línea 1\r\nlínea 2\u2028línea 3\t!\u200B" },
+    });
+    expect(r.fields).toEqual({ "fe cha": "línea 1\nlínea 2\nlínea 3 !" });
+  });
+
+  it("message: conserva \\n, quita bidi/ancho cero/C0/C1", () => {
+    const r = siteRequestSchema.parse({ ...valid, message: "hola\u202E\u200B\u0001\nadiós\u0085" });
+    expect(r.message).toBe("hola\nadiós");
+  });
+
+  it("teléfono, email, pageUrl y locale también pasan por el saneamiento", () => {
+    const r = siteRequestSchema.parse({
+      ...valid,
+      phone: "+58\u200B 412\u202E 123 4567",
+      email: "ana\u200B@example.com",
+    });
+    expect(toSiteRequest(r)).toMatchObject({ phone: "584121234567", email: "ana@example.com" });
+  });
+
+  it("sanitizeSingleLine / sanitizeMultiLine directos", () => {
+    expect(sanitizeSingleLine("  a \n\n b\u2029c  ")).toBe("a b c");
+    expect(sanitizeMultiLine("a\r\nb\rc\u2028d")).toBe("a\nb\nc\nd");
   });
 });
