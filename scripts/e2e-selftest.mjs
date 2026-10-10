@@ -954,6 +954,7 @@ async function main() {
   ok("sin sesión → 401", wAnon.status === 401);
 
   await teamAssistantSection();
+  await siteRequestsSection();
 
   // Al final a propósito: el Embedded Signup cambia el número de la org.
   await coexistenceSection();
@@ -1159,6 +1160,131 @@ async function teamAssistantSection() {
 
   await use(ORG_A);
   ok("vuelta a la organización original", ((await api("/api/my-orgs")).json?.orgs ?? []).length >= 3);
+}
+
+/**
+ * 008 — Solicitudes del formulario del sitio web (specs/custom-heili/
+ * 008-richieste-dal-sito.md): clave vsk_, orígenes, preflight, solicitud →
+ * contacto + conversación + lead, sin respuesta del agente, honeypot,
+ * contacto existente intocable, revocar y rotar.
+ */
+async function siteRequestsSection() {
+  console.log("\n== 008-sito: richieste dal sito web nella posta ==");
+  const ORIGIN = "https://labambola.example";
+  const PHONE = "584125550909";
+  const pub = (key, body, origin = ORIGIN, extra = {}) =>
+    fetch(`${BASE}/api/public/site-requests`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        ...(key ? { "x-site-key": key } : {}),
+        ...(origin ? { origin } : {}),
+        ...extra,
+      },
+      body: JSON.stringify(body),
+    });
+  const form = (patch = {}) => ({
+    name: "Lucía Sitio E2E",
+    phone: "+58 412 555 0909",
+    email: "lucia.e2e@example.com",
+    message: "Queremos el tour del sábado (E2E)",
+    pageUrl: `${ORIGIN}/reservas`,
+    locale: "es",
+    fields: { personas: "4" },
+    ...patch,
+  });
+
+  const s0 = await api("/api/settings/site");
+  ok("GET /api/settings/site → 200 sin clave", s0.res.ok && s0.json?.key === null, JSON.stringify(s0.json));
+  ok("el endpoint público se muestra", String(s0.json?.endpoint ?? "").endsWith("/api/public/site-requests"));
+
+  const k1 = await api("/api/settings/site/key", { method: "POST" });
+  const key1 = k1.json?.key ?? "";
+  ok("crear clave → 201, vsk_ y no-store", k1.res.status === 201 && key1.startsWith("vsk_") && k1.res.headers.get("cache-control")?.includes("no-store"));
+  const s1 = await api("/api/settings/site");
+  ok(
+    "GET muestra solo el prefijo, jamás la clave",
+    s1.json?.key?.keyPrefix === key1.slice(0, 12) && !JSON.stringify(s1.json).includes(key1.slice(12)),
+    JSON.stringify(s1.json)
+  );
+
+  const badO = await api("/api/settings/site", { method: "PUT", body: JSON.stringify({ allowedOrigins: "https://ok.example\n*.evil\nftp://x" }) });
+  ok("orígenes inválidos → 422 con las líneas", badO.res.status === 422 && JSON.stringify(badO.json).includes("*.evil"), JSON.stringify(badO.json));
+  const putO = await api("/api/settings/site", {
+    method: "PUT",
+    body: JSON.stringify({ allowedOrigins: `${ORIGIN}\nHTTPS://LaBambola.example/\n` }),
+  });
+  ok("orígenes normalizados y sin duplicados", JSON.stringify(putO.json?.allowedOrigins) === JSON.stringify([ORIGIN]), JSON.stringify(putO.json));
+
+  const pf = await fetch(`${BASE}/api/public/site-requests`, {
+    method: "OPTIONS",
+    headers: { origin: ORIGIN, "access-control-request-method": "POST", "access-control-request-headers": "content-type,x-site-key" },
+  });
+  ok("preflight del origen autorizado → 204 con CORS", pf.status === 204 && pf.headers.get("access-control-allow-origin") === ORIGIN);
+  const pfEvil = await fetch(`${BASE}/api/public/site-requests`, { method: "OPTIONS", headers: { origin: "https://evil.example" } });
+  ok("preflight de otro origen → 403 sin CORS", pfEvil.status === 403 && !pfEvil.headers.get("access-control-allow-origin"));
+
+  // Agente ENCENDIDO durante la sección: aun así no debe contestar al sitio.
+  await api("/api/agent/profile", { method: "PUT", body: JSON.stringify({ enabled: true }) });
+  await api("/api/dev/wa-mock/outbox", { method: "DELETE" });
+
+  const r1 = await pub(key1, form());
+  ok("solicitud del sitio → 202 con CORS", r1.status === 202 && r1.headers.get("access-control-allow-origin") === ORIGIN, String(r1.status));
+  await sleep(1500);
+  let convs = (await api("/api/conversations")).json?.conversations ?? [];
+  const conv = convs.find((c) => c.contact.phone === PHONE);
+  ok("aparece en la bandeja con nombre y email", conv?.contact.name === "Lucía Sitio E2E" && conv?.contact.email === "lucia.e2e@example.com", JSON.stringify(conv?.contact));
+  ok("no leída (1) y con la ventana de WhatsApp CERRADA", conv?.unreadCount === 1 && conv?.windowOpen === false, JSON.stringify(conv));
+  const msgs = (await api(`/api/conversations/${conv?.id}/messages`)).json?.messages ?? [];
+  ok(
+    "un solo mensaje, entrante, canal web, con el texto del formulario",
+    msgs.length === 1 && msgs[0].direction === "in" && msgs[0].channel === "web" && msgs[0].text.includes("Queremos el tour del sábado (E2E)") && msgs[0].text.includes("personas: 4"),
+    JSON.stringify(msgs)
+  );
+  ok("el agente NO contestó (ni en el hilo ni por Graph)", !msgs.some((m) => m.direction === "out"));
+  const outbox = (await api("/api/dev/wa-mock/outbox")).json?.outbox ?? [];
+  ok("nada salió hacia el número del formulario", !outbox.some((o) => o.to === PHONE), JSON.stringify(outbox.map((o) => o.to)));
+  const contacts = (await api(`/api/contacts?q=${PHONE}`)).json?.contacts ?? [];
+  const ct = contacts.find((c) => c.phone === PHONE);
+  ok("contacto con fuente «sito» y lead en el embudo", ct?.source?.value === "sito" && Boolean(ct?.stageName), JSON.stringify(ct));
+
+  // Contacto existente: un formulario con su teléfono y otro nombre/email no lo cambia.
+  const r2 = await pub(key1, form({ name: "Impostor", email: "otro@example.com", message: "segunda" }));
+  await sleep(800);
+  convs = (await api("/api/conversations")).json?.conversations ?? [];
+  const conv2 = convs.filter((c) => c.contact.phone === PHONE);
+  ok(
+    "mismo contacto y conversación; nombre y email intactos; 2 no leídos",
+    r2.status === 202 && conv2.length === 1 && conv2[0].contact.name === "Lucía Sitio E2E" && conv2[0].contact.email === "lucia.e2e@example.com" && conv2[0].unreadCount === 2,
+    JSON.stringify(conv2)
+  );
+
+  const hp = await pub(key1, form({ phone: "+58 412 555 0808", website: "http://spam.example" }));
+  await sleep(500);
+  convs = (await api("/api/conversations")).json?.conversations ?? [];
+  ok("honeypot → 202 y nada en la bandeja", hp.status === 202 && !convs.some((c) => c.contact.phone === "584125550808"));
+
+  const onlyEmail = await pub(key1, form({ phone: "", email: "nadie@example.com" }));
+  ok("solo email sin contacto → 422 phone_required (D1)", onlyEmail.status === 422 && (await onlyEmail.json()).error?.code === "phone_required");
+
+  const wrongOrigin = await pub(key1, form(), "https://evil.example");
+  ok("origen no autorizado → 403", wrongOrigin.status === 403);
+  const noKey = await pub(null, form());
+  ok("sin clave → 401", noKey.status === 401);
+
+  const k2 = await api("/api/settings/site/key", { method: "POST" });
+  const key2 = k2.json?.key ?? "";
+  ok("rotar → 201 con clave nueva", k2.res.status === 201 && key2 !== key1 && k2.json?.rotated === true);
+  ok("la clave vieja → 401", (await pub(key1, form({ message: "vieja" }))).status === 401);
+  ok("la clave nueva → 202", (await pub(key2, form({ message: "nueva" }))).status === 202);
+  const del = await api("/api/settings/site/key", { method: "DELETE" });
+  ok("revocar → 200", del.res.ok && del.json?.revoked === 1, JSON.stringify(del.json));
+  ok("clave revocada → 401", (await pub(key2, form({ message: "revocada" }))).status === 401);
+  const anon = await fetch(`${BASE}/api/settings/site`, { headers: { origin: BASE } });
+  ok("ajustes del sitio sin sesión → 401", anon.status === 401);
+
+  // Se deja el agente como estaba para las secciones siguientes.
+  await api("/api/agent/profile", { method: "PUT", body: JSON.stringify({ enabled: false }) });
 }
 
 /**
