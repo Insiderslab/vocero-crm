@@ -118,7 +118,7 @@ export async function runAgentTurn(conversationId: string): Promise<void> {
   // Laboratorio no la aplica: evalúa el comportamiento configurado.
   if (!conversation.isTest && profile.restrictToAllowlist) {
     const contactRows = await db
-      .select({ waIdentity: schema.contact.waIdentity })
+      .select({ waIdentity: schema.contact.waIdentity, phone: schema.contact.phone })
       .from(schema.contact)
       .where(
         scoped(
@@ -128,8 +128,8 @@ export async function runAgentTurn(conversationId: string): Promise<void> {
         )
       )
       .limit(1);
-    const waIdentity = contactRows[0]?.waIdentity;
-    if (!waIdentity || !isAllowedIdentity(profile, waIdentity)) {
+    const contact = contactRows[0];
+    if (!contact || !isAllowedIdentity(profile, contact.waIdentity, contact.phone)) {
       await replyToOutsider(conversation, profile.outsiderReply);
       return;
     }

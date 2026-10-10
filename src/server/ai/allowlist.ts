@@ -62,6 +62,16 @@ export function comparableIdentity(waIdentity: string): string | null {
   return normalizeMx(waIdentity);
 }
 
+/**
+ * Clave comparable del ATRIBUTO `contact.phone` (003): un contacto que nació
+ * de un mensaje solo-BSUID conserva `wa_identity = bsuid:…` de por vida
+ * aunque luego llegue su teléfono; el teléfono se guarda aparte.
+ */
+export function comparablePhone(phone: string | null | undefined): string | null {
+  const digits = digitsOnly(phone ?? "");
+  return digits ? normalizeMx(digits) : null;
+}
+
 export type AllowlistPolicy = {
   restrictToAllowlist: boolean;
   allowedIdentities: readonly string[];
@@ -70,11 +80,21 @@ export type AllowlistPolicy = {
 /**
  * ¿Puede el agente atender a este contacto? Con la restricción apagada,
  * siempre (comportamiento de siempre). Encendida: solo si su identidad
- * normalizada está en la lista. Fail-closed: lista vacía = nadie.
+ * normalizada o su teléfono normalizado está en la lista. Fail-closed: lista
+ * vacía = nadie; un BSUID sin teléfono = nadie.
  */
-export function isAllowedIdentity(policy: AllowlistPolicy, waIdentity: string): boolean {
+export function isAllowedIdentity(
+  policy: AllowlistPolicy,
+  waIdentity: string,
+  phone?: string | null
+): boolean {
   if (!policy.restrictToAllowlist) return true;
-  const key = comparableIdentity(waIdentity);
-  if (key === null) return false;
-  return policy.allowedIdentities.some((entry) => comparableIdentity(entry) === key);
+  const keys = [comparableIdentity(waIdentity), comparablePhone(phone)].filter(
+    (k): k is string => k !== null
+  );
+  if (keys.length === 0) return false;
+  return policy.allowedIdentities.some((entry) => {
+    const allowed = comparableIdentity(entry);
+    return allowed !== null && keys.includes(allowed);
+  });
 }

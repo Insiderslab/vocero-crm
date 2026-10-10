@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   ALLOWLIST_MAX,
   comparableIdentity,
+  comparablePhone,
   isAllowedIdentity,
   normalizeAllowlistEntry,
   parseAllowlist,
@@ -84,6 +85,15 @@ describe("comparableIdentity", () => {
   });
 });
 
+describe("comparablePhone", () => {
+  it("dígitos + 521→52; vacío → null", () => {
+    expect(comparablePhone("+52 1 55 1234 5678")).toBe("525512345678");
+    expect(comparablePhone("393471234567")).toBe("393471234567");
+    expect(comparablePhone(null)).toBeNull();
+    expect(comparablePhone("")).toBeNull();
+  });
+});
+
 describe("isAllowedIdentity", () => {
   const team = { restrictToAllowlist: true, allowedIdentities: ["393471234567", "525512345678"] };
 
@@ -107,6 +117,14 @@ describe("isAllowedIdentity", () => {
 
   it("BSUID nunca pasa, aunque sus dígitos coincidan con la lista", () => {
     expect(isAllowedIdentity(team, "bsuid:393471234567")).toBe(false);
+  });
+
+  it("contacto nacido de un BSUID: pasa por su TELÉFONO (atributo) si está en la lista", () => {
+    expect(isAllowedIdentity(team, "bsuid:MX.1", "5215512345678")).toBe(true);
+    expect(isAllowedIdentity(team, "bsuid:MX.1", "+39 347 123 4567")).toBe(true);
+    expect(isAllowedIdentity(team, "bsuid:MX.1", "393479999999")).toBe(false);
+    expect(isAllowedIdentity(team, "bsuid:MX.1", null)).toBe(false);
+    expect(isAllowedIdentity(team, "bsuid:MX.1", "")).toBe(false);
   });
 
   it("lista vacía con la restricción encendida → nadie (fail-closed)", () => {

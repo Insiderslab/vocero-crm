@@ -115,6 +115,28 @@ describe("007 acceso reservado", () => {
     expect(graphSends()).toHaveLength(0);
   });
 
+  it("contacto nacido solo-BSUID y luego con teléfono en la lista: responde la IA", async () => {
+    // inbound-phone-and-bsuid: wa_id 5215587654321 → teléfono 525587654321.
+    await profile({ restrict: true, allowed: ["525587654321"], outsiderReply: OUTSIDER_REPLY });
+    await postWebhook(waFixture("inbound-bsuid-only"));
+    expect(aiCalls()).toHaveLength(0); // aún sin teléfono: fuera
+    const [c] = await sql()<{ wa_identity: string; phone: string | null }[]>`
+      select wa_identity, phone from contact where organization_id = ${ORG_A}
+    `;
+    expect(c?.wa_identity.startsWith("bsuid:")).toBe(true);
+
+    aiWillReply('{"action":"reply","text":"Hola, ya te reconozco"}');
+    await postWebhook(waFixture("inbound-phone-and-bsuid"));
+    const [after] = await sql()<{ wa_identity: string; phone: string | null }[]>`
+      select wa_identity, phone from contact where organization_id = ${ORG_A}
+    `;
+    expect(after).toEqual({ wa_identity: c!.wa_identity, phone: "525587654321" });
+    expect(aiCalls()).toHaveLength(1);
+    expect(graphSends().map((r) => (r.body as { text?: { body?: string } }).text?.body)).toContain(
+      "Hola, ya te reconozco"
+    );
+  });
+
   it("columnas nuevas con sus valores por defecto en un perfil existente", async () => {
     await sql()`insert into agent_profile (id, organization_id) values ('agp_team_default', ${ORG_B})`;
     const [row] = await sql()<{ restrict_to_allowlist: boolean; allowed_identities: string[]; outsider_reply: string | null }[]>`

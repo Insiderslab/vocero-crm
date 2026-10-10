@@ -71,9 +71,11 @@ línea) y respuesta para externos.
    Máximo 500 números.
 3. En `runAgentTurn`, tras comprobar perfil/handoff/IA de la conversación y
    ANTES de leer historial, KB o llamar al modelo: si la restricción está
-   activa y la `wa_identity` del contacto (normalizada igual) no está en la
-   lista → no se llama a la IA, no se lee el KB, no hay handoff. Las
-   identidades `bsuid:` nunca coinciden (fail-closed).
+   activa y ni la `wa_identity` del contacto ni su `phone` (ambos normalizados
+   igual) están en la lista → no se llama a la IA, no se lee el KB, no hay
+   handoff. Un contacto nacido de un mensaje solo-BSUID conserva
+   `wa_identity = bsuid:…` de por vida: pasa por su `phone` cuando llega; sin
+   teléfono nunca coincide (fail-closed).
 4. Si `outsider_reply` tiene texto, se envía UNA vez por conversación por el
    camino normal (`sendText`: ventana 24 h, sandbox, credenciales). Si ya
    existe un saliente con ese texto exacto en la conversación, no se reenvía.
