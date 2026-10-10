@@ -442,6 +442,10 @@ describe("008 protecciones", () => {
     const big = JSON.stringify(form({ message: "x".repeat(MAX_BODY_BYTES) }));
     expect((await send(null, { raw: big })).status).toBe(413);
     expect((await send(null, { raw: big, ip: "203.0.113.20", headers: { "content-length": "100" } })).status).toBe(413);
+    // Content-Length declarado demasiado grande: 413 antes incluso de mirar la clave.
+    expect(
+      (await send(form(), { key: null, ip: "203.0.113.23", headers: { "content-length": String(MAX_BODY_BYTES + 1) } })).status
+    ).toBe(413);
     expect((await send(form(), { contentType: "text/plain", ip: "203.0.113.21" })).status).toBe(415);
     expect((await send(null, { raw: "{no json", ip: "203.0.113.22" })).status).toBe(422);
     expect(await counts()).toMatchObject({ contacts: 0, messages: 0 });
