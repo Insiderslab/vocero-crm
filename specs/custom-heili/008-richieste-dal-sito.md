@@ -5,7 +5,8 @@
 > branch locale `site-leads`, ribasato su `origin/main` @ `0bc731e` (dopo la
 > PR #8, 007).
 > **Corsia: COMPLETA** — migrazione nuova `drizzle/0015_*.sql` (tabella
-> `site_request_config`, colonna `contact.email`, valore `web` nel CHECK di
+> `site_request_config`, colonna `contact.email`, indice univoco parziale
+> `bot_api_key_site_active_uq`, valore `web` nel CHECK di
 > `message.channel`), rigenerata dopo il merge della PR #8: discende dallo
 > snapshot `0014_bitter_sway`. Registro: `docs/lavoro/2026-10-11-richieste-dal-sito.md`.
 
@@ -41,7 +42,10 @@ In Impostazioni → «Sito web», owner/admin creano la **chiave del sito**
    volta** nella risposta del `POST` (`cache-control: no-store`).
 3. **Una chiave attiva per organizzazione.** `POST` revoca le chiavi attive
    del sito e ne crea una nuova nella stessa transazione (creare = ruotare).
-   `DELETE` revoca la chiave attiva; ripeterlo non fa nulla.
+   `DELETE` revoca la chiave attiva; ripeterlo non fa nulla. Garantito anche
+   con rotazioni concorrenti: advisory lock per organizzazione nella
+   transazione e indice univoco parziale `bot_api_key_site_active_uq`
+   (`scope = 'site' AND revoked_at IS NULL`).
 4. Le chiavi del sito non valgono su `/api/bot/*` né su `/api/export/*`, e
    le `vbk_`/`vex_` non valgono sul modulo (ambito diverso → 401).
 5. Origini autorizzate (CORS), facoltative, per organizzazione: una per riga,
@@ -57,10 +61,22 @@ In Impostazioni → «Sito web», owner/admin creano la **chiave del sito**
 
 **AC**
 1. Body (Zod, `.strict()`): `name` (1–120), `phone?` (≤ 40), `email?`
-   (email valida, ≤ 254, minuscolo), `message` (1–4000), `pageUrl?` (URL
-   http/https, ≤ 500), `locale?` (tag BCP 47 corto), `fields?` (oggetto
-   stringa→stringa, ≤ 20 chiavi, chiave 1–40, valore ≤ 500), `website?`
-   (honeypot). Almeno uno tra `phone` ed `email`, altrimenti 422.
+   (email valida, ≤ 254, minuscolo), `message` (1–4000), `pageUrl?`,
+   `locale?`, `fields?` (oggetto stringa→stringa, ≤ 20 chiavi, chiave 1–40,
+   valore ≤ 500), `website?` (honeypot). Almeno uno tra `phone` ed `email`,
+   altrimenti 422.
+   - **Una riga sola** per `name`, chiavi di `fields`, telefono, email, URL e
+     locale: `\r`, `\n`, tab, U+2028/2029 → spazio, spazi collassati.
+     `message` e i valori di `fields` tengono `\n`.
+   - Da **ogni** campo si tolgono i controlli bidi (U+202A–202E,
+     U+2066–2069), i caratteri a larghezza zero (U+200B–200D, U+FEFF) e i
+     controlli C0/C1.
+   - **Metadati che non fanno perdere la richiesta:** `locale` non valido
+     si scarta (`en_US` → `en-US`); `pageUrl` non http(s) si scarta, troppo
+     lunga perde query e frammento e poi si tronca a 500.
+   - Il 422 per il visitatore è un testo i18n nella lingua della richiesta
+     (`locale`, poi `Accept-Language`; it/es/en, altrimenti la lingua
+     dell'istanza), mai il testo grezzo di Zod.
 2. Telefono: si tolgono spazi, `-`, `.`, `(`, `)`; `+` o `00` iniziale =
    prefisso internazionale; restano 7–15 cifre senza 0 iniziale; poi
    `normalizeMx` (521→52), come l'alta manuale e il webhook. Un numero
@@ -77,7 +93,9 @@ In Impostazioni → «Sito web», owner/admin creano la **chiave del sito**
    - un contatto esistente **non si modifica**: `phone`, `wa_identity`,
      `email`, nome e `source` restano come sono, anche se il modulo porta
      altri valori (finiscono solo nel testo del messaggio); due contatti non
-     si uniscono mai. L'unica scrittura è riattivarlo se era archiviato.
+     si uniscono mai. L'unica scrittura è **riattivarlo se era archiviato**
+     (torna nella posta: chi lo aveva archiviato lo rivede con la richiesta
+     nuova, come succede con un WhatsApp).
      Motivo: il modulo è pubblico e non verificato, e la lista di accesso
      dell'agente (PR #8, `src/server/ai/allowlist.ts`) autorizza per
      `wa_identity` **o** `phone`: un modulo non deve poter dare un'identità
@@ -97,10 +115,21 @@ In Impostazioni → «Sito web», owner/admin creano la **chiave del sito**
    ha lead si crea nella prima fase aperta (con il suo evento nella
    bitacora, origine `sistema`); se ce l'ha, si aggiorna `last_activity_at`.
 8. Risposta `202 { ok: true }` senza ID interni.
+10. **Nome verificato (P1 della revisione):** un contatto creato dal modulo
+   (`source = sito`) che non ha ancora alcun entrante WhatsApp, al **primo**
+   entrante WhatsApp in vivo (numero verificato da Meta) prende il nome
+   verificato: quello della rubrica (coexistence) se c'è, altrimenti il nome
+   di profilo, altrimenti il telefono. Una sola volta: dopo vale quello che
+   mette l'operatore. L'email resta, e il pannello del contatto la mostra con
+   «dal modulo web, non verificata» (es/en/it).
+11. `/api/export/messages` esporta `channel` (`whatsapp` | `web`), anche nel
+   CSV (colonna `canal`).
 9. **L'agente IA non risponde**: la rotta non chiama `maybeRunAgentTurn`, e
-   `runAgentTurn` ignora i messaggi `web` quando cerca l'ultimo messaggio in
-   entrata (difesa in profondità: un turno già in coda, o la prossima
-   modifica, non risponde per WhatsApp a una richiesta web). Una
+   `runAgentTurn` esclude i messaggi `web` **nella query della cronologia,
+   prima del LIMIT** (20 richieste web non spingono fuori il WhatsApp) e
+   quando cerca l'ultimo entrante (difesa in profondità: un turno già in
+   coda, o la prossima modifica, non risponde per WhatsApp a una richiesta
+   web). Una
    conversazione che ha solo messaggi web non prende nemmeno l'handoff
    «ventana». Il team risponde a mano (plantilla, telefono, email).
 
@@ -130,7 +159,18 @@ In Impostazioni → «Sito web», owner/admin creano la **chiave del sito**
    accetta: l'origine non è un'autenticazione.
 4. **Limiti** (in memoria, come il resto dell'app): 30 richieste al minuto per
    chiave; 10 ogni 10 minuti per IP del client e organizzazione. Oltre → 429
-   `rate_limited`, niente scritto.
+   `rate_limited`, niente scritto. Il preflight ha una cache di 30 s (tetto
+   1 000 origini, svuotata quando si salvano le origini) e il limite per IP
+   del preflight conta solo le consultazioni alla base dati. Il magazzino dei
+   limiti ha un tetto di 50 000 chiavi con espulsione della meno recente.
+   **Avvertenza CDN / `X-Forwarded-For`:** l'IP del client si legge da
+   `X-Forwarded-For` (primo valore) o `X-Real-IP`, come il login. È affidabile
+   solo se il proxy davanti (Caddy, Traefik) **sostituisce** queste
+   intestazioni. Dietro una CDN che le passa così come arrivano, o con l'app
+   esposta direttamente, un attaccante sceglie la sua «IP» a ogni richiesta e
+   il limite per IP non vale: restano il limite per chiave, l'honeypot e il
+   tetto del body. Dietro una CDN, configurare il proxy perché usi
+   l'intestazione della CDN con l'IP vera.
 5. **Honeypot** `website`: se ha testo, risposta identica al successo (202
    `{ ok: true }`) e niente scritto (il bot non capisce che è stato
    scartato).
@@ -146,12 +186,14 @@ La pagina «Sito web» mostra un modulo HTML e uno script `fetch` da copiare.
 1. Il modulo ha `name`, `phone` (obbligatorio, vedi D1), `email`, `message`,
    il campo honeypot `website` nascosto (fuori schermo, `tabindex=-1`,
    `autocomplete=off`) e un'area per l'esito.
-2. Lo script invia JSON con `X-Site-Key`, `pageUrl = location.href` e
+2. Ogni `name` sconosciuto del modulo (o `fields[x]`) finisce in `fields`;
+   i file si ignorano.
+3. Lo script invia JSON con `X-Site-Key`, `pageUrl = location.href` e
    `locale = document.documentElement.lang`, mostra il messaggio d'errore
    del server o «Grazie», e svuota il modulo dopo il successo.
-3. Subito dopo la creazione lo snippet contiene la chiave vera; dopo, un
+4. Subito dopo la creazione lo snippet contiene la chiave vera; dopo, un
    segnaposto `vsk_LA_TUA_CHIAVE` (la chiave non si può rileggere).
-4. Lo snippet ricorda di aggiungere l'origine del sito tra quelle
+5. Lo snippet ricorda di aggiungere l'origine del sito tra quelle
    autorizzate.
 
 ## Sicurezza
@@ -201,9 +243,22 @@ La pagina «Sito web» mostra un modulo HTML e uno script `fetch` da copiare.
   Instagram.
 - V1/V2 (account), V5 (`wa_message_id` NULL → nessun controllo), V6
   (isolamento) e V7 (Wapi) non sono toccati.
-- Rollback a `83c6a13`: il codice vecchio scrive solo `whatsapp` (CHECK più
-  largo: compatibile), ignora `contact.email` e `site_request_config`, e
-  legge i messaggi web come testo normale.
+- Rollback a un'immagine senza 008 (es. `83c6a13` o `0bc731e`): lo schema
+  resta compatibile (il codice vecchio scrive solo `whatsapp`; ignora
+  `contact.email`, `site_request_config` e l'indice parziale), **ma il
+  comportamento no**:
+  - l'agente vecchio **manda al modello il testo delle richieste web**
+    (email, pagina, campi) e lo conta come ultimo entrante: con la finestra
+    aperta da un WhatsApp potrebbe rispondere a una richiesta web; su una
+    conversazione solo-web metterebbe l'handoff «ventana»;
+  - la posta mostra le richieste web **come messaggi WhatsApp** (niente
+    etichetta «Sito web»);
+  - la rotta pubblica non esiste più (404 al modulo del sito).
+  **Procedura:** prima del rollback, in Impostazioni → Sito web **revocare
+  la chiave del sito** di ogni organizzazione (o
+  `UPDATE bot_api_key SET revoked_at = now() WHERE scope = 'site' AND
+  revoked_at IS NULL`), così non arrivano richieste nuove; le richieste già
+  presenti restano come testo.
 
 ## Decisioni aperte
 
