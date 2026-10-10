@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { z } from "zod";
-import { apiError, parseBody, withAuth } from "@/lib/api";
+import { apiError, parseBody, withAuth, withOwnerAuth } from "@/lib/api";
 import { getAuth, runInternalSignup } from "@/lib/auth";
 import { getDb, schema } from "@/lib/db";
 import { newId } from "@/lib/db/ids";
@@ -39,10 +39,7 @@ const createSchema = z.object({
 });
 
 /** Alta de cuenta de equipo (owner only): email + contraseña temporal (FR-061). */
-export const POST = withAuth(async (session, req: Request) => {
-  if (session.role !== "owner") {
-    return apiError(403, "forbidden", "Solo el propietario puede crear cuentas");
-  }
+export const POST = withOwnerAuth(async (session, req: Request) => {
   const body = await parseBody(req, createSchema);
   if (!body.ok) return body.response;
 

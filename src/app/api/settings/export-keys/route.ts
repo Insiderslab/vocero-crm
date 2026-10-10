@@ -1,8 +1,8 @@
-import { apiKeyCollectionHandlers } from "@/server/api-keys-admin";
+import { withAdminAuth } from "@/lib/api";
+import { createApiKey, listApiKeys } from "@/server/api-keys-admin";
 
 export const dynamic = "force-dynamic";
 
 /** Claves de `/api/export/*` de la organización activa (solo owner/admin). */
-const handlers = apiKeyCollectionHandlers("export");
-export const GET = handlers.GET;
-export const POST = handlers.POST;
+export const GET = withAdminAuth(listApiKeys("export"));
+export const POST = withAdminAuth(createApiKey("export"));

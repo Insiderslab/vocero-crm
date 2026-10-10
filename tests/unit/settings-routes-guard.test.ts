@@ -19,7 +19,7 @@ const METODOS = ["GET", "POST", "PUT", "PATCH", "DELETE"];
 
 /** Señales de control de rol: la regla única de roles o la gestión de claves. */
 const CONTROL_DE_ROL =
-  /withAdminAuth|isOrgAdmin|canManage\w+\(|session\.role|apiKeyCollectionHandlers|apiKeyRevokeHandler/;
+  /withAdminAuth|withOwnerAuth|isOrgAdmin|canManage\w+\(|session\.role|apiKeyCollectionHandlers|apiKeyRevokeHandler/;
 
 /** Excepciones documentadas (ruta relativa a settings : método). */
 const EXCEPCIONES: Record<string, string> = {
