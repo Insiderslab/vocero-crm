@@ -253,9 +253,13 @@ describe("ámbito site de las claves (vsk_, X-Site-Key, sin clave de instancia)"
 
   const site = generateApiKey("site");
   const bot = generateApiKey("bot");
+  // Una fila con prefijo vsk_ pero de OTRO ámbito (dato corrupto o futuro):
+  // el ámbito de la fila manda, no el prefijo.
+  const misScoped = generateApiKey("site");
   const rows: Record<string, { id: string; organizationId: string; scope: string }> = {
     [site.hash]: { id: "k_site", organizationId: "org_a", scope: "site" },
     [bot.hash]: { id: "k_bot", organizationId: "org_a", scope: "bot" },
+    [misScoped.hash]: { id: "k_mis", organizationId: "org_a", scope: "export" },
   };
   const deps = (): ApiKeyAuthDeps => ({
     findActiveKey: vi.fn(async (h: string) => rows[h] ?? null),
@@ -275,6 +279,10 @@ describe("ámbito site de las claves (vsk_, X-Site-Key, sin clave de instancia)"
 
   it("clave del sitio válida → su organización", async () => {
     expect(await status({ "x-site-key": site.plain })).toEqual({ organizationId: "org_a", keyId: "k_site" });
+  });
+
+  it("una fila de otro ámbito no vale aunque la clave empiece por vsk_", async () => {
+    expect(await status({ "x-site-key": misScoped.plain })).toBe(401);
   });
 
   it("la clave en X-Api-Key no cuenta", async () => {
