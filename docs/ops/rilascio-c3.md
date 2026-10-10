@@ -30,9 +30,16 @@ Attenzione: con la configurazione vecchia `WAPI_ORG_IDS` vuota + `WAPI_API_KEY` 
 |---|---|---|
 | … | … | … |
 
-## 1. Prima del rilascio: configurazione che non interrompe nessuno
+## 1. Prima del rilascio: configurazione che non interrompe nessuno (SEQUENZA OBBLIGATORIA)
 
 Obiettivo: nessun invio cambia strada nel momento in cui parte il codice nuovo.
+
+> **STOP: non rilasciare il codice C3 prima di aver chiuso questo passo.** Se in produzione `WAPI_API_KEY` è valorizzata e `WAPI_ORG_IDS` è **vuota**, con il codice nuovo **tutte** le organizzazioni smettono di passare da Wapi e vanno dirette a Meta con il token in `meta_credentials`. Un'organizzazione le cui credenziali Meta stanno solo in Wapi riceve 401, viene marcata «da ricollegare» (`reconnect_required`) e **resta scollegata anche dopo** aver sistemato la configurazione. Il comportamento è voluto (decisione dell'owner: «lista vuota + chiave globale» non cambia) e per questo la sequenza è obbligatoria:
+>
+> 1. Leggere (senza copiare i valori in chat) `WAPI_BASE_URL`, `WAPI_API_KEY`, `WAPI_ORG_IDS` dalla produzione.
+> 2. Se `WAPI_API_KEY` è valorizzata e `WAPI_ORG_IDS` è vuota: **prima del deploy** scrivere in `WAPI_ORG_IDS` l'id di **una sola** organizzazione (quella che oggi passa da Wapi), oppure, con più organizzazioni, seguire il secondo punto sotto.
+> 3. Solo dopo, rilasciare (passo 2).
+> 4. All'avvio il CRM scrive nei log, **senza segreti**, un avviso che comincia con `[boot] WAPI_API_KEY está definida pero WAPI_ORG_IDS está vacía` quando incontra proprio questa combinazione: dopo il rilascio verificarne l'assenza (`docker compose logs app --since 10m | grep "WAPI_ORG_IDS está vacía"` deve restituire nulla). Se compare, la configurazione è ancora quella pericolosa.
 
 - **Una sola organizzazione passa da Wapi** (o `WAPI_ORG_IDS` ha già una sola organizzazione): mettere `WAPI_ORG_IDS=<id di quella organizzazione>` (se vuota) e lasciare `WAPI_API_KEY`: è il modo legacy, identico a oggi.
 - **Più organizzazioni passano da Wapi con la chiave globale** (o `WAPI_ORG_IDS` vuota con più organizzazioni): con C3 non c'è modo legacy sicuro per più organizzazioni. Scegliere una finestra di manutenzione breve e fare i passi 2-3 **subito** dopo il rilascio: nel frattempo le organizzazioni elencate in `WAPI_ORG_IDS` risponderanno "bloccate" (errore di invio, nessuna chiamata) e quelle non elencate andranno dirette a Meta con il proprio token.
