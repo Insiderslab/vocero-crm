@@ -1,4 +1,4 @@
-import { and, eq, or, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { newId } from "@/lib/db/ids";
 import { decryptSecret, encryptSecret } from "@/lib/crypto";
@@ -134,20 +134,19 @@ export async function saveCredentials(input: {
 
 /**
  * 009 — Meta avisó que la coexistence se cortó o se restableció
- * (`account_update`). Se resuelve por WABA (entry.id) o por phone_number_id.
- * Devuelve la organización afectada, o null si el evento no es de esta
- * instancia.
+ * (`account_update`, a nivel WABA: entry.id). Si el evento trae el número
+ * (`PARTNER_REMOVED` trae `phone_number`), solo se marca ESE número: una WABA
+ * puede tener números de varias organizaciones. Solo afecta conexiones en
+ * coexistence. Devuelve las organizaciones afectadas.
  */
 export async function setAppDisconnected(input: {
-  wabaId?: string | null;
-  phoneNumberId?: string | null;
+  wabaId: string | null;
+  /** Número visible que manda Meta, en cualquier formato. */
+  phoneNumber?: string | null;
   disconnected: boolean;
-}): Promise<string | null> {
-  const matchers = [];
-  if (input.wabaId) matchers.push(eq(schema.metaCredentials.wabaId, input.wabaId));
-  if (input.phoneNumberId)
-    matchers.push(eq(schema.metaCredentials.phoneNumberId, input.phoneNumberId));
-  if (matchers.length === 0) return null;
+}): Promise<string[]> {
+  if (!input.wabaId) return [];
+  const digits = (input.phoneNumber ?? "").replace(/\D/g, "");
   const db = getDb();
   const rows = await db
     .update(schema.metaCredentials)
@@ -155,17 +154,19 @@ export async function setAppDisconnected(input: {
       appDisconnectedAt: input.disconnected ? new Date() : null,
       updatedAt: new Date(),
     })
-    // Solo números en coexistence: un PARTNER_REMOVED de OTRO partner en una
-    // WABA compartida (ej. un CRM externo) no debe pintar un falso corte en
-    // una conexión manual.
+    // Un PARTNER_REMOVED de OTRO partner en una WABA compartida (ej. un CRM
+    // externo) no debe pintar un falso corte en una conexión manual.
     .where(
       and(
-        or(...matchers),
-        eq(schema.metaCredentials.onboardingMode, "coexistence")
+        eq(schema.metaCredentials.wabaId, input.wabaId),
+        eq(schema.metaCredentials.onboardingMode, "coexistence"),
+        digits
+          ? sql`regexp_replace(coalesce(${schema.metaCredentials.displayPhoneNumber}, ''), '[^0-9]', '', 'g') = ${digits}`
+          : undefined
       )
     )
     .returning({ organizationId: schema.metaCredentials.organizationId });
-  return rows[0]?.organizationId ?? null;
+  return rows.map((r) => r.organizationId);
 }
 
 /** Marca la conexión como vencida (token inválido detectado en runtime). */

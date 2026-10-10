@@ -994,6 +994,19 @@ async function coexistenceSection() {
   });
   ok("WABA ID inválido → 422", badInput.res.status === 422);
 
+  // El número del popup debe pertenecer a la WABA (IDs del navegador, no fiables).
+  const foreign = await api("/api/settings/whatsapp/embedded-signup", {
+    method: "POST",
+    body: JSON.stringify({ code: "e2e-code-x", wabaId: WABA, phoneNumberId: "999888777666", coexistence: true }),
+  });
+  ok("número que no es de la WABA → 422 phone_not_found", foreign.res.status === 422 && foreign.json?.error?.code === "phone_not_found", JSON.stringify(foreign.json));
+  // Número nuevo (sin coexistence) no soportado aún: falta /register con PIN.
+  const notCoex = await api("/api/settings/whatsapp/embedded-signup", {
+    method: "POST",
+    body: JSON.stringify({ code: "e2e-code-y", wabaId: WABA, coexistence: false }),
+  });
+  ok("coexistence=false → 422 (sin /register no se acepta)", notCoex.res.status === 422);
+
   await api("/api/dev/wa-mock/outbox", { method: "DELETE" });
   const es = await api("/api/settings/whatsapp/embedded-signup", {
     method: "POST",
@@ -1102,6 +1115,28 @@ async function coexistenceSection() {
   const gMsgs2 = (await api(`/api/conversations/${giulia?.id}/messages`)).json?.messages ?? [];
   ok("bloque de historial repetido no duplica", gMsgs2.length === gMsgs.length, `${gMsgs.length} → ${gMsgs2.length}`);
 
+  // Orden en el tiempo: un mensaje EN VIVO y después un bloque de historial
+  // más antiguo (fase 1–90 días): el hilo queda en orden cronológico y el
+  // último mensaje sigue siendo el de hoy.
+  await api("/api/dev/wa-mock/inbound", {
+    method: "POST",
+    body: JSON.stringify({ phoneNumberId: PN2, from: GIULIA, name: "Giulia", text: "e domenica?", waMessageId: "wamid.e2e.009.live.1" }),
+  });
+  await sleep(900);
+  await coex("history", {
+    history: [{ metadata: { phase: 1, chunk_order: 1, progress: 100 }, threads: [{ id: GIULIA, messages: [
+      { from: GIULIA, id: "wamid.e2e.009.old.1", timestamp: String(now - 60 * 86400), type: "text", text: { body: "ciao, info di agosto" }, history_context: { status: "READ" } },
+    ] }] }],
+  });
+  await sleep(1200);
+  const ordered = (await api(`/api/conversations/${giulia?.id}/messages`)).json?.messages ?? [];
+  const texts = ordered.map((m) => m.text);
+  ok(
+    "historial tardío y antiguo queda al principio; el mensaje en vivo sigue al final",
+    texts[0] === "ciao, info di agosto" && texts[texts.length - 1] === "e domenica?",
+    JSON.stringify(texts)
+  );
+
   // Historial no compartido: entrega OK, sin efectos ni errores.
   const declined = await coex("history", {
     history: [{ errors: [{ code: 2593109, title: "History sync is turned off" }] }],
@@ -1130,6 +1165,17 @@ async function coexistenceSection() {
   await sleep(700);
   settings = (await api("/api/settings/whatsapp")).json?.connection;
   ok("ACCOUNT_RECONNECTED la restablece", settings?.appDisconnectedAt === null, JSON.stringify(settings));
+  // PARTNER_REMOVED de OTRO número de la misma WABA: no toca esta conexión.
+  await coex("account_update", { event: "PARTNER_REMOVED", phone_number: "+1 555 000 1111" });
+  await sleep(600);
+  settings = (await api("/api/settings/whatsapp")).json?.connection;
+  ok("PARTNER_REMOVED de otro número no marca esta conexión", settings?.appDisconnectedAt === null, JSON.stringify(settings));
+  await coex("account_update", { event: "PARTNER_REMOVED", phone_number: settings?.displayPhoneNumber });
+  await sleep(600);
+  settings = (await api("/api/settings/whatsapp")).json?.connection;
+  ok("PARTNER_REMOVED de ESTE número sí la marca", Boolean(settings?.appDisconnectedAt), JSON.stringify(settings));
+  await coex("account_update", { event: "ACCOUNT_RECONNECTED" });
+  await sleep(600);
   await coex("account_update", { event: "VERIFIED_ACCOUNT" });
   await sleep(500);
   settings = (await api("/api/settings/whatsapp")).json?.connection;

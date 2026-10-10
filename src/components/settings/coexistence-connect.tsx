@@ -80,12 +80,14 @@ type SessionInfo = { wabaId: string; phoneNumberId: string | null };
 function parseSessionMessage(
   event: MessageEvent
 ): { kind: "finish"; info: SessionInfo } | { kind: "cancel" } | null {
-  let host = "";
+  let url: URL;
   try {
-    host = new URL(event.origin).hostname;
+    url = new URL(event.origin);
   } catch {
     return null;
   }
+  const host = url.hostname;
+  if (url.protocol !== "https:") return null;
   if (host !== "facebook.com" && !host.endsWith(".facebook.com")) return null;
   let data: unknown = event.data;
   if (typeof data === "string") {
@@ -125,7 +127,6 @@ export function CoexistenceConnect({ onConnected }: { onConnected: () => void })
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<Result | null>(null);
   const sessionRef = useRef<SessionInfo | null>(null);
-  const cancelledRef = useRef(false);
 
   useEffect(() => {
     void fetch("/api/settings/whatsapp/embedded-signup")
@@ -138,12 +139,18 @@ export function CoexistenceConnect({ onConnected }: { onConnected: () => void })
     const onMessage = (event: MessageEvent) => {
       const parsed = parseSessionMessage(event);
       if (!parsed) return;
-      if (parsed.kind === "finish") sessionRef.current = parsed.info;
-      else cancelledRef.current = true;
+      if (parsed.kind === "finish") {
+        sessionRef.current = parsed.info;
+        return;
+      }
+      // Ventana cerrada o error en Meta: el botón vuelve a estar disponible
+      // aunque el callback de FB.login no llegue (popup bloqueado, etc.).
+      setBusy(false);
+      setResult({ ok: false, message: t("settings.whatsapp.coexCancelled") });
     };
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
-  }, []);
+  }, [t]);
 
   if (!config?.enabled) return null;
   const cfg = config;
@@ -199,7 +206,6 @@ export function CoexistenceConnect({ onConnected }: { onConnected: () => void })
     setBusy(true);
     setResult(null);
     sessionRef.current = null;
-    cancelledRef.current = false;
     let fb: FbSdk;
     try {
       fb = await loadFacebookSdk(cfg.appId, cfg.graphVersion);

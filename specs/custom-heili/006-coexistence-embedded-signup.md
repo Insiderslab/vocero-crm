@@ -115,6 +115,17 @@ aceptado solo desde `*.facebook.com`.
 5. Meta exige pedir agenda e historial dentro de ~24 h del alta; si se
    pierde, hay que desconectar y repetir el alta.
 
+## Revisión adversaria (10/10/2026) — corregido antes de unir
+- **Bloqueante:** los mensajes del historial se guardaban con `created_at = now()`; hilo, vista previa y contexto de la IA ordenan por `created_at`, así que un mensaje de hace meses aparecía como el último. Ahora `created_at = wa_timestamp`; la UI recarga el hilo abierto al llegar historial (`historyImported`). E2E: "historial tardío y antiguo queda al principio" (sabotaje → FAIL).
+- El historial no reactiva contactos archivados (`getOrCreateContactByIdentity(..., { reactivate: false })`).
+- `account_update`: solo WABA + modo coexistence, y si trae `phone_number`, solo ESE número (otra org con número en la misma WABA no se marca). E2E con PARTNER_REMOVED de otro número.
+- El `phone_number_id` del popup debe pertenecer a la WABA (`GET {waba}/phone_numbers`): si no, 422 `phone_not_found`.
+- Solo coexistence (`coexistence: true`): un número nuevo necesitaría `/register` con PIN.
+- Con `WAPI_BASE_URL` el botón no aparece (los envíos usarían la clave Wapi, no el token del Embedded Signup).
+- `history` y `smb_app_state_sync` se ignoran si la conexión no es coexistence; la agenda se procesa por lotes de 500 (una sentencia por lote).
+- Popup: solo `https://*.facebook.com`; cerrar la ventana de Meta libera el botón.
+- Pendiente aceptado: `wa_message_id` es único en toda la instancia (heredado); el canje del code va por GET como en la documentación de Meta.
+
 ## Fuera de alcance
 - Alta de números NUEVOS (no de la app) por Embedded Signup: requiere
   `/register` con PIN — se sigue usando el wizard manual.

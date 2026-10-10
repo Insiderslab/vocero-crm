@@ -72,8 +72,11 @@ export function resolveIdentity(
  */
 export async function getOrCreateContactByIdentity(
   organizationId: string,
-  resolved: ResolvedIdentity
+  resolved: ResolvedIdentity,
+  /** 009 — el historial de coexistence no reactiva archivados. */
+  opts: { reactivate?: boolean } = {}
 ) {
+  const reactivate = opts.reactivate ?? true;
   const db = getDb();
 
   const matchers = [eq(schema.contact.waIdentity, resolved.identity)];
@@ -100,7 +103,7 @@ export async function getOrCreateContactByIdentity(
     if (resolved.waUserId && !existing.waUserId)
       patch.waUserId = resolved.waUserId;
     if (resolved.phone && !existing.phone) patch.phone = resolved.phone;
-    if (existing.archivedAt) patch.archivedAt = null;
+    if (existing.archivedAt && reactivate) patch.archivedAt = null;
     if (Object.keys(patch).length > 0) {
       patch.updatedAt = new Date();
       await db

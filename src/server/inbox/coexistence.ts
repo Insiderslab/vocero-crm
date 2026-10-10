@@ -1,4 +1,4 @@
-import { and, eq, isNull, lt, or } from "drizzle-orm";
+import { and, eq, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { newId } from "@/lib/db/ids";
 import { normalizeMx } from "@/lib/meta/client";
@@ -40,6 +40,7 @@ const HISTORY_TYPES = new Set([
 const MEDIA_TYPES = new Set(["image", "video", "audio", "document", "sticker"]);
 
 const HISTORY_INSERT_BATCH = 500;
+const STATE_SYNC_BATCH = 500;
 
 /** Código de Meta: el negocio no compartió el historial en el popup. */
 export const HISTORY_DECLINED_CODE = 2593109;
@@ -144,6 +145,14 @@ export async function processHistoryValue(value: WebhookValue): Promise<void> {
     );
     return;
   }
+  if (credentials.onboardingMode !== "coexistence") {
+    // Solo una conexión hecha con el Embedded Signup en coexistence pide el
+    // historial: en una conexión manual (o una WABA compartida) se ignora.
+    console.warn(
+      `[webhook] history para una conexión que no es coexistence (${credentials.organizationId}): ignorado`
+    );
+    return;
+  }
   const { organizationId } = credentials;
   const parsed = parseHistoryValue(value);
   if (parsed.declined) {
@@ -164,12 +173,13 @@ export async function processHistoryValue(value: WebhookValue): Promise<void> {
   let imported = 0;
   for (const [identity, messages] of byCustomer) {
     try {
-      const { contact } = await getOrCreateContactByIdentity(organizationId, {
-        identity,
-        phone: identity,
-        waUserId: null,
-        profileName: null,
-      });
+      // El historial NO reactiva contactos archivados: archivar es una
+      // decisión del operador y un chat viejo no la revierte.
+      const { contact } = await getOrCreateContactByIdentity(
+        organizationId,
+        { identity, phone: identity, waUserId: null, profileName: null },
+        { reactivate: false }
+      );
       const conversation = await getOrCreateConversation(
         organizationId,
         contact.id
@@ -196,6 +206,10 @@ export async function processHistoryValue(value: WebhookValue): Promise<void> {
                   ? ("manual" as const)
                   : ("operator" as const),
               waTimestamp: m.timestamp,
+              // El hilo, la vista previa y el contexto de la IA ordenan por
+              // created_at: un mensaje del historial debe ocupar SU lugar en
+              // el tiempo, no el momento de la importación.
+              createdAt: m.timestamp,
             }))
           )
           // Idempotencia: Meta reenvía bloques; un wamid ya visto no duplica.
@@ -228,7 +242,9 @@ export async function processHistoryValue(value: WebhookValue): Promise<void> {
 
       publish(organizationId, {
         type: "conversation.updated",
-        data: { conversation: { id: conversation.id } },
+        // historyImported: si el hilo está abierto, la UI recarga los mensajes
+        // (el refetch incremental por created_at no vería filas "del pasado").
+        data: { conversation: { id: conversation.id, historyImported: true } },
       });
     } catch (err) {
       // Un hilo malformado jamás tumba el resto del bloque.
@@ -282,57 +298,75 @@ export async function processStateSyncValue(
     );
     return;
   }
+  if (credentials.onboardingMode !== "coexistence") {
+    console.warn(
+      `[webhook] smb_app_state_sync para una conexión que no es coexistence (${credentials.organizationId}): ignorado`
+    );
+    return;
+  }
   const { organizationId } = credentials;
+
+  // Última acción por número (Meta puede mandar alta y baja del mismo en un
+  // bloque); así cada lote toca cada fila una sola vez.
+  const latest = new Map<string, ParsedAddressBookEntry>();
+  for (const entry of parseStateSyncValue(value)) latest.set(entry.identity, entry);
+  const entries = [...latest.values()];
+  if (entries.length === 0) return;
+
   const db = getDb();
   let applied = 0;
-  for (const entry of parseStateSyncValue(value)) {
+  for (let i = 0; i < entries.length; i += STATE_SYNC_BATCH) {
+    const batch = entries.slice(i, i + STATE_SYNC_BATCH);
+    const removals = batch.filter((e) => e.action === "remove").map((e) => e.identity);
+    const upserts = batch.filter(
+      (e): e is Extract<ParsedAddressBookEntry, { action: "upsert" }> =>
+        e.action === "upsert"
+    );
     try {
-      if (entry.action === "remove") {
+      if (removals.length > 0) {
         await db
           .delete(schema.waAddressBookEntry)
           .where(
             and(
               eq(schema.waAddressBookEntry.organizationId, organizationId),
-              eq(schema.waAddressBookEntry.waIdentity, entry.identity)
+              inArray(schema.waAddressBookEntry.waIdentity, removals)
             )
           );
-        applied++;
-        continue;
       }
-      await db
-        .insert(schema.waAddressBookEntry)
-        .values({
-          id: newId("addressBookEntry"),
-          organizationId,
-          waIdentity: entry.identity,
-          name: entry.name,
-        })
-        .onConflictDoUpdate({
-          target: [
-            schema.waAddressBookEntry.organizationId,
-            schema.waAddressBookEntry.waIdentity,
-          ],
-          set: { name: entry.name, updatedAt: new Date() },
-        });
-      // Un contacto que ya existe toma el nombre de la agenda SOLO si el que
-      // tiene es de relleno (su teléfono): el que puso el operador se respeta.
-      await db
-        .update(schema.contact)
-        .set({ name: entry.name, updatedAt: new Date() })
-        .where(
-          and(
-            eq(schema.contact.organizationId, organizationId),
-            or(
-              eq(schema.contact.waIdentity, entry.identity),
-              eq(schema.contact.phone, entry.identity)
-            ),
-            or(
-              eq(schema.contact.name, entry.identity),
-              eq(schema.contact.name, PLACEHOLDER_CONTACT_NAME)
-            )
+      if (upserts.length > 0) {
+        await db
+          .insert(schema.waAddressBookEntry)
+          .values(
+            upserts.map((e) => ({
+              id: newId("addressBookEntry"),
+              organizationId,
+              waIdentity: e.identity,
+              name: e.name,
+            }))
           )
-        );
-      applied++;
+          .onConflictDoUpdate({
+            target: [
+              schema.waAddressBookEntry.organizationId,
+              schema.waAddressBookEntry.waIdentity,
+            ],
+            set: { name: sql`excluded.name`, updatedAt: new Date() },
+          });
+        // Un contacto que ya existe toma el nombre de la agenda SOLO si el que
+        // tiene es de relleno (su teléfono o el genérico): el que puso el
+        // operador se respeta. Una sola sentencia por lote.
+        const identities = upserts.map((e) => e.identity);
+        await db.execute(sql`
+          update ${schema.contact} as c
+          set name = ab.name, updated_at = now()
+          from ${schema.waAddressBookEntry} as ab
+          where ab.organization_id = ${organizationId}
+            and c.organization_id = ${organizationId}
+            and ab.wa_identity in (${sql.join(identities.map((x) => sql`${x}`), sql`, `)})
+            and (c.wa_identity = ab.wa_identity or c.phone = ab.wa_identity)
+            and (c.name = ab.wa_identity or c.name = ${PLACEHOLDER_CONTACT_NAME})
+        `);
+      }
+      applied += batch.length;
     } catch (err) {
       console.error("[webhook] error aplicando agenda de la app:", err);
     }
@@ -367,14 +401,15 @@ export async function processAccountUpdateValue(
 ): Promise<void> {
   const effect = accountUpdateEffect(value.event);
   if (!effect) return;
-  const organizationId = await setAppDisconnected({
+  const organizationIds = await setAppDisconnected({
     wabaId,
-    phoneNumberId: value.metadata?.phone_number_id ?? null,
+    phoneNumber: value.phone_number ?? null,
     disconnected: effect === "disconnected",
   });
-  if (!organizationId) return;
   // La UI lo lee al abrir Configuración → WhatsApp (sin evento SSE propio).
-  console.warn(
-    `[webhook] ${organizationId}: coexistence ${effect === "disconnected" ? "cortada" : "restablecida"} (${value.event})`
-  );
+  for (const organizationId of organizationIds) {
+    console.warn(
+      `[webhook] ${organizationId}: coexistence ${effect === "disconnected" ? "cortada" : "restablecida"} (${value.event})`
+    );
+  }
 }

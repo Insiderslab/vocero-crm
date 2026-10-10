@@ -146,8 +146,15 @@ export function InboxClient() {
         )
       );
     },
-    onConversationUpdated: () => {
+    onConversationUpdated: (data) => {
       void refetchConversations();
+      // 009: llegó historial de coexistence al hilo abierto → recarga completa
+      // (sus filas tienen created_at "del pasado" y el refetch incremental no
+      // las vería).
+      const c = data?.conversation as { id?: string; historyImported?: boolean } | undefined;
+      if (c?.historyImported && c.id && selectedIdRef.current === c.id) {
+        void refetchMessages(c.id);
+      }
       // El agente movió de etapa o cambió el handoff: refresca el panel en vivo.
       setDetailRev((v) => v + 1);
     },

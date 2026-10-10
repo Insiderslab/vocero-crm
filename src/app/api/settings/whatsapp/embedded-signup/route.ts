@@ -24,7 +24,9 @@ const postSchema = z.object({
     .trim()
     .regex(/^\d{5,25}$/, "Phone Number ID inválido")
     .nullish(),
-  coexistence: z.boolean(),
+  // Solo coexistence por ahora: un número NUEVO de Cloud API necesita además
+  // `/register` con PIN, que este flujo no hace (se usa el wizard manual).
+  coexistence: z.literal(true),
 });
 
 /**

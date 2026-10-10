@@ -33,6 +33,10 @@ export function getEmbeddedSignupConfig(): EmbeddedSignupConfig {
   if (!env.META_APP_ID || !env.META_ES_CONFIG_ID || !env.META_APP_SECRET) {
     return { enabled: false };
   }
+  // Con el gateway Wapi activo los envíos usan la clave Wapi, no el token del
+  // Embedded Signup: el botón no aparece para no dejar una conexión que no se
+  // usa (y Wapi está congelado desde el 10/10/2026).
+  if (env.WAPI_BASE_URL) return { enabled: false };
   return {
     enabled: true,
     appId: env.META_APP_ID,
@@ -82,29 +86,43 @@ export type EmbeddedSignupResult = {
   sync: { contacts: SyncRequestStatus; history: SyncRequestStatus };
 };
 
-/** Si el popup no trajo el phone_number_id, se deduce de la WABA (si es único). */
-async function resolvePhoneNumberId(
+/**
+ * Comprueba que el número pertenece a la WABA que mandó el navegador (los IDs
+ * del popup llegan del cliente y no son de fiar). Si el popup no trajo el
+ * phone_number_id, se deduce de la WABA cuando tiene un solo número.
+ */
+async function resolvePhoneInWaba(
   wabaId: string,
+  phoneNumberId: string | null,
   token: string
 ): Promise<string> {
   const res = await graphRequest<{ data?: { id: string }[] }>(
     `${wabaId}/phone_numbers?fields=id,display_phone_number,verified_name`,
     { token }
   );
-  const numbers = res.data ?? [];
-  if (numbers.length === 0) {
+  const ids = (res.data ?? []).map((n) => String(n.id));
+  if (phoneNumberId) {
+    if (!ids.includes(phoneNumberId)) {
+      throw new EmbeddedSignupError(
+        "phone_not_found",
+        "El número elegido no pertenece a esa cuenta de WhatsApp: repite la conexión"
+      );
+    }
+    return phoneNumberId;
+  }
+  if (ids.length === 0) {
     throw new EmbeddedSignupError(
       "phone_not_found",
       "La cuenta de WhatsApp conectada no tiene números"
     );
   }
-  if (numbers.length > 1) {
+  if (ids.length > 1) {
     throw new EmbeddedSignupError(
       "phone_ambiguous",
       "La cuenta de WhatsApp tiene varios números: repite la conexión eligiendo uno"
     );
   }
-  return numbers[0]!.id;
+  return ids[0]!;
 }
 
 /**
@@ -176,17 +194,25 @@ export async function completeEmbeddedSignup(input: {
     );
   }
 
-  let phoneNumberId = input.phoneNumberId?.trim() || null;
-  if (!phoneNumberId) {
-    try {
-      phoneNumberId = await resolvePhoneNumberId(input.wabaId, token);
-    } catch (err) {
-      if (err instanceof EmbeddedSignupError) throw err;
+  let phoneNumberId: string;
+  try {
+    phoneNumberId = await resolvePhoneInWaba(
+      input.wabaId,
+      input.phoneNumberId?.trim() || null,
+      token
+    );
+  } catch (err) {
+    if (err instanceof EmbeddedSignupError) throw err;
+    if (err instanceof MetaApiError && (err.status === 0 || err.status >= 500)) {
       throw new EmbeddedSignupError(
-        "meta_error",
-        err instanceof Error ? err.message : "No se pudo leer el número"
+        "meta_unavailable",
+        "Meta no está disponible en este momento; intenta de nuevo"
       );
     }
+    throw new EmbeddedSignupError(
+      "meta_error",
+      err instanceof Error ? err.message : "No se pudo leer el número"
+    );
   }
 
   const check = await testConnection(phoneNumberId, token);
