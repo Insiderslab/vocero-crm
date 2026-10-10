@@ -18,6 +18,7 @@ import {
 import type { Branding } from "@/lib/branding";
 import type { Locale } from "@/lib/i18n";
 import { useT } from "@/lib/i18n/client";
+import { isOrgAdmin } from "@/lib/roles";
 import type { ThemePreference } from "@/lib/theme";
 import { cn, initials } from "@/lib/utils";
 import { HeiliMark } from "@/components/heili-mark";
@@ -31,9 +32,9 @@ const NAV = [
   { href: "/inbox", key: "inbox", icon: Inbox, badge: true },
   { href: "/pipeline", key: "pipeline", icon: Kanban },
   { href: "/contacts", key: "contacts", icon: Users },
-  { href: "/automations", key: "automations", icon: Zap },
-  { href: "/agent", key: "agent", icon: Sparkles },
-  { href: "/lab", key: "lab", icon: FlaskConical },
+  { href: "/automations", key: "automations", icon: Zap, adminOnly: true },
+  { href: "/agent", key: "agent", icon: Sparkles, adminOnly: true },
+  { href: "/lab", key: "lab", icon: FlaskConical, adminOnly: true },
 ] as const;
 
 export function AppNav({
@@ -158,7 +159,7 @@ export function AppNav({
       )}
 
       <nav className="flex flex-col gap-0.5">
-        {NAV.map((item) => {
+        {NAV.filter((item) => !("adminOnly" in item) || isOrgAdmin(role)).map((item) => {
           const active =
             pathname === item.href || pathname.startsWith(`${item.href}/`);
           return (

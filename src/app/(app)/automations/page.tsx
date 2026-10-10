@@ -1,3 +1,4 @@
+import { adminOnly } from "@/components/admin-only";
 import { getT } from "@/lib/i18n/server";
 import { AutomationsClient } from "@/components/automations/automations-client";
 
@@ -11,7 +12,7 @@ export default async function AutomationsPage() {
         <h2 className="font-semibold">{t("admin.automations.title")}</h2>
       </header>
       <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
-        <AutomationsClient />
+        {await adminOnly(<AutomationsClient />)}
       </div>
     </div>
   );

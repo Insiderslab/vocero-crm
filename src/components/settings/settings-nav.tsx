@@ -3,26 +3,30 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useT } from "@/lib/i18n/client";
-import { canManageApiKeys } from "@/lib/roles";
+import { canManageApiKeys, canManageWhatsapp, isOrgAdmin } from "@/lib/roles";
 import { cn } from "@/lib/utils";
 import { useRole } from "@/components/role-context";
 
+/**
+ * `visibleFor`: regla de rol de la pestaña (ausente = la ven todos). Es solo
+ * navegación: las páginas y la API exigen el mismo rol por su cuenta.
+ */
 const TABS = [
-  { href: "/settings/whatsapp", key: "whatsapp" },
+  { href: "/settings/whatsapp", key: "whatsapp", visibleFor: canManageWhatsapp },
   { href: "/settings/branding", key: "branding" },
-  { href: "/settings/templates", key: "templates" },
+  { href: "/settings/templates", key: "templates", visibleFor: isOrgAdmin },
   { href: "/settings/team", key: "team" },
-  { href: "/settings/api-keys", key: "apiKeys" },
+  { href: "/settings/api-keys", key: "apiKeys", visibleFor: canManageApiKeys },
 ] as const;
 
 export function SettingsNav() {
   const pathname = usePathname();
   const { t } = useT();
-  // Pestaña de claves API solo para quien puede gestionarlas (la página y la API lo exigen igual).
-  const canSeeApiKeys = canManageApiKeys(useRole());
+  // Sin proveedor de rol el rol es "" y no se pinta ninguna pestaña reservada (fail-closed).
+  const role = useRole();
   return (
     <nav className="flex shrink-0 gap-1 overflow-x-auto border-b p-2 sm:w-44 sm:flex-col sm:space-y-1 sm:overflow-visible sm:border-b-0 sm:border-r sm:p-3">
-      {TABS.filter((tab) => tab.key !== "apiKeys" || canSeeApiKeys).map((tab) => (
+      {TABS.filter((tab) => !("visibleFor" in tab) || tab.visibleFor(role)).map((tab) => (
         <Link
           key={tab.href}
           href={tab.href}

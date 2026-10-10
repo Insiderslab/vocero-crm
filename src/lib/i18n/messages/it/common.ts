@@ -11,6 +11,8 @@ const messages: typeof base = {
   creating: "Creazione…",
   edit: "Modifica",
   delete: "Elimina",
+  adminOnly:
+    "Solo il proprietario o un amministratore dell'organizzazione gestisce questa sezione.",
   generate: "Genera",
   email: "Email",
   name: "Nome",

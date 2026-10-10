@@ -3,9 +3,11 @@ import { createElement, type ComponentProps } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 
 /**
- * Navegación de Configuración: la pestaña de claves API solo para owner/admin,
- * con el rol que ya resuelve el layout de (app) (contexto, sin consultas nuevas).
- * Sin proveedor no se pinta (fail-closed). La página y la API lo exigen igual.
+ * Navegación de Configuración: las pestañas de conexión de WhatsApp, plantillas
+ * y claves API solo para owner/admin, con el rol que ya resuelve el layout de
+ * (app) (contexto, sin consultas nuevas). Un member ve marca y equipo. Sin
+ * proveedor no se pinta ninguna reservada (fail-closed). Las páginas y la API
+ * lo exigen igual.
  */
 
 vi.mock("next/navigation", () => ({ usePathname: () => "/settings/team" }));
@@ -26,20 +28,30 @@ function html(role?: string): string {
   );
 }
 
-describe("SettingsNav: pestaña de claves API", () => {
-  it.each(["owner", "admin"])("%s la ve", (role) => {
-    expect(html(role)).toContain(API_KEYS);
-  });
+const WHATSAPP = 'href="/settings/whatsapp"';
+const TEMPLATES = 'href="/settings/templates"';
+const RESERVADAS = [WHATSAPP, TEMPLATES, API_KEYS];
+const ABIERTAS = ['href="/settings/branding"', 'href="/settings/team"'];
 
-  it.each(["member", "", "Owner"])("rol %j: no la ve, pero sí el resto", (role) => {
+describe("SettingsNav: pestañas reservadas a owner/admin", () => {
+  it.each(["owner", "admin"])("%s ve todas", (role) => {
     const out = html(role);
-    expect(out).not.toContain(API_KEYS);
-    expect(out).toContain('href="/settings/team"');
-    expect(out).toContain('href="/settings/whatsapp"');
+    for (const href of [...RESERVADAS, ...ABIERTAS]) expect(out).toContain(href);
   });
 
-  it("sin proveedor de rol: no la ve", () => {
-    expect(html()).not.toContain(API_KEYS);
+  it.each(["member", "", "Owner", "ADMIN", "viewer"])(
+    "rol %j: no ve WhatsApp, plantillas ni claves API, pero sí marca y equipo",
+    (role) => {
+      const out = html(role);
+      for (const href of RESERVADAS) expect(out).not.toContain(href);
+      for (const href of ABIERTAS) expect(out).toContain(href);
+    }
+  );
+
+  it("sin proveedor de rol: ninguna reservada, solo las abiertas", () => {
+    const out = html();
+    for (const href of RESERVADAS) expect(out).not.toContain(href);
+    for (const href of ABIERTAS) expect(out).toContain(href);
   });
 
   it.each([

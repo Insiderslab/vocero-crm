@@ -9,6 +9,8 @@ const messages = {
   creating: "Creando…",
   edit: "Editar",
   delete: "Borrar",
+  adminOnly:
+    "Solo el propietario o un administrador de la organización gestiona esta sección.",
   generate: "Generar",
   email: "Correo",
   name: "Nombre",

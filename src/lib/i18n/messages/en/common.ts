@@ -11,6 +11,8 @@ const messages: typeof base = {
   creating: "Creating…",
   edit: "Edit",
   delete: "Delete",
+  adminOnly:
+    "Only the owner or an administrator of the organization manages this section.",
   generate: "Generate",
   email: "Email",
   name: "Name",
