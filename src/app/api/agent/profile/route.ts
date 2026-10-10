@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { apiError, parseBody, withAuth } from "@/lib/api";
+import { apiError, parseBody, withAuth, withAdminAuth } from "@/lib/api";
 import { getDb, schema } from "@/lib/db";
 import { scoped } from "@/lib/db/tenant";
 import { isAiConfigured } from "@/lib/env";
@@ -37,7 +37,7 @@ const putSchema = z.object({
   greeting: z.string().max(1000).nullable().optional(),
 });
 
-export const PUT = withAuth(async (session, req: Request) => {
+export const PUT = withAdminAuth(async (session, req: Request) => {
   const body = await parseBody(req, putSchema);
   if (!body.ok) return body.response;
 

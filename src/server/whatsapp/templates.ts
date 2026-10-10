@@ -6,7 +6,12 @@ import {
 } from "@/lib/templates";
 import { getDb, schema } from "@/lib/db";
 import { newId } from "@/lib/db/ids";
-import { graphRequest, MetaApiError, normalizeRecipient } from "@/lib/meta/client";
+import {
+  graphRequest,
+  MetaApiError,
+  normalizeRecipient,
+  WAPI_KEY_MISSING_MESSAGE,
+} from "@/lib/meta/client";
 import { scoped } from "@/lib/db/tenant";
 import { publish } from "@/server/events/bus";
 import {
@@ -26,7 +31,8 @@ export class TemplateError extends Error {
     | "invalid"
     | "not_found"
     | "meta_error"
-    | "meta_unavailable";
+    | "meta_unavailable"
+    | "wapi_key_missing";
 
   constructor(code: TemplateError["code"], message: string) {
     super(message);
@@ -42,6 +48,7 @@ const TEMPLATE_ERROR_STATUS: Record<TemplateError["code"], number> = {
   not_found: 404,
   meta_error: 422,
   meta_unavailable: 503,
+  wapi_key_missing: 409,
 };
 
 export function templateErrorStatus(err: TemplateError): number {
@@ -123,6 +130,9 @@ export async function createTemplate(
         await markReconnectRequired(organizationId);
         throw new TemplateError("reconnect_required", "El token expiró: reconecta el número");
       }
+      if (err.isWapiKeyMissing) {
+        throw new TemplateError("wapi_key_missing", WAPI_KEY_MISSING_MESSAGE);
+      }
       if (err.status === 0 || err.status >= 500) {
         throw new TemplateError("meta_unavailable", "Meta no está disponible ahora");
       }
@@ -199,6 +209,9 @@ export async function syncTemplates(organizationId: string): Promise<number> {
       if (err.isAuthError) {
         await markReconnectRequired(organizationId);
         throw new TemplateError("reconnect_required", "El token expiró: reconecta el número");
+      }
+      if (err.isWapiKeyMissing) {
+        throw new TemplateError("wapi_key_missing", WAPI_KEY_MISSING_MESSAGE);
       }
       throw new TemplateError("meta_unavailable", "No se pudo consultar Meta");
     }

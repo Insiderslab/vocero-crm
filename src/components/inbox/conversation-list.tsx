@@ -5,8 +5,10 @@ import { Search, Sparkles, UserRound, X } from "lucide-react";
 import type { ConversationDto } from "@/lib/types";
 import { matchesQuery } from "@/lib/search";
 import { useT } from "@/lib/i18n/client";
+import { isOrgAdmin } from "@/lib/roles";
 import { cn } from "@/lib/utils";
 import { ContactAvatar } from "@/components/avatar";
+import { useRole } from "@/components/role-context";
 import { Button } from "@/components/ui/button";
 import { formatTime, previewText } from "./helpers";
 
@@ -22,6 +24,8 @@ function EmptyState({ onSeeded }: { onSeeded: () => void }) {
   const { t } = useT();
   const [seeding, setSeeding] = useState(false);
   const [failed, setFailed] = useState(false);
+  // Cargar la demo es de owner/admin (la API lo exige): al resto no se le ofrece.
+  const canSeed = isOrgAdmin(useRole());
 
   async function seed() {
     setSeeding(true);
@@ -37,7 +41,7 @@ function EmptyState({ onSeeded }: { onSeeded: () => void }) {
     <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
       <p className="text-sm font-medium">{t("inbox.empty.title")}</p>
       <p className="text-xs text-text-3">{t("inbox.empty.body")}</p>
-      {!failed && (
+      {canSeed && !failed && (
         <Button
           size="sm"
           variant="outline"

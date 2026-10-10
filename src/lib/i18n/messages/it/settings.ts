@@ -8,6 +8,7 @@ const messages: typeof base = {
     branding: "Marchio",
     templates: "Modelli",
     team: "Team",
+    apiKeys: "Chiavi API",
   },
   branding: {
     title: "Marchio del CRM",
@@ -62,6 +63,41 @@ const messages: typeof base = {
     owner: "Proprietario",
     member: "Membro",
   },
+  apiKeys: {
+    forbidden:
+      "Solo il proprietario o un amministratore dell'organizzazione gestisce le chiavi API.",
+    bot: {
+      title: "Chiavi del bot (vbk_)",
+      description:
+        "Per il cervello esterno che usa /api/bot/*. Ogni chiave vale solo per questa organizzazione.",
+    },
+    export: {
+      title: "Chiavi di export (vex_)",
+      description:
+        "Per script e automazioni in sola lettura su /api/export/*. Ogni chiave vale solo per questa organizzazione.",
+    },
+    labelLabel: "Nome della chiave",
+    labelPlaceholder: "es. bot di produzione, n8n",
+    submit: "Crea chiave",
+    createError: "Impossibile creare la chiave",
+    created: "Chiave «{{label}}» creata ✓",
+    shareNow:
+      "Copiala ora: non verrà più mostrata. Salvala nel gestore dei segreti del servizio che la userà.",
+    copy: "Copia chiave",
+    copied: "Copiata ✓",
+    hide: "Nascondi",
+    listError:
+      "Impossibile caricare l'elenco delle chiavi: ricarica la pagina. Potrebbero esserci chiavi attive.",
+    empty: "Ancora nessuna chiave di questo tipo.",
+    createdAt: "creata {{date}}",
+    lastUsed: "ultimo uso {{date}}",
+    neverUsed: "mai usata",
+    revoke: "Revoca",
+    revoked: "Revocata",
+    confirmRevoke:
+      "Revocare la chiave «{{label}}»? Il servizio che la usa smetterà subito di funzionare.",
+    revokeError: "Impossibile revocare la chiave",
+  },
   templates: {
     intro:
       "I modelli permettono di riaprire le conversazioni con la finestra di 24 ore chiusa. Meta li approva in ore o giorni e può riclassificare la categoria (il che cambia il costo per conversazione). Questa schermata interroga Meta sullo stato ogni volta che la apri; Sincronizza forza la verifica senza ricaricare.",
@@ -94,6 +130,8 @@ const messages: typeof base = {
     submit: "Crea e invia per l'approvazione",
   },
   whatsapp: {
+    forbidden:
+      "Solo il proprietario o un amministratore dell'organizzazione gestisce la connessione WhatsApp.",
     reconnectTitle: "Il token di WhatsApp è scaduto o è stato revocato.",
     reconnectBody:
       "Gli invii sono in pausa. Incolla un nuovo token qui sotto e prova la connessione per riconnetterti.",
@@ -146,6 +184,38 @@ const messages: typeof base = {
       "Verifica della firma attiva (META_APP_SECRET configurato): ogni evento viene validato con x-hub-signature-256.",
     signatureInactive:
       "Nessun App Secret configurato: il webhook resta protetto dall'URL segreto (normale in modalità agenzia). Per il livello extra di firma, aggiungi META_APP_SECRET all'istanza.",
+    wapi: {
+      title: "Chiave Wapi di questa organizzazione",
+      description:
+        "Se la tua istanza usa il gateway Wapi, ogni organizzazione usa la PROPRIA chiave (hlp_live_…). Viene salvata cifrata e non viene mai più mostrata: vedi solo gli ultimi 4 caratteri.",
+      forbidden:
+        "Solo il proprietario o un amministratore dell'organizzazione gestisce la chiave Wapi.",
+      gatewayOff:
+        "Questa istanza non ha il gateway Wapi attivo (WAPI_BASE_URL): la chiave si può salvare, ma oggi non viene usata e tutto va diretto a Meta.",
+      routing: {
+        own_key: "Gli invii di questa organizzazione passano da Wapi con la sua chiave.",
+        legacy_global:
+          "Modalità legacy: questa organizzazione usa la chiave globale dell'istanza. Salva una chiave propria per non dipendere più da quella.",
+        blocked:
+          "Invii bloccati: l'istanza elenca più organizzazioni per Wapi e questa non ha una chiave propria. Salva qui sotto la sua chiave.",
+        direct: "Gli invii di questa organizzazione vanno diretti a Meta.",
+      },
+      configured: "Chiave salvata (…{{last4}})",
+      notConfigured: "Nessuna chiave propria",
+      keyLabel: "Chiave Wapi",
+      keyPlaceholder: "hlp_live_…",
+      save: "Salva chiave",
+      saving: "Salvataggio…",
+      saved: "Chiave salvata ✓",
+      saveError: "Impossibile salvare la chiave",
+      invalidFormat: "La chiave deve iniziare con hlp_live_",
+      remove: "Revoca chiave",
+      confirmRemove:
+        "Revocare la chiave Wapi di questa organizzazione? Gli invii tramite Wapi si fermeranno finché non ne salvi un'altra.",
+      removeError: "Impossibile revocare la chiave",
+      loadError:
+        "Impossibile caricare lo stato della chiave Wapi: ricarica la pagina.",
+    },
   },
 };
 export default messages;

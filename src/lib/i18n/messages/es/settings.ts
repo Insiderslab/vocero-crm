@@ -6,6 +6,7 @@ const messages = {
     branding: "Marca",
     templates: "Plantillas",
     team: "Equipo",
+    apiKeys: "Claves de API",
   },
   branding: {
     title: "Marca del CRM",
@@ -60,6 +61,41 @@ const messages = {
     owner: "Propietario",
     member: "Miembro",
   },
+  apiKeys: {
+    forbidden:
+      "Solo el propietario o un administrador de la organización gestiona las claves de API.",
+    bot: {
+      title: "Claves del bot (vbk_)",
+      description:
+        "Para el cerebro externo que usa /api/bot/*. Cada clave vale solo para esta organización.",
+    },
+    export: {
+      title: "Claves de extracción (vex_)",
+      description:
+        "Para scripts y automatizaciones de solo lectura sobre /api/export/*. Cada clave vale solo para esta organización.",
+    },
+    labelLabel: "Nombre de la clave",
+    labelPlaceholder: "p. ej. bot de producción, n8n",
+    submit: "Crear clave",
+    createError: "No se pudo crear la clave",
+    created: "Clave «{{label}}» creada ✓",
+    shareNow:
+      "Cópiala ahora: no se volverá a mostrar. Guárdala en el gestor de secretos del servicio que la usará.",
+    copy: "Copiar clave",
+    copied: "Copiada ✓",
+    hide: "Ocultar",
+    listError:
+      "No se pudo cargar la lista de claves: recarga la página. Puede haber claves activas.",
+    empty: "Aún no hay claves de este tipo.",
+    createdAt: "creada {{date}}",
+    lastUsed: "último uso {{date}}",
+    neverUsed: "sin uso",
+    revoke: "Revocar",
+    revoked: "Revocada",
+    confirmRevoke:
+      "¿Revocar la clave «{{label}}»? El servicio que la usa dejará de funcionar de inmediato.",
+    revokeError: "No se pudo revocar la clave",
+  },
   templates: {
     intro:
       "Las plantillas permiten reabrir conversaciones con la ventana de 24 h cerrada. Meta las aprueba en horas o días y puede reclasificar la categoría (lo que cambia el costo por conversación). Esta pantalla consulta el estado a Meta cada vez que la abres; Sincronizar fuerza la consulta sin recargar.",
@@ -92,6 +128,8 @@ const messages = {
     submit: "Crear y enviar a aprobación",
   },
   whatsapp: {
+    forbidden:
+      "Solo el propietario o un administrador de la organización gestiona la conexión de WhatsApp.",
     reconnectTitle: "El token de WhatsApp expiró o fue revocado.",
     reconnectBody:
       "Los envíos están pausados. Pega un token nuevo abajo y prueba la conexión para reconectar.",
@@ -145,6 +183,38 @@ const messages = {
       "Verificación de firma activa (META_APP_SECRET configurado): cada evento se valida con x-hub-signature-256.",
     signatureInactive:
       "Sin App Secret configurado: el webhook queda protegido por la URL secreta (normal en modo agencia). Para la capa extra de firma, agrega META_APP_SECRET a la instancia.",
+    wapi: {
+      title: "Clave de Wapi de esta organización",
+      description:
+        "Si tu instancia usa el gateway Wapi, cada organización usa SU propia clave (hlp_live_…). Se guarda cifrada y nunca se vuelve a mostrar: solo ves los últimos 4 caracteres.",
+      forbidden:
+        "Solo el propietario o un administrador de la organización gestiona la clave de Wapi.",
+      gatewayOff:
+        "Esta instancia no tiene el gateway Wapi activo (WAPI_BASE_URL): la clave se puede guardar, pero hoy no se usa y todo va directo a Meta.",
+      routing: {
+        own_key: "Los envíos de esta organización van por Wapi con su clave propia.",
+        legacy_global:
+          "Modo heredado: esta organización usa la clave global de la instancia. Guarda una clave propia para dejar de depender de ella.",
+        blocked:
+          "Envíos bloqueados: la instancia tiene varias organizaciones en la lista de Wapi y esta no tiene clave propia. Guarda su clave abajo.",
+        direct: "Los envíos de esta organización van directos a Meta.",
+      },
+      configured: "Clave guardada (…{{last4}})",
+      notConfigured: "Sin clave propia",
+      keyLabel: "Clave de Wapi",
+      keyPlaceholder: "hlp_live_…",
+      save: "Guardar clave",
+      saving: "Guardando…",
+      saved: "Clave guardada ✓",
+      saveError: "No se pudo guardar la clave",
+      invalidFormat: "La clave debe empezar por hlp_live_",
+      remove: "Revocar clave",
+      confirmRemove:
+        "¿Revocar la clave de Wapi de esta organización? Los envíos por Wapi se detendrán hasta guardar otra.",
+      removeError: "No se pudo revocar la clave",
+      loadError:
+        "No se pudo cargar el estado de la clave de Wapi: recarga la página.",
+    },
   },
 };
 export default messages;

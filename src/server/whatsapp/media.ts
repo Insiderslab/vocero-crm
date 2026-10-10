@@ -132,6 +132,14 @@ export class MediaFetchError extends Error {
   }
 }
 
+function sameOrigin(a: string, b: string): boolean {
+  try {
+    return new URL(a).origin === new URL(b).origin;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Descarga un media de Graph: GET {mediaId} → url efímera → GET con Bearer.
  * El token JAMÁS sale del servidor.
@@ -161,11 +169,18 @@ export async function downloadGraphMedia(
 
   // Bearer del segundo paso: el del transporte resuelto (token Meta o, en el
   // desvío Wapi, la API key — la URL apunta al gateway).
-  const downloadToken = resolveGraphTransport(token, opts.organizationId).token;
+  const transport = await resolveGraphTransport(token, opts.organizationId);
+  // C3: la clave de Wapi solo viaja al propio gateway y el token Meta jamás
+  // al gateway: si el origen de la URL no coincide con el transporte, se
+  // aborta antes de enviar ningún bearer.
+  const wapiBase = getEnv().WAPI_BASE_URL;
+  if (wapiBase && (transport.via === "wapi") !== (sameOrigin(meta.url, wapiBase))) {
+    throw new MediaFetchError("La URL del adjunto no corresponde al transporte");
+  }
   let res: Response;
   try {
     res = await fetch(meta.url, {
-      headers: { Authorization: `Bearer ${downloadToken}` },
+      headers: { Authorization: `Bearer ${transport.token}` },
     });
   } catch {
     throw new MediaFetchError("No se pudo descargar el adjunto");
@@ -254,7 +269,7 @@ export async function uploadGraphMedia(
   file: { data: Buffer | Uint8Array; mimeType: string; fileName?: string }
 ): Promise<string> {
   const env = getEnv();
-  const transport = resolveGraphTransport(
+  const transport = await resolveGraphTransport(
     credentials.token,
     credentials.organizationId
   );

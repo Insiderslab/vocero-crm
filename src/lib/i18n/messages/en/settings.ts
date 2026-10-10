@@ -8,6 +8,7 @@ const messages: typeof base = {
     branding: "Brand",
     templates: "Templates",
     team: "Team",
+    apiKeys: "API keys",
   },
   branding: {
     title: "CRM brand",
@@ -61,6 +62,41 @@ const messages: typeof base = {
     owner: "Owner",
     member: "Member",
   },
+  apiKeys: {
+    forbidden:
+      "Only the organization owner or an administrator can manage API keys.",
+    bot: {
+      title: "Bot keys (vbk_)",
+      description:
+        "For the external brain that uses /api/bot/*. Each key works only for this organization.",
+    },
+    export: {
+      title: "Export keys (vex_)",
+      description:
+        "For read-only scripts and automations on /api/export/*. Each key works only for this organization.",
+    },
+    labelLabel: "Key name",
+    labelPlaceholder: "e.g. production bot, n8n",
+    submit: "Create key",
+    createError: "Could not create the key",
+    created: "Key “{{label}}” created ✓",
+    shareNow:
+      "Copy it now: it will not be shown again. Store it in the secret manager of the service that will use it.",
+    copy: "Copy key",
+    copied: "Copied ✓",
+    hide: "Hide",
+    listError:
+      "Couldn't load the key list: reload the page. There may be active keys.",
+    empty: "No keys of this type yet.",
+    createdAt: "created {{date}}",
+    lastUsed: "last used {{date}}",
+    neverUsed: "never used",
+    revoke: "Revoke",
+    revoked: "Revoked",
+    confirmRevoke:
+      "Revoke the key “{{label}}”? The service using it will stop working immediately.",
+    revokeError: "Could not revoke the key",
+  },
   templates: {
     intro:
       "Templates let you reopen conversations once the 24-hour window has closed. Meta approves them within hours or days and may reclassify the category (which changes the per-conversation cost). This screen checks the status with Meta every time you open it; Sync forces the check without reloading.",
@@ -93,6 +129,8 @@ const messages: typeof base = {
     submit: "Create and send for approval",
   },
   whatsapp: {
+    forbidden:
+      "Only the organization owner or an administrator can manage the WhatsApp connection.",
     reconnectTitle: "The WhatsApp token expired or was revoked.",
     reconnectBody:
       "Sending is paused. Paste a new token below and test the connection to reconnect.",
@@ -145,6 +183,38 @@ const messages: typeof base = {
       "Signature verification active (META_APP_SECRET configured): every event is validated with x-hub-signature-256.",
     signatureInactive:
       "No App Secret configured: the webhook is protected by the secret URL (normal in agency mode). For the extra signature layer, add META_APP_SECRET to the instance.",
+    wapi: {
+      title: "Wapi key for this organization",
+      description:
+        "If your instance uses the Wapi gateway, each organization uses ITS OWN key (hlp_live_…). It is stored encrypted and never shown again: you only see the last 4 characters.",
+      forbidden:
+        "Only the organization owner or an admin manages the Wapi key.",
+      gatewayOff:
+        "This instance has no Wapi gateway enabled (WAPI_BASE_URL): the key can be saved, but it is not used today and everything goes straight to Meta.",
+      routing: {
+        own_key: "This organization's sends go through Wapi with its own key.",
+        legacy_global:
+          "Legacy mode: this organization uses the instance-wide key. Save its own key to stop depending on it.",
+        blocked:
+          "Sends blocked: the instance lists several organizations for Wapi and this one has no key of its own. Save its key below.",
+        direct: "This organization's sends go straight to Meta.",
+      },
+      configured: "Key saved (…{{last4}})",
+      notConfigured: "No key of its own",
+      keyLabel: "Wapi key",
+      keyPlaceholder: "hlp_live_…",
+      save: "Save key",
+      saving: "Saving…",
+      saved: "Key saved ✓",
+      saveError: "Could not save the key",
+      invalidFormat: "The key must start with hlp_live_",
+      remove: "Revoke key",
+      confirmRemove:
+        "Revoke this organization's Wapi key? Sends through Wapi will stop until another key is saved.",
+      removeError: "Could not revoke the key",
+      loadError:
+        "Could not load the Wapi key status: reload the page.",
+    },
   },
 };
 export default messages;

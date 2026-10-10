@@ -23,7 +23,13 @@ vi.mock("@/lib/db", async (importOriginal) => {
 
 vi.mock("@/server/bot/auth", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/server/bot/auth")>();
-  return { ...actual, resolveInstanceOrg: async () => "org_1" };
+  return {
+    ...actual,
+    // Clave real (requireBotKey), organización fija: aquí se prueba la ruta,
+    // no la resolución de organización (cubierta en bot-keys.test.ts).
+    authenticateBot: async (req: Request) =>
+      actual.requireBotKey(req) ?? { organizationId: "org_1", keyId: null },
+  };
 });
 
 /** Perfil del agente + knowledge base vía la API de servicio `/api/bot/*`. */

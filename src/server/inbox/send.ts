@@ -1,7 +1,12 @@
 import { eq } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { newId } from "@/lib/db/ids";
-import { graphRequest, MetaApiError, normalizeRecipient } from "@/lib/meta/client";
+import {
+  graphRequest,
+  MetaApiError,
+  normalizeRecipient,
+  WAPI_KEY_MISSING_MESSAGE,
+} from "@/lib/meta/client";
 import { publish } from "@/server/events/bus";
 import {
   getCredentialsByOrg,
@@ -25,6 +30,7 @@ export class SendError extends Error {
     | "window_closed"
     | "meta_error"
     | "meta_unavailable"
+    | "wapi_key_missing"
     | "upload_failed";
   /** 008: presente cuando el fallo ocurrió TRAS persistir el mensaje (failed). */
   messageId?: string;
@@ -278,6 +284,8 @@ export async function sendMediaMessage(input: {
         "reconnect_required",
         "El token de WhatsApp expiró: reconecta el número en Configuración"
       );
+    } else if (err instanceof MetaApiError && err.isWapiKeyMissing) {
+      sendErr = new SendError("wapi_key_missing", WAPI_KEY_MISSING_MESSAGE);
     } else {
       sendErr = new SendError(
         "upload_failed",
@@ -395,6 +403,9 @@ export async function callGraphSend(
           "reconnect_required",
           "El token de WhatsApp expiró: reconecta el número en Configuración"
         );
+      }
+      if (err.isWapiKeyMissing) {
+        throw new SendError("wapi_key_missing", WAPI_KEY_MISSING_MESSAGE);
       }
       if (err.status === 0 || err.status >= 500) {
         throw new SendError("meta_unavailable", "Meta no está disponible ahora");

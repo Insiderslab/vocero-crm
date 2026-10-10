@@ -1,5 +1,6 @@
 ﻿"use client";
 
+import { apiErrorMessage } from "@/lib/api-error-message";
 import { useEffect, useRef, useState } from "react";
 import {
   Clock3,
@@ -95,8 +96,8 @@ export function Composer({
   async function apiSend(path: string, init: RequestInit): Promise<string | null> {
     const res = await fetch(path, init);
     if (res.ok) return null;
-    const data = (await res.json().catch(() => null)) as { message?: string } | null;
-    return data?.message ?? t("inbox.composer.errorStatus", { status: res.status });
+    const data: unknown = await res.json().catch(() => null);
+    return apiErrorMessage(data, t("inbox.composer.errorStatus", { status: res.status }));
   }
 
   async function submit() {

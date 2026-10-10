@@ -1,53 +1,42 @@
-import { timingSafeEqual } from "node:crypto";
-import { getDb, schema } from "@/lib/db";
-import { apiError } from "@/lib/api";
-import { checkRateLimit } from "@/lib/rate-limit";
+import {
+  API_KEY_SCOPES,
+  authenticateApiKey,
+  dbApiKeyAuthDeps,
+  generateApiKey,
+  hashApiKey,
+  requireInstanceKey,
+  type ApiKeyAuthDeps,
+  type ApiKeyAuthResult,
+} from "@/server/api-keys";
 
 /**
  * Autenticación de la API de servicio `/api/bot/*`.
  *
  * Esta superficie NO la consume el navegador: la consume un cerebro externo
- * (un microservicio propio del operador, en su mismo servidor) que quiere
- * conducir la conversación sin que el token de WhatsApp salga del CRM.
- * Header `X-API-Key` contra `BOT_API_KEY` (env), comparación en tiempo
- * constante. Sin `BOT_API_KEY` configurada, toda la superficie responde 401.
+ * (un microservicio propio del operador) que quiere conducir la conversación
+ * sin que el token de WhatsApp salga del CRM. Header `X-API-Key`.
+ *
+ * La lógica vive en `@/server/api-keys` (ámbito "bot"): clave por organización
+ * `vbk_…`, o clave de instancia heredada `BOT_API_KEY` solo con UNA organización.
  */
 
-export function requireBotKey(req: Request): Response | null {
-  const rl = checkRateLimit("bot-api", { windowMs: 60_000, max: 600 });
-  if (!rl.allowed) return apiError(429, "rate_limited", "Demasiadas solicitudes");
+export const BOT_KEY_PREFIX = API_KEY_SCOPES.bot.prefix;
 
-  const expected = process.env.BOT_API_KEY;
-  const provided = req.headers.get("x-api-key");
-  if (!expected || expected.length < 16 || !provided) {
-    return apiError(401, "unauthorized", "No autorizado");
-  }
-  const a = Buffer.from(provided);
-  const b = Buffer.from(expected);
-  if (a.length !== b.length || !timingSafeEqual(a, b)) {
-    return apiError(401, "unauthorized", "No autorizado");
-  }
-  return null;
-}
+/** Comprueba la clave de instancia heredada (`BOT_API_KEY`). null = válida. */
+export const requireBotKey = (req: Request): Response | null => requireInstanceKey(req, "bot");
 
-/**
- * Organización única de la instancia (self-hosted, un negocio). Cacheada en
- * memoria: la instancia jamás cambia de organización en runtime.
- */
-let cachedOrgId: string | null = null;
+export const hashBotKey = hashApiKey;
 
-export async function resolveInstanceOrg(): Promise<string | null> {
-  if (cachedOrgId) return cachedOrgId;
-  const db = getDb();
-  const rows = await db
-    .select({ id: schema.organization.id })
-    .from(schema.organization)
-    .limit(1);
-  cachedOrgId = rows[0]?.id ?? null;
-  return cachedOrgId;
-}
+export const generateBotKey = () => generateApiKey("bot");
 
-/** Solo para tests. */
-export function resetInstanceOrgCache(): void {
-  cachedOrgId = null;
+export type BotAuthDeps = ApiKeyAuthDeps;
+export const dbBotAuthDeps: BotAuthDeps = dbApiKeyAuthDeps;
+export type BotAuthResult = ApiKeyAuthResult;
+
+/** Puerta única de `/api/bot/*`: autentica y devuelve la organización. */
+export function authenticateBot(
+  req: Request,
+  deps: BotAuthDeps = dbBotAuthDeps
+): Promise<BotAuthResult | Response> {
+  return authenticateApiKey(req, "bot", deps);
 }

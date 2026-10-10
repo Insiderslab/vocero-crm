@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { requireSession, UnauthorizedError, type SessionContext } from "@/lib/auth/session";
+import { isOrgAdmin, isOrgOwner } from "@/lib/roles";
 
 /** Respuesta de error estándar de la API interna (contrato api.md). */
 export function apiError(
@@ -34,6 +35,57 @@ export function withAuth<Args extends unknown[]>(
       return apiError(500, "internal", "Error interno");
     }
   };
+}
+
+/**
+ * Única fuente del 403 por rol: lo emite `withRoleAuth` y nadie más. Se
+ * responde ANTES de leer el body, consultar la base de datos o llamar a Meta.
+ */
+function forbidden(message: string): Response {
+  return apiError(403, "forbidden", message);
+}
+
+/**
+ * Como `withAuth`, pero solo deja pasar a los roles que acepta `allows`
+ * (403 al resto). Las dos variantes con nombre de abajo son las que usan las
+ * rutas; el guardarraíl de `tests/unit/settings-routes-guard.test.ts` exige
+ * que cada ruta sensible use una de ellas.
+ */
+function withRoleAuth<Args extends unknown[]>(
+  allows: (role: string) => boolean,
+  message: string,
+  handler: (session: SessionContext, ...args: Args) => Promise<Response>
+): (...args: Args) => Promise<Response> {
+  return withAuth(async (session, ...args: Args) => {
+    if (!allows(session.role)) return forbidden(message);
+    return handler(session, ...args);
+  });
+}
+
+/**
+ * Solo owner/admin de la organización de la sesión. Para rutas que leen o
+ * cambian configuración de la organización o hablan con Meta con sus
+ * credenciales: conexión de WhatsApp, plantillas, agente, claves de servicio.
+ */
+export function withAdminAuth<Args extends unknown[]>(
+  handler: (session: SessionContext, ...args: Args) => Promise<Response>
+): (...args: Args) => Promise<Response> {
+  return withRoleAuth(
+    isOrgAdmin,
+    "Solo owner o admin pueden gestionar esta configuración",
+    handler
+  );
+}
+
+/** Solo el propietario (owner): marca de la organización y alta de cuentas. */
+export function withOwnerAuth<Args extends unknown[]>(
+  handler: (session: SessionContext, ...args: Args) => Promise<Response>
+): (...args: Args) => Promise<Response> {
+  return withRoleAuth(
+    isOrgOwner,
+    "Solo el propietario puede gestionar esta configuración",
+    handler
+  );
 }
 
 /** Parsea el body JSON con un esquema Zod; inválido → Response 422. */

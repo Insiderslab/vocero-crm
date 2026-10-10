@@ -459,6 +459,63 @@ export const metaCredentials = pgTable(
   ]
 );
 
+/**
+ * C3 — Clave del gateway Wapi POR organización (bearer `hlp_live_…`). Cifrada
+ * en reposo con la misma ENCRYPTION_KEY que el token Meta (AES-256-GCM); solo
+ * se guardan los últimos 4 caracteres en claro para mostrarlos en la UI. Una
+ * fila por organización; revocar = `revoked_at` (la fila se conserva como
+ * rastro, el cifrado sigue ahí pero ya no se usa para enrutar).
+ */
+export const wapiCredentials = pgTable(
+  "wapi_credentials",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    keyCipher: text("key_cipher").notNull(),
+    keyIv: text("key_iv").notNull(),
+    keyTag: text("key_tag").notNull(),
+    keyLast4: text("key_last4").notNull(),
+    createdBy: text("created_by").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+    revokedAt: timestamp("revoked_at"),
+  },
+  (t) => [uniqueIndex("wapi_credentials_org_uq").on(t.organizationId)]
+);
+
+/**
+ * Claves de servicio POR organización (custom heili.cloud): `/api/bot/*`
+ * (scope "bot", `vbk_…`) y `/api/export/*` (scope "export", `vex_…`, C2).
+ * El nombre de la tabla es histórico (C1).
+ * Solo se guarda el SHA-256 de la clave (alta entropía): el texto plano se
+ * muestra una única vez al crearla. La organización se deriva SIEMPRE de la
+ * clave, nunca de una elección implícita de la instancia.
+ */
+export const botApiKey = pgTable(
+  "bot_api_key",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    label: text("label").notNull(),
+    // Ámbito de la clave (C2): "bot" (/api/bot/*) o "export" (/api/export/*).
+    scope: text("scope", { enum: ["bot", "export"] }).notNull().default("bot"),
+    keyPrefix: text("key_prefix").notNull(),
+    keyHash: text("key_hash").notNull(),
+    createdBy: text("created_by").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    lastUsedAt: timestamp("last_used_at"),
+    revokedAt: timestamp("revoked_at"),
+  },
+  (t) => [
+    uniqueIndex("bot_api_key_hash_uq").on(t.keyHash),
+    index("bot_api_key_org_idx").on(t.organizationId, t.createdAt),
+  ]
+);
+
 export const agentProfile = pgTable(
   "agent_profile",
   {

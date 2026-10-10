@@ -921,6 +921,38 @@ async function main() {
     JSON.stringify(echoImg?.media)
   );
 
+  // C3: clave Wapi por organización (guardar, consultar, revocar). La clave
+  // es FICTICIA y no sale a ningún servicio: el mock no hace de Wapi, así que
+  // aquí se prueba el flujo de la API/BD y que la clave jamás vuelve en claro;
+  // el enrutamiento real hacia Wapi lo cubren los tests unitarios.
+  console.log("\n== c3-wapi: guardar y revocar la clave Wapi de la organización ==");
+  const WAPI_FAKE = "hlp_live_E2EFICTICIA0123456789WXYZ";
+  const wk = "/api/settings/whatsapp/wapi-key";
+  const rawOf = (r) => JSON.stringify(r.json ?? {});
+  const w0 = await api(wk);
+  ok("GET clave Wapi: 200 y no-store", w0.res.status === 200 && w0.res.headers.get("cache-control")?.includes("no-store"));
+  const wBad = await api(wk, { method: "PUT", body: JSON.stringify({ key: "EAAG-token-meta-0123456789" }) });
+  ok(
+    "PUT con formato inválido → 422 sin reflejar el valor",
+    wBad.res.status === 422 && !rawOf(wBad).includes("EAAG-token-meta"),
+    rawOf(wBad)
+  );
+  const wPut = await api(wk, { method: "PUT", body: JSON.stringify({ key: WAPI_FAKE }) });
+  ok("PUT clave válida → 200, configurada, últimos 4", wPut.res.ok && wPut.json?.configured === true && wPut.json?.last4 === "WXYZ", rawOf(wPut));
+  ok("la respuesta del PUT no contiene la clave", !rawOf(wPut).includes(WAPI_FAKE) && !rawOf(wPut).includes("E2EFICTICIA"));
+  if (wPut.json?.gatewayEnabled) {
+    ok("con gateway activo, el enrutamiento pasa a own_key", wPut.json?.routing === "own_key", rawOf(wPut));
+  }
+  const wGet = await api(wk);
+  ok("GET tras guardar: configurada y sin clave en claro", wGet.json?.configured === true && !rawOf(wGet).includes("E2EFICTICIA"), rawOf(wGet));
+  const wDel = await api(wk, { method: "DELETE" });
+  ok("DELETE revoca: configurada=false, last4 nulo", wDel.res.ok && wDel.json?.configured === false && wDel.json?.last4 === null, rawOf(wDel));
+  const wDel2 = await api(wk, { method: "DELETE" });
+  ok("DELETE es idempotente", wDel2.res.ok && wDel2.json?.configured === false);
+  ok("tras revocar el enrutamiento ya no es own_key", wDel.json?.routing !== "own_key", rawOf(wDel));
+  const wAnon = await fetch(`${BASE}${wk}`, { headers: { origin: BASE } });
+  ok("sin sesión → 401", wAnon.status === 401);
+
   console.log(`\n===== ${checks - failures}/${checks} checks OK, ${failures} fallos =====`);
   process.exit(failures > 0 ? 1 : 0);
 }
