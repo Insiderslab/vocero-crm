@@ -201,8 +201,10 @@ const messages = {
     copiedToken: "Copiado ✓",
     signatureActive:
       "Verificación de firma activa (META_APP_SECRET configurado): cada evento se valida con x-hub-signature-256.",
-    signatureInactive:
-      "Sin App Secret configurado: el webhook queda protegido por la URL secreta (normal en modo agencia). Para la capa extra de firma, agrega META_APP_SECRET a la instancia.",
+    signatureMissing:
+      "Falta META_APP_SECRET: la firma es obligatoria, así que el webhook RECHAZA todos los eventos (503) y no llega ningún mensaje a la bandeja. Agrega a la instancia el App Secret de la app de Meta que envía los webhooks (en modo agencia, el de la app de la agencia; detrás de Wapi, el secreto del endpoint) y reinicia.",
+    signatureTestMode:
+      "Entorno de pruebas (mocks activos): sin META_APP_SECRET se aceptan eventos sin firma. En producción la firma es siempre obligatoria.",
     wapi: {
       title: "Clave de Wapi de esta organización",
       description:

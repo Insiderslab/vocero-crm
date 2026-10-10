@@ -34,6 +34,8 @@ type WebhookInfo = {
   verifyToken: string;
   isHttps: boolean;
   signatureLayer: boolean;
+  /** Firma obligatoria (todo entorno salvo el gate de pruebas). */
+  signatureRequired: boolean;
 };
 
 export function WhatsappWizard() {
@@ -381,9 +383,17 @@ function WebhookCard({ webhook }: { webhook: WebhookInfo }) {
           <p className="flex items-center gap-2 text-xs text-success">
             <ShieldCheck className="h-4 w-4" /> {t("settings.whatsapp.signatureActive")}
           </p>
+        ) : webhook.signatureRequired ? (
+          <p
+            role="alert"
+            className="flex items-start gap-2 rounded-md border border-warning-soft bg-warning-tint p-3 text-xs text-warning-text"
+          >
+            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            {t("settings.whatsapp.signatureMissing")}
+          </p>
         ) : (
           <p className="flex items-start gap-2 text-xs text-muted-foreground">
-            <Info className="mt-0.5 h-4 w-4 shrink-0" /> {t("settings.whatsapp.signatureInactive")}
+            <Info className="mt-0.5 h-4 w-4 shrink-0" /> {t("settings.whatsapp.signatureTestMode")}
           </p>
         )}
       </CardContent>

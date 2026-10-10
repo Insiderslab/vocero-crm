@@ -201,8 +201,10 @@ const messages: typeof base = {
     copiedToken: "Copied ✓",
     signatureActive:
       "Signature verification active (META_APP_SECRET configured): every event is validated with x-hub-signature-256.",
-    signatureInactive:
-      "No App Secret configured: the webhook is protected by the secret URL (normal in agency mode). For the extra signature layer, add META_APP_SECRET to the instance.",
+    signatureMissing:
+      "META_APP_SECRET is missing: the signature is mandatory, so the webhook REJECTS every event (503) and no message reaches the inbox. Add the App Secret of the Meta app that sends the webhooks (in agency mode, the agency app's; behind Wapi, the endpoint secret) to the instance and restart.",
+    signatureTestMode:
+      "Test environment (mocks enabled): without META_APP_SECRET unsigned events are accepted. In production the signature is always mandatory.",
     wapi: {
       title: "Wapi key for this organization",
       description:

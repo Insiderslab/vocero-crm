@@ -1,7 +1,8 @@
 /**
  * Self-test E2E de comportamiento — conduce la app real en localhost con los
  * mocks (wa-mock + ai-mock) por las superficies de usuario, en vez de darle
- * el guion al humano. Cubre tests/e2e/us-bsuid.md y tests/e2e/us-bot-api.md.
+ * el guion al humano. Cubre tests/e2e/us-bsuid.md, tests/e2e/us-bot-api.md y la
+ * firma obligatoria del webhook (tests/e2e/us1-inbox.md, seguridad).
  *
  * Uso:
  *   1) app corriendo con WA_MOCK_ENABLED=true, META_GRAPH_BASE_URL → wa-mock,
@@ -11,6 +12,8 @@
  * Sale con código 1 si algún check falla (apto para CI o para el gate previo
  * a declarar "Hecho").
  */
+
+import { createHmac } from "node:crypto";
 
 const BASE = process.env.APP_BASE_URL ?? "http://localhost:3000";
 const BOT_KEY = process.env.BOT_API_KEY;
@@ -953,11 +956,75 @@ async function main() {
   const wAnon = await fetch(`${BASE}${wk}`, { headers: { origin: BASE } });
   ok("sin sesión → 401", wAnon.status === 401);
 
+  await webhookSignatureSection();
+
   // Al final a propósito: el Embedded Signup cambia el número de la org.
   await coexistenceSection();
 
   console.log(`\n===== ${checks - failures}/${checks} checks OK, ${failures} fallos =====`);
   process.exit(failures > 0 ? 1 : 0);
+}
+
+/**
+ * Seguridad del webhook: el owner ve la URL (con el segmento secreto), pero con
+ * META_APP_SECRET configurado la URL sola no basta para inyectar mensajes: sin
+ * firma o con una firma inventada → 401 y nada en la bandeja; firmado como
+ * Meta → entra. Sin secreto en este entorno de mocks la sección se salta (el
+ * gate de pruebas acepta eventos sin firma; producción responde 503, cubierto
+ * por tests/unit/webhook-route.test.ts).
+ */
+async function webhookSignatureSection() {
+  console.log("\n== seguridad: firma obligatoria del webhook ==");
+  const info = await api("/api/settings/webhook");
+  ok("el owner ve la URL del webhook", info.res.ok && typeof info.json?.url === "string", JSON.stringify(info.json));
+  ok("en el gate de mocks la firma no es obligatoria (la UI lo dice)", info.json?.signatureRequired === false);
+  const secret = process.env.META_APP_SECRET;
+  ok("capa de firma reportada según META_APP_SECRET", info.json?.signatureLayer === Boolean(secret));
+  if (!secret) {
+    console.log("  SKIP sin META_APP_SECRET en este entorno: no hay firma que exigir");
+    return;
+  }
+  const path = new URL(info.json.url).pathname;
+  const token = path.split("/").pop();
+  const payload = (wamid, name) =>
+    JSON.stringify({
+      object: "whatsapp_business_account",
+      entry: [{
+        id: "WABA-E2E",
+        changes: [{
+          field: "messages",
+          value: {
+            messaging_product: "whatsapp",
+            metadata: { display_phone_number: "5215500000000", phone_number_id: PN },
+            contacts: [{ profile: { name }, wa_id: "5215598765432" }],
+            messages: [{ from: "5215598765432", id: wamid, timestamp: String(Math.floor(Date.now() / 1000)), type: "text", text: { body: "inyectado" } }],
+          },
+        }],
+      }],
+    });
+  const sign = (body, key) => `sha256=${createHmac("sha256", key).update(body, "utf8").digest("hex")}`;
+  const send = (body, signature) =>
+    fetch(`${BASE}${path}`, {
+      method: "POST",
+      headers: { "content-type": "application/json", ...(signature ? { "x-hub-signature-256": signature } : {}) },
+      body,
+    });
+
+  const forgedBody = payload("wamid.e2e.inyectado.1", "Inyectado E2E");
+  const unsigned = await send(forgedBody, null);
+  ok("URL correcta sin firma → 401", unsigned.status === 401, String(unsigned.status));
+  const forged = await send(forgedBody, sign(forgedBody, token));
+  ok("firma hecha con el token de la URL → 401", forged.status === 401, String(forged.status));
+  await sleep(800);
+  let convs = (await api("/api/conversations")).json?.conversations ?? [];
+  ok("nada inyectado en la bandeja", !convs.some((c) => c.contact.name === "Inyectado E2E"));
+
+  const goodBody = payload("wamid.e2e.firmado.1", "Firmado E2E");
+  const good = await send(goodBody, sign(goodBody, secret));
+  ok("firmado como Meta → 200", good.status === 200, String(good.status));
+  await sleep(1200);
+  convs = (await api("/api/conversations")).json?.conversations ?? [];
+  ok("el evento firmado sí llega a la bandeja", convs.some((c) => c.contact.name === "Firmado E2E"));
 }
 
 /**

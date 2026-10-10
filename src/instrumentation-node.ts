@@ -1,5 +1,6 @@
 import { eq } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
+import { webhookSecretMissingWarning } from "@/lib/dev-guard";
 import { wapiLegacyConfigWarning } from "@/lib/meta/client";
 
 /**
@@ -64,4 +65,15 @@ export function warnWapiLegacyConfig(): void {
     WAPI_ORG_IDS: process.env.WAPI_ORG_IDS,
   });
   if (warning) console.warn(warning);
+}
+
+/**
+ * Aviso de arranque: firma del webhook obligatoria sin META_APP_SECRET. Solo
+ * avisa (el resto del CRM funciona); el webhook rechaza los eventos con 503.
+ * No imprime ningún valor secreto.
+ */
+export function warnWebhookSignatureConfig(): void {
+  const appSecret = process.env.META_APP_SECRET;
+  const warning = webhookSecretMissingWarning(appSecret);
+  if (warning) console.error(`[boot] ${warning}`);
 }

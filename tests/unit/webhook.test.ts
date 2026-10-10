@@ -1,6 +1,7 @@
 import { createHmac } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import {
+  checkSignature,
   isValidSignature,
   isValidWebhookToken,
   safeEqual,
@@ -46,9 +47,48 @@ describe("capa 2: firma x-hub-signature-256 (FR-042)", () => {
     expect(isValidSignature(body, null, secret)).toBe(false);
   });
 
-  it("sin secreto configurado la capa está desactivada → pasa", () => {
-    expect(isValidSignature(body, null, undefined)).toBe(true);
-    expect(isValidSignature(body, "sha256=basura", undefined)).toBe(true);
+  it("sin secreto configurado la primitiva es fail-closed → rechaza", () => {
+    // Antes devolvía true (capa desactivada): cualquiera con la URL inyectaba.
+    expect(isValidSignature(body, null, undefined)).toBe(false);
+    expect(isValidSignature(body, "sha256=basura", undefined)).toBe(false);
+    expect(isValidSignature(body, sign(body, ""), "")).toBe(false);
+    expect(isValidSignature(body, sign(body, "   "), "   ")).toBe(false);
+  });
+});
+
+describe("checkSignature: firma obligatoria salvo en el gate de pruebas", () => {
+  const secret = "app-secret-de-prueba";
+  const body = JSON.stringify({ object: "whatsapp_business_account" });
+  const sign = (payload: string, key: string) =>
+    `sha256=${createHmac("sha256", key).update(payload, "utf8").digest("hex")}`;
+
+  it("sin secreto y fuera del gate → secret_missing (la ruta responde 503)", () => {
+    expect(checkSignature(body, null, undefined, false)).toEqual({
+      ok: false,
+      reason: "secret_missing",
+    });
+    expect(checkSignature(body, sign(body, "x"), "", false)).toEqual({
+      ok: false,
+      reason: "secret_missing",
+    });
+  });
+
+  it("sin secreto dentro del gate de pruebas → pasa", () => {
+    expect(checkSignature(body, null, undefined, true)).toEqual({ ok: true });
+  });
+
+  it("con secreto se verifica SIEMPRE, también dentro del gate", () => {
+    for (const allow of [false, true]) {
+      expect(checkSignature(body, sign(body, secret), secret, allow)).toEqual({ ok: true });
+      expect(checkSignature(body, null, secret, allow)).toEqual({
+        ok: false,
+        reason: "invalid_signature",
+      });
+      expect(checkSignature(body, sign(body, "otro"), secret, allow)).toEqual({
+        ok: false,
+        reason: "invalid_signature",
+      });
+    }
   });
 });
 

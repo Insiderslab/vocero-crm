@@ -21,20 +21,56 @@ export function isValidWebhookToken(
 }
 
 /**
- * Capa 2 (opcional): firma HMAC-SHA256 de Meta sobre el body CRUDO.
- * Devuelve true si no hay secreto configurado (capa desactivada).
+ * Capa 2: firma HMAC-SHA256 de Meta sobre el body CRUDO.
+ * Fail-closed: sin secreto NO hay firma que verificar y devuelve false. Que un
+ * entorno acepte eventos sin firma lo decide `checkSignature` (y solo dentro
+ * del gate de pruebas), nunca esta primitiva.
  */
 export function isValidSignature(
   rawBody: string,
   signatureHeader: string | null,
   appSecret: string | undefined
 ): boolean {
-  if (!appSecret) return true;
+  if (!appSecret?.trim()) return false;
   if (!signatureHeader?.startsWith("sha256=")) return false;
   const expected = createHmac("sha256", appSecret)
     .update(rawBody, "utf8")
     .digest("hex");
   return safeEqual(signatureHeader.slice("sha256=".length), expected);
+}
+
+/**
+ * Por qué se rechaza un evento en la capa 2:
+ * - `secret_missing`: la instancia no tiene META_APP_SECRET y la firma es
+ *   obligatoria (todo entorno fuera del gate de pruebas) → la ruta responde
+ *   503 y lo registra; el evento no se procesa.
+ * - `invalid_signature`: hay secreto pero la firma falta o no coincide → 401.
+ */
+export type SignatureCheck =
+  | { ok: true }
+  | { ok: false; reason: "secret_missing" | "invalid_signature" };
+
+/**
+ * Decide la capa 2 con la política del entorno.
+ *
+ * - Con secreto: SIEMPRE se verifica la firma (también en pruebas).
+ * - Sin secreto: solo se acepta si `allowUnsigned` (el gate de pruebas de
+ *   `@/lib/dev-guard`, cerrado en producción); si no, `secret_missing`.
+ *
+ * `allowUnsigned` llega como argumento para que el módulo siga puro.
+ */
+export function checkSignature(
+  rawBody: string,
+  signatureHeader: string | null,
+  appSecret: string | undefined,
+  allowUnsigned: boolean
+): SignatureCheck {
+  if (!appSecret?.trim()) {
+    return allowUnsigned ? { ok: true } : { ok: false, reason: "secret_missing" };
+  }
+  return isValidSignature(rawBody, signatureHeader, appSecret)
+    ? { ok: true }
+    : { ok: false, reason: "invalid_signature" };
 }
 
 /* ---------- Tipos del payload de Meta (subconjunto soportado) ---------- */

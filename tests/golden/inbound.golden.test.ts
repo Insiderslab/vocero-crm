@@ -5,8 +5,9 @@ import { expectGolden, postWebhook, snapshot } from "./harness";
 
 /**
  * Golden — mensajes ENTRANTES (plan §7.1; spec US1 escenarios 1–3, US2).
- * Sin META_APP_SECRET: hoy la firma es opcional (D3), como en una instancia
- * sin secreto configurado.
+ * Firmados con el META_APP_SECRET sintético de env.ts: desde la firma
+ * obligatoria (fuera del gate de pruebas) una instancia sin secreto rechaza
+ * todo con 503 — ese caso vive en tests/unit/webhook-route.test.ts.
  */
 describe("inbound", () => {
   it("texto con teléfono mexicano 521 → identidad 52, conversación, lead, SSE", async () => {

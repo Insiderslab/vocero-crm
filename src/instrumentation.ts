@@ -5,11 +5,14 @@
  */
 export async function register(): Promise<void> {
   if (process.env.NEXT_RUNTIME === "nodejs") {
-    const { cleanupOrphanRuns, startAutomationScheduler, warnWapiLegacyConfig } =
-      await import(
-        "./instrumentation-node"
-      );
+    const {
+      cleanupOrphanRuns,
+      startAutomationScheduler,
+      warnWapiLegacyConfig,
+      warnWebhookSignatureConfig,
+    } = await import("./instrumentation-node");
     warnWapiLegacyConfig();
+    warnWebhookSignatureConfig();
     await cleanupOrphanRuns();
     startAutomationScheduler();
   }

@@ -1,4 +1,5 @@
 import { withAdminAuth } from "@/lib/api";
+import { unsignedWebhookAllowed } from "@/lib/dev-guard";
 import { getEnv } from "@/lib/env";
 
 export const dynamic = "force-dynamic";
@@ -15,6 +16,9 @@ export const GET = withAdminAuth(async () => {
     url,
     verifyToken: env.META_WEBHOOK_VERIFY_TOKEN,
     isHttps: url.startsWith("https://"),
-    signatureLayer: Boolean(env.META_APP_SECRET),
+    signatureLayer: Boolean(env.META_APP_SECRET?.trim()),
+    // Sin secreto y con la firma obligatoria el webhook rechaza todo (503):
+    // la UI lo muestra como alerta, no como "capa opcional".
+    signatureRequired: !unsignedWebhookAllowed(),
   });
 });
