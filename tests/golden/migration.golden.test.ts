@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { getDb, getSql } from "@/lib/db";
 import { sendText } from "@/server/inbox/send";
 import { seedDemo } from "@/server/seed/demo";
+import { sendTemplate } from "@/server/whatsapp/templates";
 import {
   markReconnectRequired,
   saveCredentials,
@@ -291,22 +292,27 @@ describe("migration — doppia scrittura (R1, senza riconciliazione)", () => {
     });
     await setAppDisconnected({ wabaId: ORGS.A.wabaId, disconnected: true });
     await markReconnectRequired(ORG_B);
+    expect(await accountMismatches()).toEqual([]);
+    expect(await legacyCheck()).toEqual(ALL_ZERO);
 
     // Contatti, conversazioni e messaggi con le funzioni vere di R1.
     await postWebhook(waFixture("inbound-text-mx"));
     await postWebhook(waFixture("inbound-bsuid-only"));
     await postWebhook(waFixture("echo-text"));
     await postWebhook(waFixture("history-two-threads"));
+    expect(await legacyCheck()).toEqual(ALL_ZERO);
     const conversationId = await conversationIdOf(ORG_A, "525512345678");
-    await saveCredentials({
-      organizationId: ORG_A,
-      wabaId: ORGS.A.wabaId,
-      phoneNumberId: ORGS.A.phoneNumberId,
-      token: ORGS.A.token,
-      displayPhoneNumber: ORGS.A.displayPhoneNumber,
-      verifiedName: ORGS.A.verifiedName,
-    });
     await sendText({ conversationId, organizationId: ORG_A, text: "hola" });
+    await sql()`
+      insert into template (id, organization_id, name, language, category, body, status, wa_template_id)
+      values ('tpl_golden_mig_a', ${ORG_A}, 'mig_golden', 'es_MX', 'UTILITY', 'Hola {{1}}', 'approved', '7000000000020')
+    `;
+    await sendTemplate({
+      organizationId: ORG_A,
+      conversationId,
+      templateId: "tpl_golden_mig_a",
+      variables: ["Ana"],
+    });
 
     const counts = await sql()<{ contacts: number; messages: number; with_ext: number }[]>`
       select (select count(*)::int from contact) as contacts,
@@ -504,7 +510,7 @@ describe("migration — fase B", () => {
     const run = await startup("avvisa");
     expect(run.code).toBe(0);
     expect(run.log).toContain("V1=0 V2=0 V3=0 V4=0 V5=0 V6=0 V7=0");
-    expect(run.log).not.toContain("fase B");
+    expect(run.log).not.toContain("non completato");
     expect(await valid()).toEqual([true]);
   });
 });

@@ -110,7 +110,7 @@ export async function runStartup({
         return 1;
       }
       log.log(
-        `[migrate] BD no lista (intento ${attempt}/${attempts}), reintento en ${retryMs / 1000}s…`
+        `[migrate] BD no lista (intento ${attempt}/${attempts}: ${describeError(err)}), reintento en ${retryMs / 1000}s…`
       );
       await sleep(retryMs);
     }
@@ -129,6 +129,7 @@ async function startupOnce(sql, { migrationsFolder, mode, log, retryMs }) {
 
   // Passo 1 — prima delle migrazioni, se il livello canali c'è già.
   if (await channelFunctionsExist(sql)) {
+    log.log("[migrate] canali: riconciliazione prima delle migrazioni…");
     const pre = await reconcileAndCheck(sql, { log, timings, prefix: "pre" });
     if (mode === "blocca" && !pre.ok) {
       reportFailure(log, "prima delle migrazioni", pre);
@@ -137,6 +138,7 @@ async function startupOnce(sql, { migrationsFolder, mode, log, retryMs }) {
   }
 
   // Passo 2 — Drizzle (fase A). Un errore qui risale: si ritenta.
+  log.log("[migrate] canali: fase A (migrazioni Drizzle)…");
   let t = Date.now();
   await migrate(drizzle(sql), { migrationsFolder });
   timings.faseA_ms = Date.now() - t;
@@ -148,11 +150,13 @@ async function startupOnce(sql, { migrationsFolder, mode, log, retryMs }) {
   }
 
   // Passo 3 — fase B.
+  log.log("[migrate] canali: fase B (indici e vincoli online)…");
   t = Date.now();
   const phaseB = await runPhaseB(sql, { log, retryMs });
   timings.faseB_ms = Date.now() - t;
 
   // Passo 4 — fase C + V7.
+  log.log("[migrate] canali: fase C (riconciliazione e verifiche)…");
   const post = await reconcileAndCheck(sql, { log, timings, prefix: "post" });
   const wapiAfter = await readWapiState(sql);
   const v7 = diffCount(wapiBefore, wapiAfter);

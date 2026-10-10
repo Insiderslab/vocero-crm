@@ -174,9 +174,10 @@ BEGIN
 END $fn$;--> statement-breakpoint
 
 -- Verifiche V1–V6 (ADR 0001 §3.3; V7 la fa il runner). Restituisce
--- (verifica, anomalie): solo conteggi, mai valori.
+-- (verifica, anomalie): solo conteggi, mai valori. `jit = off`: con 100 000
+-- messaggi il JIT costava ~1 s a chiamata su ~0,4 s (misura nel registro M1.2).
 CREATE OR REPLACE FUNCTION channels_legacy_check() RETURNS TABLE (verifica text, anomalie bigint)
-LANGUAGE sql STABLE AS $fn$
+LANGUAGE sql STABLE SET jit = off AS $fn$
   -- V1: ogni meta_credentials ha il suo account, e nessun account punta a una riga sparita.
   SELECT 'V1'::text,
          (SELECT count(*) FROM meta_credentials mc
