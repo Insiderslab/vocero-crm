@@ -63,10 +63,12 @@ línea) y respuesta para externos.
    null default false`, `allowed_identities text[] not null default '{}'`,
    `outsider_reply text`. Apagado por defecto → comportamiento idéntico al de
    hoy (golden sin cambios).
-2. Normalización (una sola función, `src/server/ai/allowlist.ts`): se toleran
-   espacios, `+`, `-`, `.`, `()`; debe quedar solo dígitos, 7–15, sin 0
-   inicial (`0039…` se rechaza: ningún código de país empieza por 0); luego
-   `normalizeMx` (521→52). Líneas vacías se ignoran; duplicados
+2. Normalización (una sola función, `src/server/ai/allowlist.ts`): cada
+   número empieza OBLIGATORIAMENTE por `+` (formato internacional; "347 123
+   4567" o "0039…" se rechazan: sin código de país no coincidiría nunca con un
+   `wa_identity`); después se toleran espacios, `-`, `.`, `()`; deben quedar
+   7–15 dígitos sin 0 inicial; luego `normalizeMx` (521→52). Se guardan solo
+   los dígitos y la pantalla los muestra con `+` delante. Líneas vacías se ignoran; duplicados
    (también tras normalizar) se quitan; una línea inválida → 422 con la línea.
    Máximo 500 números.
 3. En `runAgentTurn`, tras comprobar perfil/handoff/IA de la conversación y

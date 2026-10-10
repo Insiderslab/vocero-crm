@@ -14,12 +14,12 @@ describe("normalizeAllowlistEntry", () => {
   it.each([
     ["+39 347 123 4567", "393471234567"],
     ["+39-347-123-4567", "393471234567"],
-    ["(39) 347.123.4567", "393471234567"],
-    ["  393471234567  ", "393471234567"],
+    ["+(39) 347.123.4567", "393471234567"],
+    ["  +393471234567  ", "393471234567"],
     // 521 → 52 como wa_identity (normalizeMx)
     ["+52 1 55 1234 5678", "525512345678"],
-    ["5215512345678", "525512345678"],
-    ["525512345678", "525512345678"],
+    ["+5215512345678", "525512345678"],
+    ["+525512345678", "525512345678"],
   ])("%j → %s", (raw, expected) => {
     expect(normalizeAllowlistEntry(raw)).toBe(expected);
   });
@@ -30,10 +30,18 @@ describe("normalizeAllowlistEntry", () => {
     "abc",
     "+39 347 ABC 4567",
     "bsuid:12345678",
-    "123456", // 6 dígitos: corto
-    "1234567890123456", // 16 dígitos: largo
-    "0039 347 123 4567", // ningún código de país empieza por 0
+    "+123456", // 6 dígitos: corto
+    "+1234567890123456", // 16 dígitos: largo
+    "+0039 347 123 4567", // ningún código de país empieza por 0
     "+39 347 123 4567; drop",
+    // Sin «+»: formato local o ambiguo, no coincidiría nunca → se rechaza.
+    "347 123 4567",
+    "393471234567",
+    "5215512345678",
+    "0039 347 123 4567",
+    "(39) 347.123.4567",
+    "++39 347 123 4567",
+    "39 +347 123 4567",
   ])("rechaza %j", (raw) => {
     expect(normalizeAllowlistEntry(raw)).toBeNull();
   });
@@ -42,7 +50,7 @@ describe("normalizeAllowlistEntry", () => {
 describe("parseAllowlist", () => {
   it("ignora líneas vacías, normaliza y quita duplicados (también tras normalizar)", () => {
     const parsed = parseAllowlist(
-      "+39 347 123 4567\n\n393471234567\r\n+52 1 55 1234 5678\n525512345678\n"
+      "+39 347 123 4567\n\n+393471234567\r\n+52 1 55 1234 5678\n+525512345678\n"
     );
     expect(parsed).toEqual({ ok: true, identities: ["393471234567", "525512345678"] });
   });
@@ -54,10 +62,10 @@ describe("parseAllowlist", () => {
     });
   });
 
-  it("una línea inválida invalida todo y se informa", () => {
-    expect(parseAllowlist("+39 347 123 4567\nhola\n12")).toEqual({
+  it("una línea inválida invalida todo y se informan TODAS las inválidas", () => {
+    expect(parseAllowlist("+39 347 123 4567\nhola\n347 123 4567\n+12")).toEqual({
       ok: false,
-      invalid: ["hola", "12"],
+      invalid: ["hola", "347 123 4567", "+12"],
     });
   });
 
@@ -65,8 +73,13 @@ describe("parseAllowlist", () => {
     expect(parseAllowlist("")).toEqual({ ok: true, identities: [] });
   });
 
+  it("lo guardado, mostrado con «+» delante, vuelve a validar igual (ida y vuelta de la pantalla)", () => {
+    const saved = ["393471234567", "525512345678"];
+    expect(parseAllowlist(saved.map((id) => `+${id}`).join("\n"))).toEqual({ ok: true, identities: saved });
+  });
+
   it(`más de ${ALLOWLIST_MAX} números → rechazo`, () => {
-    const many = Array.from({ length: ALLOWLIST_MAX + 1 }, (_, i) => String(390000000000 + i));
+    const many = Array.from({ length: ALLOWLIST_MAX + 1 }, (_, i) => `+${390000000000 + i}`);
     expect(parseAllowlist(many)).toMatchObject({ ok: false, tooMany: true });
     expect(parseAllowlist(many.slice(0, ALLOWLIST_MAX))).toMatchObject({ ok: true });
   });

@@ -981,16 +981,17 @@ async function teamAssistantSection() {
   const OUT_REPLY = "Numero ad uso interno del team (e2e).";
   const prof = (body) => api("/api/agent/profile", { method: "PUT", body: JSON.stringify(body) });
 
-  const bad = await prof({ allowedIdentities: "+39 347 111 0001\nciao\n0039 347 1" });
+  const bad = await prof({ allowedIdentities: "+39 347 111 0001\nciao\n0039 347 1\n347 111 0001" });
   ok(
-    "lista con líneas inválidas → 422 que las nombra",
-    bad.res.status === 422 && bad.json?.error?.invalid?.includes("ciao") && bad.json?.error?.invalid?.includes("0039 347 1"),
+    "lista con líneas inválidas (también sin «+») → 422 que las nombra",
+    bad.res.status === 422 &&
+      ["ciao", "0039 347 1", "347 111 0001"].every((l) => bad.json?.error?.invalid?.includes(l)),
     JSON.stringify(bad.json)
   );
   const put = await prof({
     enabled: true,
     restrictToAllowlist: true,
-    allowedIdentities: "+39 347 111 0001\n\n393471110001\n+39-347-111-0001\n",
+    allowedIdentities: "+39 347 111 0001\n\n+393471110001\n+39-347-111-0001\n",
     outsiderReply: `  ${OUT_REPLY}  `,
   });
   ok(

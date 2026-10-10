@@ -278,7 +278,8 @@ type RestrictionForm = { enabled: boolean; list: string; reply: string };
 function restrictionFormOf(r: Restriction): RestrictionForm {
   return {
     enabled: r.restrictToAllowlist,
-    list: r.allowedIdentities.join("\n"),
+    // Se guardan solo dígitos; se muestran con «+» (lo que exige la validación).
+    list: r.allowedIdentities.map((id) => `+${id}`).join("\n"),
     reply: r.outsiderReply ?? "",
   };
 }

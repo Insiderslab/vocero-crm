@@ -78,7 +78,7 @@ export const PUT = withAdminAuth(async (session, req: Request) => {
             code: parsed.tooMany ? "too_many_identities" : "invalid_identities",
             message: parsed.tooMany
               ? `Máximo ${ALLOWLIST_MAX} números`
-              : "Números no válidos: usa solo dígitos con código de país (ej. +39 347 123 4567)",
+              : "Números no válidos: escribe cada uno con «+» y el código de país (ej. +39 347 123 4567)",
             invalid: parsed.invalid,
           },
         },

@@ -14,14 +14,18 @@ import { BSUID_PREFIX } from "@/server/inbox/identity";
 /** Máximo de números en la lista (un equipo, no una agenda). */
 export const ALLOWLIST_MAX = 500;
 
-/** Lo que se tolera al escribir un número: dígitos, espacios, + - . ( ). */
-const TYPED_PHONE = /^[\d\s+\-.()]+$/;
+/**
+ * Lo que se acepta al escribir un número: «+» OBLIGATORIO al principio (formato
+ * internacional) y luego dígitos, espacios, - . ( ). Sin «+», "347 123 4567"
+ * pasaría la validación y no coincidiría nunca con un `wa_identity` (que
+ * siempre lleva el código de país): se rechaza en vez de fallar en silencio.
+ */
+const TYPED_PHONE = /^\+[\d\s\-.()]+$/;
 
 /**
  * Normaliza UNA línea tecleada por el owner. Devuelve null si no es un
- * teléfono internacional válido (7–15 dígitos, sin 0 inicial: ningún código
- * de país empieza por 0, así que "0039…" se rechaza en vez de no coincidir
- * nunca en silencio).
+ * teléfono internacional válido: «+», 7–15 dígitos, sin 0 inicial (ningún
+ * código de país empieza por 0).
  */
 export function normalizeAllowlistEntry(raw: string): string | null {
   const typed = raw.trim();
