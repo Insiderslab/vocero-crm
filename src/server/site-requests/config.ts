@@ -21,6 +21,54 @@ export async function getAllowedOrigins(organizationId: string): Promise<string[
   return rows[0]?.allowedOrigins ?? [];
 }
 
+/* ------------------- caché del preflight (en memoria) ------------------- */
+
+/** Vida de una respuesta cacheada del preflight y tope de entradas. */
+export const ORIGIN_CACHE_TTL_MS = 30_000;
+export const ORIGIN_CACHE_MAX = 1_000;
+
+const globalForSite = globalThis as unknown as {
+  __siteOriginCache?: Map<string, { allowed: boolean; expires: number }>;
+};
+
+function originCache(): Map<string, { allowed: boolean; expires: number }> {
+  return (globalForSite.__siteOriginCache ??= new Map());
+}
+
+/** Resultado cacheado (true/false) o undefined si no está o caducó. */
+export function cachedOriginRegistered(origin: string, now: number = Date.now()): boolean | undefined {
+  const cache = originCache();
+  const hit = cache.get(origin);
+  if (!hit) return undefined;
+  if (hit.expires <= now) {
+    cache.delete(origin);
+    return undefined;
+  }
+  return hit.allowed;
+}
+
+/** Guarda un resultado; con el tope lleno expulsa la entrada más antigua. */
+export function cacheOriginRegistered(origin: string, allowed: boolean, now: number = Date.now()): void {
+  const cache = originCache();
+  cache.delete(origin);
+  while (cache.size >= ORIGIN_CACHE_MAX) {
+    const oldest = cache.keys().next().value;
+    if (oldest === undefined) break;
+    cache.delete(oldest);
+  }
+  cache.set(origin, { allowed, expires: now + ORIGIN_CACHE_TTL_MS });
+}
+
+/** Vacía la caché (al guardar orígenes: el cambio vale al instante en este proceso). */
+export function clearOriginCache(): void {
+  originCache().clear();
+}
+
+/** Entradas en la caché (tests). */
+export function originCacheSize(): number {
+  return originCache().size;
+}
+
 /** Guarda los orígenes (ya normalizados) de la organización. */
 export async function setAllowedOrigins(
   organizationId: string,
@@ -39,6 +87,7 @@ export async function setAllowedOrigins(
       target: schema.siteRequestConfig.organizationId,
       set: { allowedOrigins: [...origins], updatedAt: now },
     });
+  clearOriginCache();
 }
 
 /**

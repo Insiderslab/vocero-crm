@@ -1,5 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { resetRateLimit } from "@/lib/rate-limit";
+import {
+  MAX_RATE_LIMIT_KEYS,
+  checkRateLimit,
+  countInWindow,
+  rateLimitSize,
+  resetRateLimit,
+} from "@/lib/rate-limit";
+import {
+  ORIGIN_CACHE_MAX,
+  ORIGIN_CACHE_TTL_MS,
+  cacheOriginRegistered,
+  cachedOriginRegistered,
+  clearOriginCache,
+  originCacheSize,
+} from "@/server/site-requests/config";
 import { buildSiteSnippet, escapeHtml, jsString } from "@/lib/site-snippet";
 import {
   API_KEY_SCOPES,
@@ -493,5 +507,36 @@ describe("metadatos opcionales: no se pierde la solicitud (revisión PR #10)", (
       pageUrl: "https://labambola.example/reservas", locale: "es",
     });
     expect(siteRequestSchema.safeParse(sent).success).toBe(true);
+  });
+});
+
+describe("mapas en memoria acotados (revisión PR #10)", () => {
+  beforeEach(() => {
+    resetRateLimit();
+    clearOriginCache();
+  });
+
+  it("el almacén del rate limit no pasa del tope: expulsa la clave menos reciente", () => {
+    const opts = { windowMs: 60_000, max: 5 };
+    checkRateLimit("viva", opts, 1);
+    for (let i = 0; i < MAX_RATE_LIMIT_KEYS - 1; i++) checkRateLimit(`ip:${i}`, opts, 2);
+    checkRateLimit("viva", opts, 3); // uso reciente: pasa al final
+    for (let i = 0; i < 10; i++) checkRateLimit(`nueva:${i}`, opts, 4);
+    expect(rateLimitSize()).toBeLessThanOrEqual(MAX_RATE_LIMIT_KEYS);
+    expect(countInWindow("viva", 60_000, 5)).toBe(2); // sobrevivió con sus intentos
+    expect(countInWindow("ip:0", 60_000, 5)).toBe(0); // la más antigua salió
+    expect(countInWindow("nueva:9", 60_000, 5)).toBe(1);
+  });
+
+  it("caché del preflight: TTL, tope con expulsión y vaciado", () => {
+    cacheOriginRegistered("https://a.example", true, 1_000);
+    expect(cachedOriginRegistered("https://a.example", 1_000 + ORIGIN_CACHE_TTL_MS - 1)).toBe(true);
+    expect(cachedOriginRegistered("https://a.example", 1_000 + ORIGIN_CACHE_TTL_MS)).toBeUndefined();
+    for (let i = 0; i < ORIGIN_CACHE_MAX + 50; i++) cacheOriginRegistered(`https://s${i}.example`, false, 2_000);
+    expect(originCacheSize()).toBe(ORIGIN_CACHE_MAX);
+    expect(cachedOriginRegistered("https://s0.example", 2_001)).toBeUndefined();
+    expect(cachedOriginRegistered(`https://s${ORIGIN_CACHE_MAX + 49}.example`, 2_001)).toBe(false);
+    clearOriginCache();
+    expect(originCacheSize()).toBe(0);
   });
 });

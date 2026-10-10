@@ -15,6 +15,15 @@ const globalForRl = globalThis as unknown as {
 /** Cada cuántos accesos se barren las entradas caducadas (amortizado). */
 export const SWEEP_EVERY = 500;
 
+/**
+ * Tope de claves en memoria. Las claves incluyen la IP del cliente (que en
+ * rutas públicas puede venir de una cabecera falsificable), así que sin tope
+ * el mapa crece con cada IP inventada. Al llegar al tope se barren las
+ * caducadas y, si sigue lleno, se expulsa la clave más antigua (orden de
+ * inserción del Map).
+ */
+export const MAX_RATE_LIMIT_KEYS = 50_000;
+
 function store(): Map<string, Bucket> {
   if (!globalForRl.__voceroRateLimit) {
     globalForRl.__voceroRateLimit = new Map();
@@ -45,6 +54,20 @@ function maybeSweep(windowMs: number, now: number): void {
   }
 }
 
+/**
+ * Hace sitio para una clave nueva expulsando la menos reciente (O(1): el Map
+ * guarda el orden y cada uso reinserta su clave al final). Las caducadas las
+ * quita el barrido amortizado.
+ */
+function evictForNewKey(): void {
+  const buckets = store();
+  while (buckets.size >= MAX_RATE_LIMIT_KEYS) {
+    const oldest = buckets.keys().next().value;
+    if (oldest === undefined) break;
+    buckets.delete(oldest);
+  }
+}
+
 /** Número de claves en memoria (tests). */
 export function rateLimitSize(): number {
   return store().size;
@@ -60,8 +83,12 @@ export function checkRateLimit(
   const buckets = store();
   maybeSweep(opts.windowMs, now);
   const cutoff = now - opts.windowMs;
-  const bucket = (buckets.get(key) ?? []).filter((t) => t > cutoff);
+  const existing = buckets.get(key);
+  if (!existing && buckets.size >= MAX_RATE_LIMIT_KEYS) evictForNewKey();
+  const bucket = (existing ?? []).filter((t) => t > cutoff);
 
+  // delete + set: la clave pasa al final (la más reciente) para la expulsión.
+  buckets.delete(key);
   if (bucket.length >= opts.max) {
     buckets.set(key, bucket);
     return { allowed: false, remaining: 0 };
