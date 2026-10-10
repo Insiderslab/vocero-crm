@@ -107,10 +107,13 @@ In Impostazioni → «Sito web», owner/admin creano la **chiave del sito**
 ### US3 — Protezioni del modulo pubblico (P1)
 
 **AC**
-1. Ordine: `Content-Type` → `Content-Length` dichiarato → chiave → origine
-   per l'organizzazione della chiave → limiti per chiave e per IP → lettura
-   del body (≤ 16 KiB) → validazione → honeypot → scrittura. Nessuna
-   scrittura prima di aver passato tutti i controlli.
+1. Ordine: `Content-Type` → `Content-Length` dichiarato → chiave
+   (autenticata **senza** consumare il suo limite) → origine per
+   l'organizzazione della chiave (403) → limite per IP → limite per chiave →
+   lettura del body (≤ 16 KiB) → validazione → honeypot → scrittura. Nessuna
+   scrittura prima di aver passato tutti i controlli. Il limite della chiave è
+   di tutti i visitatori dell'organizzazione: una sola IP con la chiave
+   pubblica (origine ajena, o già limitata per IP) non lo consuma.
 2. **Chiave**: assente, sconosciuta, revocata o di un altro ambito → 401
    `unauthorized`. I fallimenti contano per IP (stesso contatore a due soglie
    delle chiavi di servizio: 401 sotto la soglia morbida, 429 sopra, 429

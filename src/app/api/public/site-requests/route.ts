@@ -1,6 +1,6 @@
 import { apiError } from "@/lib/api";
 import { checkRateLimit, clientIp } from "@/lib/rate-limit";
-import { authenticateSiteKey } from "@/server/site-requests/auth";
+import { authenticateSiteKey, consumeSiteKeyLimit } from "@/server/site-requests/auth";
 import { getAllowedOrigins, isOriginRegistered } from "@/server/site-requests/config";
 import { ingestSiteRequest } from "@/server/site-requests/ingest";
 import {
@@ -68,7 +68,8 @@ export async function POST(req: Request): Promise<Response> {
       return apiError(413, "payload_too_large", "Solicitud demasiado grande");
     }
 
-    // 1. La clave decide la organización (401/429 si no vale).
+    // 1. La clave decide la organización (401, o 429 por fallos de la IP). El
+    //    límite de la clave NO se consume aquí (paso 3).
     const auth = await authenticateSiteKey(req);
     if (auth instanceof Response) return auth;
     const { organizationId } = auth;
@@ -82,11 +83,15 @@ export async function POST(req: Request): Promise<Response> {
     }
     const cors = origin !== null ? corsHeaders(origin) : {};
 
-    // 3. Límite por IP del cliente (el de la clave ya lo consumió la autenticación).
+    // 3. Límite por IP del cliente, y DESPUÉS el de la clave: una IP que ya
+    //    está limitada (o con un origen ajeno, paso 2) no gasta el cupo de la
+    //    organización, que es de todos sus visitantes.
     const ipKey = `site-api:ip:${organizationId}:${clientIp(req.headers)}`;
     if (!checkRateLimit(ipKey, SITE_IP_LIMIT).allowed) {
       return reply(apiError(429, "rate_limited", "Demasiadas solicitudes"), cors);
     }
+    const keyLimited = consumeSiteKeyLimit(organizationId);
+    if (keyLimited) return reply(keyLimited, cors);
 
     // 4. Body con tope real (aunque falte o mienta el Content-Length).
     const raw = await readBodyCapped(req, MAX_BODY_BYTES);

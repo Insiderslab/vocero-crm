@@ -72,6 +72,11 @@ function rateLimited(scope: ApiKeyScope, sub: string): Response | null {
   return checkRateLimit(`${bucket}:${sub}`, { windowMs, max }).allowed ? null : tooMany();
 }
 
+/** Consume una solicitud del límite de la organización en el ámbito (429 si se agotó). */
+export function consumeOrgRateLimit(scope: ApiKeyScope, organizationId: string): Response | null {
+  return rateLimited(scope, `org:${organizationId}`);
+}
+
 /**
  * Multiplicador del umbral duro de fallos por IP: umbral blando = `max`,
  * umbral duro = `max × INVALID_HARD_FACTOR`.
@@ -195,7 +200,15 @@ export type ApiKeyAuthResult = { organizationId: string; keyId: string | null };
 export async function authenticateApiKey(
   req: Request,
   scope: ApiKeyScope,
-  deps: ApiKeyAuthDeps = dbApiKeyAuthDeps
+  deps: ApiKeyAuthDeps = dbApiKeyAuthDeps,
+  /**
+   * `consumeOrgLimit: false` (008, sitio): autentica SIN consumir el límite de
+   * la organización; la ruta lo consume con `consumeOrgRateLimit` después de
+   * sus propios controles (origen, límite por IP). Si no, una sola IP con la
+   * clave pública agotaría el cupo de la organización con peticiones que la
+   * ruta iba a rechazar de todos modos.
+   */
+  opts: { consumeOrgLimit?: boolean } = {}
 ): Promise<ApiKeyAuthResult | Response> {
   const provided = req.headers.get(API_KEY_SCOPES[scope].header) ?? "";
 
@@ -209,8 +222,10 @@ export async function authenticateApiKey(
     // Una clave de otro ámbito no vale aquí, aunque exista y esté activa.
     if (!key || key.scope !== scope) return ip.fail();
     // Límite propio de la organización de la clave.
-    const limited = rateLimited(scope, `org:${key.organizationId}`);
-    if (limited) return limited;
+    if (opts.consumeOrgLimit !== false) {
+      const limited = consumeOrgRateLimit(scope, key.organizationId);
+      if (limited) return limited;
+    }
     // Registro de uso best-effort: un fallo aquí no debe tumbar la petición.
     deps.touchKey(key.id).catch(() => {});
     return { organizationId: key.organizationId, keyId: key.id };
