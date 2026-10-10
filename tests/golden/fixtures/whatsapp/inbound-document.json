@@ -1,0 +1,43 @@
+{
+  "object": "whatsapp_business_account",
+  "entry": [
+    {
+      "id": "200000000000001",
+      "changes": [
+        {
+          "field": "messages",
+          "value": {
+            "messaging_product": "whatsapp",
+            "metadata": {
+              "display_phone_number": "525510000001",
+              "phone_number_id": "100000000000001"
+            },
+            "contacts": [
+              {
+                "profile": {
+                  "name": "Ana Golden"
+                },
+                "wa_id": "5215512345678"
+              }
+            ],
+            "messages": [
+              {
+                "from": "5215512345678",
+                "id": "wamid.golden.in.doc.1",
+                "timestamp": "1893499140",
+                "type": "document",
+                "document": {
+                  "id": "media.golden.doc.1",
+                  "mime_type": "application/pdf",
+                  "sha256": "c3ludGhldGlj",
+                  "filename": "cotizacion.pdf",
+                  "caption": "la cotización"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

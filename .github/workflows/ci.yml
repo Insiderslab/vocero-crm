@@ -26,6 +26,25 @@ jobs:
   gates:
     name: typecheck · lint · test · build
     runs-on: ubuntu-latest
+
+    # PostgreSQL usa-y-tira para `pnpm test:golden` (005-livello-canali, D-CI):
+    # los golden de WhatsApp corren contra una base REAL y sin ella fallan (no
+    # se saltan). Credenciales de juguete: el contenedor muere con el job.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: vocero
+          POSTGRES_PASSWORD: vocero
+          POSTGRES_DB: vocero_golden
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U vocero -d vocero_golden"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
     steps:
       - uses: actions/checkout@v7
 
@@ -59,6 +78,14 @@ jobs:
       - name: test
         if: ${{ !cancelled() }}
         run: pnpm test
+
+      # Golden del comportamiento de WhatsApp (ADR 0001 §3.7): registrados sobre
+      # el código sin cambios; un refactor de canales no puede tocarlos.
+      - name: test:golden
+        if: ${{ !cancelled() }}
+        env:
+          DATABASE_URL_GOLDEN: postgres://vocero:vocero@localhost:5432/vocero_golden
+        run: pnpm test:golden
 
       # Va al final porque es el más lento, y porque ya atrapó cosas que los
       # otros tres no ven: Next rechaza exports que no son handlers en un

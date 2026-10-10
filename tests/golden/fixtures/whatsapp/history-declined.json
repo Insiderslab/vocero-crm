@@ -1,0 +1,36 @@
+{
+  "object": "whatsapp_business_account",
+  "entry": [
+    {
+      "id": "200000000000001",
+      "changes": [
+        {
+          "field": "history",
+          "value": {
+            "messaging_product": "whatsapp",
+            "metadata": {
+              "display_phone_number": "525510000001",
+              "phone_number_id": "100000000000001"
+            },
+            "history": [
+              {
+                "metadata": {
+                  "phase": 0,
+                  "chunk_order": 1,
+                  "progress": 100
+                },
+                "errors": [
+                  {
+                    "code": 2593109,
+                    "title": "History sync declined",
+                    "message": "The business did not share the chat history"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

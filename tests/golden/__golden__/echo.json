@@ -1,0 +1,1266 @@
+{
+  "echo > texto a un lead que ya escribió → saliente manual, IA en pausa manual_reply": {
+    "db": {
+      "contact": [
+        {
+          "organization_id": "org_golden_a",
+          "id": "<ct#1>",
+          "wa_identity": "525512345678",
+          "phone": "525512345678",
+          "wa_user_id": null,
+          "name": "Ana Golden",
+          "notes": null,
+          "ficha": null,
+          "source": null,
+          "archived_at": null,
+          "created_at": "<db-now>",
+          "updated_at": "<db-now>"
+        }
+      ],
+      "conversation": [
+        {
+          "organization_id": "org_golden_a",
+          "id": "<cv#1>",
+          "contact_id": "<ct#1>",
+          "is_test": false,
+          "ai_enabled": false,
+          "handoff_at": "<now>",
+          "handoff_reason": "manual_reply",
+          "last_inbound_at": "<now-1m>",
+          "last_message_at": "<now-30s>",
+          "unread_count": 1,
+          "created_at": "<db-now>",
+          "updated_at": "<now>"
+        }
+      ],
+      "message": [
+        {
+          "organization_id": "org_golden_a",
+          "id": "<msg#1>",
+          "conversation_id": "<cv#1>",
+          "wa_message_id": "wamid.golden.in.text.1",
+          "direction": "in",
+          "type": "text",
+          "text": "Hola, quiero información",
+          "status": "delivered",
+          "error": null,
+          "ai_generated": false,
+          "origin": "operator",
+          "media_asset_id": null,
+          "wa_timestamp": "<now-1m>",
+          "created_at": "<db-now>"
+        },
+        {
+          "organization_id": "org_golden_a",
+          "id": "<msg#2>",
+          "conversation_id": "<cv#1>",
+          "wa_message_id": "wamid.golden.echo.1",
+          "direction": "out",
+          "type": "text",
+          "text": "Te respondo desde el teléfono",
+          "status": "sent",
+          "error": null,
+          "ai_generated": false,
+          "origin": "manual",
+          "media_asset_id": null,
+          "wa_timestamp": "<now-30s>",
+          "created_at": "<db-now>"
+        }
+      ],
+      "media_asset": [],
+      "lead": [
+        {
+          "organization_id": "org_golden_a",
+          "id": "<ld#1>",
+          "contact_id": "<ct#1>",
+          "stage_id": "stg_golden_a_nuevo",
+          "position": 0,
+          "last_activity_at": "<now-1m>",
+          "created_at": "<db-now>",
+          "updated_at": "<db-now>"
+        }
+      ],
+      "lead_stage_event": [
+        {
+          "organization_id": "org_golden_a",
+          "lead_id": "<ld#1>",
+          "contact_id": "<ct#1>",
+          "from_stage_id": null,
+          "to_stage_id": "stg_golden_a_nuevo",
+          "to_stage_name": "Nuevo",
+          "to_stage_kind": "open",
+          "source": "sistema",
+          "approximate": false,
+          "occurred_at": "<now-1m>"
+        }
+      ],
+      "template": [],
+      "wa_address_book_entry": [],
+      "credentials": {
+        "org_golden_a": {
+          "organizationId": "org_golden_a",
+          "wabaId": "200000000000001",
+          "phoneNumberId": "100000000000001",
+          "displayPhoneNumber": "+52 55 1000 0001",
+          "verifiedName": "Golden A",
+          "status": "connected",
+          "onboardingMode": "manual",
+          "appDisconnectedAt": null,
+          "token": "meta_token(org_golden_a)"
+        },
+        "org_golden_b": {
+          "organizationId": "org_golden_b",
+          "wabaId": "200000000000002",
+          "phoneNumberId": "100000000000002",
+          "displayPhoneNumber": "+52 55 1000 0002",
+          "verifiedName": "Golden B",
+          "status": "connected",
+          "onboardingMode": "manual",
+          "appDisconnectedAt": null,
+          "token": "meta_token(org_golden_b)"
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "received": true
+      }
+    },
+    "requests": [],
+    "sse": [
+      {
+        "org": "org_golden_a",
+        "type": "message.new",
+        "data": {
+          "conversationId": "<cv#1>",
+          "message": {
+            "id": "<msg#1>",
+            "conversationId": "<cv#1>",
+            "direction": "in",
+            "type": "text",
+            "text": "Hola, quiero información",
+            "status": "delivered",
+            "error": null,
+            "aiGenerated": false,
+            "origin": "operator",
+            "media": null,
+            "createdAt": "<now-1m>"
+          }
+        }
+      },
+      {
+        "org": "org_golden_a",
+        "type": "conversation.updated",
+        "data": {
+          "conversation": {
+            "id": "<cv#1>"
+          }
+        }
+      },
+      {
+        "org": "org_golden_a",
+        "type": "message.new",
+        "data": {
+          "conversationId": "<cv#1>",
+          "message": {
+            "id": "<msg#2>",
+            "conversationId": "<cv#1>",
+            "direction": "out",
+            "type": "text",
+            "text": "Te respondo desde el teléfono",
+            "status": "sent",
+            "error": null,
+            "aiGenerated": false,
+            "origin": "manual",
+            "media": null,
+            "createdAt": "<now-30s>"
+          }
+        }
+      },
+      {
+        "org": "org_golden_a",
+        "type": "conversation.updated",
+        "data": {
+          "conversation": {
+            "id": "<cv#1>"
+          }
+        }
+      }
+    ],
+    "consoleErrors": 0
+  },
+  "echo > texto a un número nuevo → crea contacto y conversación sin ventana ni lead": {
+    "db": {
+      "contact": [
+        {
+          "organization_id": "org_golden_a",
+          "id": "<ct#1>",
+          "wa_identity": "525512345678",
+          "phone": "525512345678",
+          "wa_user_id": null,
+          "name": "525512345678",
+          "notes": null,
+          "ficha": null,
+          "source": null,
+          "archived_at": null,
+          "created_at": "<db-now>",
+          "updated_at": "<db-now>"
+        }
+      ],
+      "conversation": [
+        {
+          "organization_id": "org_golden_a",
+          "id": "<cv#1>",
+          "contact_id": "<ct#1>",
+          "is_test": false,
+          "ai_enabled": false,
+          "handoff_at": "<now>",
+          "handoff_reason": "manual_reply",
+          "last_inbound_at": null,
+          "last_message_at": "<now-30s>",
+          "unread_count": 0,
+          "created_at": "<db-now>",
+          "updated_at": "<now>"
+        }
+      ],
+      "message": [
+        {
+          "organization_id": "org_golden_a",
+          "id": "<msg#1>",
+          "conversation_id": "<cv#1>",
+          "wa_message_id": "wamid.golden.echo.1",
+          "direction": "out",
+          "type": "text",
+          "text": "Te respondo desde el teléfono",
+          "status": "sent",
+          "error": null,
+          "ai_generated": false,
+          "origin": "manual",
+          "media_asset_id": null,
+          "wa_timestamp": "<now-30s>",
+          "created_at": "<db-now>"
+        }
+      ],
+      "media_asset": [],
+      "lead": [],
+      "lead_stage_event": [],
+      "template": [],
+      "wa_address_book_entry": [],
+      "credentials": {
+        "org_golden_a": {
+          "organizationId": "org_golden_a",
+          "wabaId": "200000000000001",
+          "phoneNumberId": "100000000000001",
+          "displayPhoneNumber": "+52 55 1000 0001",
+          "verifiedName": "Golden A",
+          "status": "connected",
+          "onboardingMode": "manual",
+          "appDisconnectedAt": null,
+          "token": "meta_token(org_golden_a)"
+        },
+        "org_golden_b": {
+          "organizationId": "org_golden_b",
+          "wabaId": "200000000000002",
+          "phoneNumberId": "100000000000002",
+          "displayPhoneNumber": "+52 55 1000 0002",
+          "verifiedName": "Golden B",
+          "status": "connected",
+          "onboardingMode": "manual",
+          "appDisconnectedAt": null,
+          "token": "meta_token(org_golden_b)"
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "received": true
+      }
+    },
+    "requests": [],
+    "sse": [
+      {
+        "org": "org_golden_a",
+        "type": "message.new",
+        "data": {
+          "conversationId": "<cv#1>",
+          "message": {
+            "id": "<msg#1>",
+            "conversationId": "<cv#1>",
+            "direction": "out",
+            "type": "text",
+            "text": "Te respondo desde el teléfono",
+            "status": "sent",
+            "error": null,
+            "aiGenerated": false,
+            "origin": "manual",
+            "media": null,
+            "createdAt": "<now-30s>"
+          }
+        }
+      },
+      {
+        "org": "org_golden_a",
+        "type": "conversation.updated",
+        "data": {
+          "conversation": {
+            "id": "<cv#1>"
+          }
+        }
+      }
+    ],
+    "consoleErrors": 0
+  },
+  "echo > imagen → adjunto descargado de Graph": {
+    "db": {
+      "contact": [
+        {
+          "organization_id": "org_golden_a",
+          "id": "<ct#1>",
+          "wa_identity": "525512345678",
+          "phone": "525512345678",
+          "wa_user_id": null,
+          "name": "Ana Golden",
+          "notes": null,
+          "ficha": null,
+          "source": null,
+          "archived_at": null,
+          "created_at": "<db-now>",
+          "updated_at": "<db-now>"
+        }
+      ],
+      "conversation": [
+        {
+          "organization_id": "org_golden_a",
+          "id": "<cv#1>",
+          "contact_id": "<ct#1>",
+          "is_test": false,
+          "ai_enabled": false,
+          "handoff_at": "<now>",
+          "handoff_reason": "manual_reply",
+          "last_inbound_at": "<now-1m>",
+          "last_message_at": "<now-30s>",
+          "unread_count": 1,
+          "created_at": "<db-now>",
+          "updated_at": "<now>"
+        }
+      ],
+      "message": [
+        {
+          "organization_id": "org_golden_a",
+          "id": "<msg#1>",
+          "conversation_id": "<cv#1>",
+          "wa_message_id": "wamid.golden.in.text.1",
+          "direction": "in",
+          "type": "text",
+          "text": "Hola, quiero información",
+          "status": "delivered",
+          "error": null,
+          "ai_generated": false,
+          "origin": "operator",
+          "media_asset_id": null,
+          "wa_timestamp": "<now-1m>",
+          "created_at": "<db-now>"
+        },
+        {
+          "organization_id": "org_golden_a",
+          "id": "<msg#2>",
+          "conversation_id": "<cv#1>",
+          "wa_message_id": "wamid.golden.echo.img.1",
+          "direction": "out",
+          "type": "image",
+          "text": null,
+          "status": "sent",
+          "error": null,
+          "ai_generated": false,
+          "origin": "manual",
+          "media_asset_id": "<ma#1>",
+          "wa_timestamp": "<now-30s>",
+          "created_at": "<db-now>"
+        }
+      ],
+      "media_asset": [
+        {
+          "organization_id": "org_golden_a",
+          "id": "<ma#1>",
+          "kind": "image",
+          "wa_media_id": "media.golden.echo.img.1",
+          "mime_type": "image/jpeg",
+          "file_name": null,
+          "file_size": 35,
+          "caption": "el catálogo",
+          "payload": null,
+          "storage_path": "org_golden_a/<ma#1>",
+          "fetch_status": "available",
+          "fetch_error": null,
+          "created_at": "<db-now>",
+          "updated_at": "<now>"
+        }
+      ],
+      "lead": [
+        {
+          "organization_id": "org_golden_a",
+          "id": "<ld#1>",
+          "contact_id": "<ct#1>",
+          "stage_id": "stg_golden_a_nuevo",
+          "position": 0,
+          "last_activity_at": "<now-1m>",
+          "created_at": "<db-now>",
+          "updated_at": "<db-now>"
+        }
+      ],
+      "lead_stage_event": [
+        {
+          "organization_id": "org_golden_a",
+          "lead_id": "<ld#1>",
+          "contact_id": "<ct#1>",
+          "from_stage_id": null,
+          "to_stage_id": "stg_golden_a_nuevo",
+          "to_stage_name": "Nuevo",
+          "to_stage_kind": "open",
+          "source": "sistema",
+          "approximate": false,
+          "occurred_at": "<now-1m>"
+        }
+      ],
+      "template": [],
+      "wa_address_book_entry": [],
+      "credentials": {
+        "org_golden_a": {
+          "organizationId": "org_golden_a",
+          "wabaId": "200000000000001",
+          "phoneNumberId": "100000000000001",
+          "displayPhoneNumber": "+52 55 1000 0001",
+          "verifiedName": "Golden A",
+          "status": "connected",
+          "onboardingMode": "manual",
+          "appDisconnectedAt": null,
+          "token": "meta_token(org_golden_a)"
+        },
+        "org_golden_b": {
+          "organizationId": "org_golden_b",
+          "wabaId": "200000000000002",
+          "phoneNumberId": "100000000000002",
+          "displayPhoneNumber": "+52 55 1000 0002",
+          "verifiedName": "Golden B",
+          "status": "connected",
+          "onboardingMode": "manual",
+          "appDisconnectedAt": null,
+          "token": "meta_token(org_golden_b)"
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "received": true
+      }
+    },
+    "requests": [
+      {
+        "to": "graph",
+        "method": "GET",
+        "path": "/v25.0/media.golden.echo.img.1",
+        "auth": "meta_token(org_golden_a)",
+        "body": null
+      },
+      {
+        "to": "graph",
+        "method": "GET",
+        "path": "/files/media.golden.echo.img.1",
+        "auth": "meta_token(org_golden_a)",
+        "body": null
+      }
+    ],
+    "sse": [
+      {
+        "org": "org_golden_a",
+        "type": "message.new",
+        "data": {
+          "conversationId": "<cv#1>",
+          "message": {
+            "id": "<msg#1>",
+            "conversationId": "<cv#1>",
+            "direction": "in",
+            "type": "text",
+            "text": "Hola, quiero información",
+            "status": "delivered",
+            "error": null,
+            "aiGenerated": false,
+            "origin": "operator",
+            "media": null,
+            "createdAt": "<now-1m>"
+          }
+        }
+      },
+      {
+        "org": "org_golden_a",
+        "type": "conversation.updated",
+        "data": {
+          "conversation": {
+            "id": "<cv#1>"
+          }
+        }
+      },
+      {
+        "org": "org_golden_a",
+        "type": "message.new",
+        "data": {
+          "conversationId": "<cv#1>",
+          "message": {
+            "id": "<msg#2>",
+            "conversationId": "<cv#1>",
+            "direction": "out",
+            "type": "image",
+            "text": null,
+            "status": "sent",
+            "error": null,
+            "aiGenerated": false,
+            "origin": "manual",
+            "media": {
+              "assetId": "<ma#1>",
+              "kind": "image",
+              "mimeType": "image/jpeg",
+              "fileName": null,
+              "fileSize": null,
+              "caption": "el catálogo",
+              "fetchStatus": "pending",
+              "payload": null
+            },
+            "createdAt": "<now-30s>"
+          }
+        }
+      },
+      {
+        "org": "org_golden_a",
+        "type": "conversation.updated",
+        "data": {
+          "conversation": {
+            "id": "<cv#1>"
+          }
+        }
+      }
+    ],
+    "consoleErrors": 0
+  },
+  "echo > duplicado → sin segundo mensaje ni segundo SSE": {
+    "db": {
+      "contact": [
+        {
+          "organization_id": "org_golden_a",
+          "id": "<ct#1>",
+          "wa_identity": "525512345678",
+          "phone": "525512345678",
+          "wa_user_id": null,
+          "name": "Ana Golden",
+          "notes": null,
+          "ficha": null,
+          "source": null,
+          "archived_at": null,
+          "created_at": "<db-now>",
+          "updated_at": "<db-now>"
+        }
+      ],
+      "conversation": [
+        {
+          "organization_id": "org_golden_a",
+          "id": "<cv#1>",
+          "contact_id": "<ct#1>",
+          "is_test": false,
+          "ai_enabled": false,
+          "handoff_at": "<now>",
+          "handoff_reason": "manual_reply",
+          "last_inbound_at": "<now-1m>",
+          "last_message_at": "<now-30s>",
+          "unread_count": 1,
+          "created_at": "<db-now>",
+          "updated_at": "<now>"
+        }
+      ],
+      "message": [
+        {
+          "organization_id": "org_golden_a",
+          "id": "<msg#1>",
+          "conversation_id": "<cv#1>",
+          "wa_message_id": "wamid.golden.in.text.1",
+          "direction": "in",
+          "type": "text",
+          "text": "Hola, quiero información",
+          "status": "delivered",
+          "error": null,
+          "ai_generated": false,
+          "origin": "operator",
+          "media_asset_id": null,
+          "wa_timestamp": "<now-1m>",
+          "created_at": "<db-now>"
+        },
+        {
+          "organization_id": "org_golden_a",
+          "id": "<msg#2>",
+          "conversation_id": "<cv#1>",
+          "wa_message_id": "wamid.golden.echo.1",
+          "direction": "out",
+          "type": "text",
+          "text": "Te respondo desde el teléfono",
+          "status": "sent",
+          "error": null,
+          "ai_generated": false,
+          "origin": "manual",
+          "media_asset_id": null,
+          "wa_timestamp": "<now-30s>",
+          "created_at": "<db-now>"
+        }
+      ],
+      "media_asset": [],
+      "lead": [
+        {
+          "organization_id": "org_golden_a",
+          "id": "<ld#1>",
+          "contact_id": "<ct#1>",
+          "stage_id": "stg_golden_a_nuevo",
+          "position": 0,
+          "last_activity_at": "<now-1m>",
+          "created_at": "<db-now>",
+          "updated_at": "<db-now>"
+        }
+      ],
+      "lead_stage_event": [
+        {
+          "organization_id": "org_golden_a",
+          "lead_id": "<ld#1>",
+          "contact_id": "<ct#1>",
+          "from_stage_id": null,
+          "to_stage_id": "stg_golden_a_nuevo",
+          "to_stage_name": "Nuevo",
+          "to_stage_kind": "open",
+          "source": "sistema",
+          "approximate": false,
+          "occurred_at": "<now-1m>"
+        }
+      ],
+      "template": [],
+      "wa_address_book_entry": [],
+      "credentials": {
+        "org_golden_a": {
+          "organizationId": "org_golden_a",
+          "wabaId": "200000000000001",
+          "phoneNumberId": "100000000000001",
+          "displayPhoneNumber": "+52 55 1000 0001",
+          "verifiedName": "Golden A",
+          "status": "connected",
+          "onboardingMode": "manual",
+          "appDisconnectedAt": null,
+          "token": "meta_token(org_golden_a)"
+        },
+        "org_golden_b": {
+          "organizationId": "org_golden_b",
+          "wabaId": "200000000000002",
+          "phoneNumberId": "100000000000002",
+          "displayPhoneNumber": "+52 55 1000 0002",
+          "verifiedName": "Golden B",
+          "status": "connected",
+          "onboardingMode": "manual",
+          "appDisconnectedAt": null,
+          "token": "meta_token(org_golden_b)"
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "received": true
+      }
+    },
+    "requests": [],
+    "sse": [
+      {
+        "org": "org_golden_a",
+        "type": "message.new",
+        "data": {
+          "conversationId": "<cv#1>",
+          "message": {
+            "id": "<msg#1>",
+            "conversationId": "<cv#1>",
+            "direction": "in",
+            "type": "text",
+            "text": "Hola, quiero información",
+            "status": "delivered",
+            "error": null,
+            "aiGenerated": false,
+            "origin": "operator",
+            "media": null,
+            "createdAt": "<now-1m>"
+          }
+        }
+      },
+      {
+        "org": "org_golden_a",
+        "type": "conversation.updated",
+        "data": {
+          "conversation": {
+            "id": "<cv#1>"
+          }
+        }
+      },
+      {
+        "org": "org_golden_a",
+        "type": "message.new",
+        "data": {
+          "conversationId": "<cv#1>",
+          "message": {
+            "id": "<msg#2>",
+            "conversationId": "<cv#1>",
+            "direction": "out",
+            "type": "text",
+            "text": "Te respondo desde el teléfono",
+            "status": "sent",
+            "error": null,
+            "aiGenerated": false,
+            "origin": "manual",
+            "media": null,
+            "createdAt": "<now-30s>"
+          }
+        }
+      },
+      {
+        "org": "org_golden_a",
+        "type": "conversation.updated",
+        "data": {
+          "conversation": {
+            "id": "<cv#1>"
+          }
+        }
+      }
+    ],
+    "consoleErrors": 0
+  },
+  "echo > sin `to` → descartado": {
+    "db": {
+      "contact": [
+        {
+          "organization_id": "org_golden_a",
+          "id": "<ct#1>",
+          "wa_identity": "525512345678",
+          "phone": "525512345678",
+          "wa_user_id": null,
+          "name": "Ana Golden",
+          "notes": null,
+          "ficha": null,
+          "source": null,
+          "archived_at": null,
+          "created_at": "<db-now>",
+          "updated_at": "<db-now>"
+        }
+      ],
+      "conversation": [
+        {
+          "organization_id": "org_golden_a",
+          "id": "<cv#1>",
+          "contact_id": "<ct#1>",
+          "is_test": false,
+          "ai_enabled": true,
+          "handoff_at": null,
+          "handoff_reason": null,
+          "last_inbound_at": "<now-1m>",
+          "last_message_at": "<now-1m>",
+          "unread_count": 1,
+          "created_at": "<db-now>",
+          "updated_at": "<now>"
+        }
+      ],
+      "message": [
+        {
+          "organization_id": "org_golden_a",
+          "id": "<msg#1>",
+          "conversation_id": "<cv#1>",
+          "wa_message_id": "wamid.golden.in.text.1",
+          "direction": "in",
+          "type": "text",
+          "text": "Hola, quiero información",
+          "status": "delivered",
+          "error": null,
+          "ai_generated": false,
+          "origin": "operator",
+          "media_asset_id": null,
+          "wa_timestamp": "<now-1m>",
+          "created_at": "<db-now>"
+        }
+      ],
+      "media_asset": [],
+      "lead": [
+        {
+          "organization_id": "org_golden_a",
+          "id": "<ld#1>",
+          "contact_id": "<ct#1>",
+          "stage_id": "stg_golden_a_nuevo",
+          "position": 0,
+          "last_activity_at": "<now-1m>",
+          "created_at": "<db-now>",
+          "updated_at": "<db-now>"
+        }
+      ],
+      "lead_stage_event": [
+        {
+          "organization_id": "org_golden_a",
+          "lead_id": "<ld#1>",
+          "contact_id": "<ct#1>",
+          "from_stage_id": null,
+          "to_stage_id": "stg_golden_a_nuevo",
+          "to_stage_name": "Nuevo",
+          "to_stage_kind": "open",
+          "source": "sistema",
+          "approximate": false,
+          "occurred_at": "<now-1m>"
+        }
+      ],
+      "template": [],
+      "wa_address_book_entry": [],
+      "credentials": {
+        "org_golden_a": {
+          "organizationId": "org_golden_a",
+          "wabaId": "200000000000001",
+          "phoneNumberId": "100000000000001",
+          "displayPhoneNumber": "+52 55 1000 0001",
+          "verifiedName": "Golden A",
+          "status": "connected",
+          "onboardingMode": "manual",
+          "appDisconnectedAt": null,
+          "token": "meta_token(org_golden_a)"
+        },
+        "org_golden_b": {
+          "organizationId": "org_golden_b",
+          "wabaId": "200000000000002",
+          "phoneNumberId": "100000000000002",
+          "displayPhoneNumber": "+52 55 1000 0002",
+          "verifiedName": "Golden B",
+          "status": "connected",
+          "onboardingMode": "manual",
+          "appDisconnectedAt": null,
+          "token": "meta_token(org_golden_b)"
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "received": true
+      }
+    },
+    "requests": [],
+    "sse": [
+      {
+        "org": "org_golden_a",
+        "type": "message.new",
+        "data": {
+          "conversationId": "<cv#1>",
+          "message": {
+            "id": "<msg#1>",
+            "conversationId": "<cv#1>",
+            "direction": "in",
+            "type": "text",
+            "text": "Hola, quiero información",
+            "status": "delivered",
+            "error": null,
+            "aiGenerated": false,
+            "origin": "operator",
+            "media": null,
+            "createdAt": "<now-1m>"
+          }
+        }
+      },
+      {
+        "org": "org_golden_a",
+        "type": "conversation.updated",
+        "data": {
+          "conversation": {
+            "id": "<cv#1>"
+          }
+        }
+      }
+    ],
+    "consoleErrors": 0
+  },
+  "echo > variante con la clave `messages` → se acepta igual": {
+    "db": {
+      "contact": [
+        {
+          "organization_id": "org_golden_a",
+          "id": "<ct#1>",
+          "wa_identity": "525512345678",
+          "phone": "525512345678",
+          "wa_user_id": null,
+          "name": "Ana Golden",
+          "notes": null,
+          "ficha": null,
+          "source": null,
+          "archived_at": null,
+          "created_at": "<db-now>",
+          "updated_at": "<db-now>"
+        }
+      ],
+      "conversation": [
+        {
+          "organization_id": "org_golden_a",
+          "id": "<cv#1>",
+          "contact_id": "<ct#1>",
+          "is_test": false,
+          "ai_enabled": false,
+          "handoff_at": "<now>",
+          "handoff_reason": "manual_reply",
+          "last_inbound_at": "<now-1m>",
+          "last_message_at": "<now-30s>",
+          "unread_count": 1,
+          "created_at": "<db-now>",
+          "updated_at": "<now>"
+        }
+      ],
+      "message": [
+        {
+          "organization_id": "org_golden_a",
+          "id": "<msg#1>",
+          "conversation_id": "<cv#1>",
+          "wa_message_id": "wamid.golden.in.text.1",
+          "direction": "in",
+          "type": "text",
+          "text": "Hola, quiero información",
+          "status": "delivered",
+          "error": null,
+          "ai_generated": false,
+          "origin": "operator",
+          "media_asset_id": null,
+          "wa_timestamp": "<now-1m>",
+          "created_at": "<db-now>"
+        },
+        {
+          "organization_id": "org_golden_a",
+          "id": "<msg#2>",
+          "conversation_id": "<cv#1>",
+          "wa_message_id": "wamid.golden.echo.2",
+          "direction": "out",
+          "type": "text",
+          "text": "variante con la clave messages",
+          "status": "sent",
+          "error": null,
+          "ai_generated": false,
+          "origin": "manual",
+          "media_asset_id": null,
+          "wa_timestamp": "<now-30s>",
+          "created_at": "<db-now>"
+        }
+      ],
+      "media_asset": [],
+      "lead": [
+        {
+          "organization_id": "org_golden_a",
+          "id": "<ld#1>",
+          "contact_id": "<ct#1>",
+          "stage_id": "stg_golden_a_nuevo",
+          "position": 0,
+          "last_activity_at": "<now-1m>",
+          "created_at": "<db-now>",
+          "updated_at": "<db-now>"
+        }
+      ],
+      "lead_stage_event": [
+        {
+          "organization_id": "org_golden_a",
+          "lead_id": "<ld#1>",
+          "contact_id": "<ct#1>",
+          "from_stage_id": null,
+          "to_stage_id": "stg_golden_a_nuevo",
+          "to_stage_name": "Nuevo",
+          "to_stage_kind": "open",
+          "source": "sistema",
+          "approximate": false,
+          "occurred_at": "<now-1m>"
+        }
+      ],
+      "template": [],
+      "wa_address_book_entry": [],
+      "credentials": {
+        "org_golden_a": {
+          "organizationId": "org_golden_a",
+          "wabaId": "200000000000001",
+          "phoneNumberId": "100000000000001",
+          "displayPhoneNumber": "+52 55 1000 0001",
+          "verifiedName": "Golden A",
+          "status": "connected",
+          "onboardingMode": "manual",
+          "appDisconnectedAt": null,
+          "token": "meta_token(org_golden_a)"
+        },
+        "org_golden_b": {
+          "organizationId": "org_golden_b",
+          "wabaId": "200000000000002",
+          "phoneNumberId": "100000000000002",
+          "displayPhoneNumber": "+52 55 1000 0002",
+          "verifiedName": "Golden B",
+          "status": "connected",
+          "onboardingMode": "manual",
+          "appDisconnectedAt": null,
+          "token": "meta_token(org_golden_b)"
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "received": true
+      }
+    },
+    "requests": [],
+    "sse": [
+      {
+        "org": "org_golden_a",
+        "type": "message.new",
+        "data": {
+          "conversationId": "<cv#1>",
+          "message": {
+            "id": "<msg#1>",
+            "conversationId": "<cv#1>",
+            "direction": "in",
+            "type": "text",
+            "text": "Hola, quiero información",
+            "status": "delivered",
+            "error": null,
+            "aiGenerated": false,
+            "origin": "operator",
+            "media": null,
+            "createdAt": "<now-1m>"
+          }
+        }
+      },
+      {
+        "org": "org_golden_a",
+        "type": "conversation.updated",
+        "data": {
+          "conversation": {
+            "id": "<cv#1>"
+          }
+        }
+      },
+      {
+        "org": "org_golden_a",
+        "type": "message.new",
+        "data": {
+          "conversationId": "<cv#1>",
+          "message": {
+            "id": "<msg#2>",
+            "conversationId": "<cv#1>",
+            "direction": "out",
+            "type": "text",
+            "text": "variante con la clave messages",
+            "status": "sent",
+            "error": null,
+            "aiGenerated": false,
+            "origin": "manual",
+            "media": null,
+            "createdAt": "<now-30s>"
+          }
+        }
+      },
+      {
+        "org": "org_golden_a",
+        "type": "conversation.updated",
+        "data": {
+          "conversation": {
+            "id": "<cv#1>"
+          }
+        }
+      }
+    ],
+    "consoleErrors": 0
+  },
+  "echo > con un handoff previo → no pisa el motivo ni la fecha del handoff": {
+    "db": {
+      "contact": [
+        {
+          "organization_id": "org_golden_a",
+          "id": "<ct#1>",
+          "wa_identity": "525512345678",
+          "phone": "525512345678",
+          "wa_user_id": null,
+          "name": "Ana Golden",
+          "notes": null,
+          "ficha": null,
+          "source": null,
+          "archived_at": null,
+          "created_at": "<db-now>",
+          "updated_at": "<db-now>"
+        }
+      ],
+      "conversation": [
+        {
+          "organization_id": "org_golden_a",
+          "id": "<cv#1>",
+          "contact_id": "<ct#1>",
+          "is_test": false,
+          "ai_enabled": true,
+          "handoff_at": "<db-now>",
+          "handoff_reason": "cliente",
+          "last_inbound_at": "<now-1m>",
+          "last_message_at": "<now-30s>",
+          "unread_count": 1,
+          "created_at": "<db-now>",
+          "updated_at": "<now>"
+        }
+      ],
+      "message": [
+        {
+          "organization_id": "org_golden_a",
+          "id": "<msg#1>",
+          "conversation_id": "<cv#1>",
+          "wa_message_id": "wamid.golden.in.text.1",
+          "direction": "in",
+          "type": "text",
+          "text": "Hola, quiero información",
+          "status": "delivered",
+          "error": null,
+          "ai_generated": false,
+          "origin": "operator",
+          "media_asset_id": null,
+          "wa_timestamp": "<now-1m>",
+          "created_at": "<db-now>"
+        },
+        {
+          "organization_id": "org_golden_a",
+          "id": "<msg#2>",
+          "conversation_id": "<cv#1>",
+          "wa_message_id": "wamid.golden.echo.1",
+          "direction": "out",
+          "type": "text",
+          "text": "Te respondo desde el teléfono",
+          "status": "sent",
+          "error": null,
+          "ai_generated": false,
+          "origin": "manual",
+          "media_asset_id": null,
+          "wa_timestamp": "<now-30s>",
+          "created_at": "<db-now>"
+        }
+      ],
+      "media_asset": [],
+      "lead": [
+        {
+          "organization_id": "org_golden_a",
+          "id": "<ld#1>",
+          "contact_id": "<ct#1>",
+          "stage_id": "stg_golden_a_nuevo",
+          "position": 0,
+          "last_activity_at": "<now-1m>",
+          "created_at": "<db-now>",
+          "updated_at": "<db-now>"
+        }
+      ],
+      "lead_stage_event": [
+        {
+          "organization_id": "org_golden_a",
+          "lead_id": "<ld#1>",
+          "contact_id": "<ct#1>",
+          "from_stage_id": null,
+          "to_stage_id": "stg_golden_a_nuevo",
+          "to_stage_name": "Nuevo",
+          "to_stage_kind": "open",
+          "source": "sistema",
+          "approximate": false,
+          "occurred_at": "<now-1m>"
+        }
+      ],
+      "template": [],
+      "wa_address_book_entry": [],
+      "credentials": {
+        "org_golden_a": {
+          "organizationId": "org_golden_a",
+          "wabaId": "200000000000001",
+          "phoneNumberId": "100000000000001",
+          "displayPhoneNumber": "+52 55 1000 0001",
+          "verifiedName": "Golden A",
+          "status": "connected",
+          "onboardingMode": "manual",
+          "appDisconnectedAt": null,
+          "token": "meta_token(org_golden_a)"
+        },
+        "org_golden_b": {
+          "organizationId": "org_golden_b",
+          "wabaId": "200000000000002",
+          "phoneNumberId": "100000000000002",
+          "displayPhoneNumber": "+52 55 1000 0002",
+          "verifiedName": "Golden B",
+          "status": "connected",
+          "onboardingMode": "manual",
+          "appDisconnectedAt": null,
+          "token": "meta_token(org_golden_b)"
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "received": true
+      }
+    },
+    "requests": [],
+    "sse": [
+      {
+        "org": "org_golden_a",
+        "type": "message.new",
+        "data": {
+          "conversationId": "<cv#1>",
+          "message": {
+            "id": "<msg#1>",
+            "conversationId": "<cv#1>",
+            "direction": "in",
+            "type": "text",
+            "text": "Hola, quiero información",
+            "status": "delivered",
+            "error": null,
+            "aiGenerated": false,
+            "origin": "operator",
+            "media": null,
+            "createdAt": "<now-1m>"
+          }
+        }
+      },
+      {
+        "org": "org_golden_a",
+        "type": "conversation.updated",
+        "data": {
+          "conversation": {
+            "id": "<cv#1>"
+          }
+        }
+      },
+      {
+        "org": "org_golden_a",
+        "type": "message.new",
+        "data": {
+          "conversationId": "<cv#1>",
+          "message": {
+            "id": "<msg#2>",
+            "conversationId": "<cv#1>",
+            "direction": "out",
+            "type": "text",
+            "text": "Te respondo desde el teléfono",
+            "status": "sent",
+            "error": null,
+            "aiGenerated": false,
+            "origin": "manual",
+            "media": null,
+            "createdAt": "<now-30s>"
+          }
+        }
+      },
+      {
+        "org": "org_golden_a",
+        "type": "conversation.updated",
+        "data": {
+          "conversation": {
+            "id": "<cv#1>"
+          }
+        }
+      }
+    ],
+    "consoleErrors": 0
+  }
+}

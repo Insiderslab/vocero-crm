@@ -1,0 +1,32 @@
+{
+  "object": "whatsapp_business_account",
+  "entry": [
+    {
+      "id": "200000000000001",
+      "changes": [
+        {
+          "field": "smb_message_echoes",
+          "value": {
+            "messaging_product": "whatsapp",
+            "metadata": {
+              "display_phone_number": "525510000001",
+              "phone_number_id": "100000000000001"
+            },
+            "messages": [
+              {
+                "from": "525510000001",
+                "to": "5215512345678",
+                "id": "wamid.golden.echo.2",
+                "timestamp": "1893499170",
+                "type": "text",
+                "text": {
+                  "body": "variante con la clave messages"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,722 @@
+{
+  "agent > entrante real → turno agendado → respuesta enviada por Graph (aiGenerated)": {
+    "db": {
+      "contact": [
+        {
+          "organization_id": "org_golden_a",
+          "id": "<ct#1>",
+          "wa_identity": "525512345678",
+          "phone": "525512345678",
+          "wa_user_id": null,
+          "name": "Ana Golden",
+          "notes": null,
+          "ficha": null,
+          "source": null,
+          "archived_at": null,
+          "created_at": "<db-now>",
+          "updated_at": "<db-now>"
+        }
+      ],
+      "conversation": [
+        {
+          "organization_id": "org_golden_a",
+          "id": "<cv#1>",
+          "contact_id": "<ct#1>",
+          "is_test": false,
+          "ai_enabled": true,
+          "handoff_at": null,
+          "handoff_reason": null,
+          "last_inbound_at": "<now-1m>",
+          "last_message_at": "<now>",
+          "unread_count": 1,
+          "created_at": "<db-now>",
+          "updated_at": "<now>"
+        }
+      ],
+      "message": [
+        {
+          "organization_id": "org_golden_a",
+          "id": "<msg#1>",
+          "conversation_id": "<cv#1>",
+          "wa_message_id": "wamid.golden.in.text.1",
+          "direction": "in",
+          "type": "text",
+          "text": "Hola, quiero información",
+          "status": "delivered",
+          "error": null,
+          "ai_generated": false,
+          "origin": "operator",
+          "media_asset_id": null,
+          "wa_timestamp": "<now-1m>",
+          "created_at": "<db-now>"
+        },
+        {
+          "organization_id": "org_golden_a",
+          "id": "<msg#2>",
+          "conversation_id": "<cv#1>",
+          "wa_message_id": "wamid.golden.out.1",
+          "direction": "out",
+          "type": "text",
+          "text": "¡Hola Ana! Abrimos de 9 a 19 h.",
+          "status": "pending",
+          "error": null,
+          "ai_generated": true,
+          "origin": "ai",
+          "media_asset_id": null,
+          "wa_timestamp": null,
+          "created_at": "<db-now>"
+        }
+      ],
+      "media_asset": [],
+      "lead": [
+        {
+          "organization_id": "org_golden_a",
+          "id": "<ld#1>",
+          "contact_id": "<ct#1>",
+          "stage_id": "stg_golden_a_nuevo",
+          "position": 0,
+          "last_activity_at": "<now-1m>",
+          "created_at": "<db-now>",
+          "updated_at": "<db-now>"
+        }
+      ],
+      "lead_stage_event": [
+        {
+          "organization_id": "org_golden_a",
+          "lead_id": "<ld#1>",
+          "contact_id": "<ct#1>",
+          "from_stage_id": null,
+          "to_stage_id": "stg_golden_a_nuevo",
+          "to_stage_name": "Nuevo",
+          "to_stage_kind": "open",
+          "source": "sistema",
+          "approximate": false,
+          "occurred_at": "<now-1m>"
+        }
+      ],
+      "template": [],
+      "wa_address_book_entry": [],
+      "credentials": {
+        "org_golden_a": {
+          "organizationId": "org_golden_a",
+          "wabaId": "200000000000001",
+          "phoneNumberId": "100000000000001",
+          "displayPhoneNumber": "+52 55 1000 0001",
+          "verifiedName": "Golden A",
+          "status": "connected",
+          "onboardingMode": "manual",
+          "appDisconnectedAt": null,
+          "token": "meta_token(org_golden_a)"
+        },
+        "org_golden_b": {
+          "organizationId": "org_golden_b",
+          "wabaId": "200000000000002",
+          "phoneNumberId": "100000000000002",
+          "displayPhoneNumber": "+52 55 1000 0002",
+          "verifiedName": "Golden B",
+          "status": "connected",
+          "onboardingMode": "manual",
+          "appDisconnectedAt": null,
+          "token": "meta_token(org_golden_b)"
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "received": true
+      }
+    },
+    "requests": [
+      {
+        "to": "ai",
+        "method": "POST",
+        "path": "/api/v1/chat/completions",
+        "auth": "ai_token",
+        "body": {
+          "model": "golden/modelo-sintetico",
+          "messages": [
+            {
+              "role": "system",
+              "content": "Eres \"Asistente Golden\", el asistente de WhatsApp de este negocio. Respondes en el idioma en que te escribe el cliente (si no queda claro, en español neutro), con mensajes breves y naturales para chat.\n\nTono: cercano\n\nInstrucciones del negocio:\nAtiende citas de un negocio de prueba.\n\nCONOCIMIENTO DEL NEGOCIO (tu única fuente de verdad; si algo no está aquí, NO lo inventes — di que lo confirmarás con el equipo o escala):\nP: ¿Horario?\nR: De 9 a 19 h\n\nEtapas del pipeline disponibles: Nuevo | Ganado\n\nEn cada turno respondes ÚNICAMENTE un objeto JSON con UNA acción:\n- {\"action\":\"none\"} — no responder nada.\n- {\"action\":\"reply\",\"text\":\"...\"} — responder al cliente.\n- {\"action\":\"update_lead\",\"note\":\"...\",\"reply\":\"...\"} — guardar una nota del lead (reply opcional).\n- {\"action\":\"move_stage\",\"stage\":\"<nombre exacto de etapa>\",\"reply\":\"...\"} — mover el lead (reply opcional).\n- {\"action\":\"handoff\",\"reason\":\"...\",\"farewell\":\"...\"} — escalar a un humano (farewell opcional para despedirte).\nReglas duras:\n- Si el cliente pide hablar con una persona/humano/asesor → handoff.\n- Si la pregunta NO está cubierta por el conocimiento → NO inventes: responde que lo confirmarás o escala.\n- Si detectas intención clara de compra → move_stage a la etapa de interesados y dile al cliente que registraste su solicitud.\n- NUNCA confirmes una reserva, cita, cupo, disponibilidad ni precio que no esté en el conocimiento: eso lo confirma una persona del equipo.\n- JSON puro, sin markdown ni texto adicional."
+            },
+            {
+              "role": "user",
+              "content": "Hola, quiero información"
+            }
+          ]
+        }
+      },
+      {
+        "to": "graph",
+        "method": "POST",
+        "path": "/v25.0/100000000000001/messages",
+        "auth": "meta_token(org_golden_a)",
+        "body": {
+          "messaging_product": "whatsapp",
+          "to": "525512345678",
+          "type": "text",
+          "text": {
+            "body": "¡Hola Ana! Abrimos de 9 a 19 h."
+          }
+        }
+      }
+    ],
+    "sse": [
+      {
+        "org": "org_golden_a",
+        "type": "message.new",
+        "data": {
+          "conversationId": "<cv#1>",
+          "message": {
+            "id": "<msg#1>",
+            "conversationId": "<cv#1>",
+            "direction": "in",
+            "type": "text",
+            "text": "Hola, quiero información",
+            "status": "delivered",
+            "error": null,
+            "aiGenerated": false,
+            "origin": "operator",
+            "media": null,
+            "createdAt": "<now-1m>"
+          }
+        }
+      },
+      {
+        "org": "org_golden_a",
+        "type": "conversation.updated",
+        "data": {
+          "conversation": {
+            "id": "<cv#1>"
+          }
+        }
+      },
+      {
+        "org": "org_golden_a",
+        "type": "message.new",
+        "data": {
+          "conversationId": "<cv#1>",
+          "message": {
+            "id": "<msg#2>",
+            "conversationId": "<cv#1>",
+            "direction": "out",
+            "type": "text",
+            "text": "¡Hola Ana! Abrimos de 9 a 19 h.",
+            "status": "pending",
+            "error": null,
+            "aiGenerated": true,
+            "origin": "ai",
+            "media": null,
+            "createdAt": "<db-now>"
+          }
+        }
+      }
+    ],
+    "consoleErrors": 0
+  },
+  "agent > el modelo pide handoff con despedida → despedida enviada y handoff modelo": {
+    "db": {
+      "contact": [
+        {
+          "organization_id": "org_golden_a",
+          "id": "<ct#1>",
+          "wa_identity": "525512345678",
+          "phone": "525512345678",
+          "wa_user_id": null,
+          "name": "Ana Golden",
+          "notes": null,
+          "ficha": null,
+          "source": null,
+          "archived_at": null,
+          "created_at": "<db-now>",
+          "updated_at": "<db-now>"
+        }
+      ],
+      "conversation": [
+        {
+          "organization_id": "org_golden_a",
+          "id": "<cv#1>",
+          "contact_id": "<ct#1>",
+          "is_test": false,
+          "ai_enabled": true,
+          "handoff_at": "<now>",
+          "handoff_reason": "modelo",
+          "last_inbound_at": "<now-1m>",
+          "last_message_at": "<now>",
+          "unread_count": 1,
+          "created_at": "<db-now>",
+          "updated_at": "<now>"
+        }
+      ],
+      "message": [
+        {
+          "organization_id": "org_golden_a",
+          "id": "<msg#1>",
+          "conversation_id": "<cv#1>",
+          "wa_message_id": "wamid.golden.in.text.1",
+          "direction": "in",
+          "type": "text",
+          "text": "Hola, quiero información",
+          "status": "delivered",
+          "error": null,
+          "ai_generated": false,
+          "origin": "operator",
+          "media_asset_id": null,
+          "wa_timestamp": "<now-1m>",
+          "created_at": "<db-now>"
+        },
+        {
+          "organization_id": "org_golden_a",
+          "id": "<msg#2>",
+          "conversation_id": "<cv#1>",
+          "wa_message_id": "wamid.golden.out.1",
+          "direction": "out",
+          "type": "text",
+          "text": "Te paso con una persona del equipo.",
+          "status": "pending",
+          "error": null,
+          "ai_generated": true,
+          "origin": "ai",
+          "media_asset_id": null,
+          "wa_timestamp": null,
+          "created_at": "<db-now>"
+        }
+      ],
+      "media_asset": [],
+      "lead": [
+        {
+          "organization_id": "org_golden_a",
+          "id": "<ld#1>",
+          "contact_id": "<ct#1>",
+          "stage_id": "stg_golden_a_nuevo",
+          "position": 0,
+          "last_activity_at": "<now-1m>",
+          "created_at": "<db-now>",
+          "updated_at": "<db-now>"
+        }
+      ],
+      "lead_stage_event": [
+        {
+          "organization_id": "org_golden_a",
+          "lead_id": "<ld#1>",
+          "contact_id": "<ct#1>",
+          "from_stage_id": null,
+          "to_stage_id": "stg_golden_a_nuevo",
+          "to_stage_name": "Nuevo",
+          "to_stage_kind": "open",
+          "source": "sistema",
+          "approximate": false,
+          "occurred_at": "<now-1m>"
+        }
+      ],
+      "template": [],
+      "wa_address_book_entry": [],
+      "credentials": {
+        "org_golden_a": {
+          "organizationId": "org_golden_a",
+          "wabaId": "200000000000001",
+          "phoneNumberId": "100000000000001",
+          "displayPhoneNumber": "+52 55 1000 0001",
+          "verifiedName": "Golden A",
+          "status": "connected",
+          "onboardingMode": "manual",
+          "appDisconnectedAt": null,
+          "token": "meta_token(org_golden_a)"
+        },
+        "org_golden_b": {
+          "organizationId": "org_golden_b",
+          "wabaId": "200000000000002",
+          "phoneNumberId": "100000000000002",
+          "displayPhoneNumber": "+52 55 1000 0002",
+          "verifiedName": "Golden B",
+          "status": "connected",
+          "onboardingMode": "manual",
+          "appDisconnectedAt": null,
+          "token": "meta_token(org_golden_b)"
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "received": true
+      }
+    },
+    "requests": [
+      {
+        "to": "ai",
+        "method": "POST",
+        "path": "/api/v1/chat/completions",
+        "auth": "ai_token",
+        "body": {
+          "model": "golden/modelo-sintetico",
+          "messages": [
+            {
+              "role": "system",
+              "content": "Eres \"Asistente Golden\", el asistente de WhatsApp de este negocio. Respondes en el idioma en que te escribe el cliente (si no queda claro, en español neutro), con mensajes breves y naturales para chat.\n\nTono: cercano\n\nInstrucciones del negocio:\nAtiende citas de un negocio de prueba.\n\nCONOCIMIENTO DEL NEGOCIO (tu única fuente de verdad; si algo no está aquí, NO lo inventes — di que lo confirmarás con el equipo o escala):\nP: ¿Horario?\nR: De 9 a 19 h\n\nEtapas del pipeline disponibles: Nuevo | Ganado\n\nEn cada turno respondes ÚNICAMENTE un objeto JSON con UNA acción:\n- {\"action\":\"none\"} — no responder nada.\n- {\"action\":\"reply\",\"text\":\"...\"} — responder al cliente.\n- {\"action\":\"update_lead\",\"note\":\"...\",\"reply\":\"...\"} — guardar una nota del lead (reply opcional).\n- {\"action\":\"move_stage\",\"stage\":\"<nombre exacto de etapa>\",\"reply\":\"...\"} — mover el lead (reply opcional).\n- {\"action\":\"handoff\",\"reason\":\"...\",\"farewell\":\"...\"} — escalar a un humano (farewell opcional para despedirte).\nReglas duras:\n- Si el cliente pide hablar con una persona/humano/asesor → handoff.\n- Si la pregunta NO está cubierta por el conocimiento → NO inventes: responde que lo confirmarás o escala.\n- Si detectas intención clara de compra → move_stage a la etapa de interesados y dile al cliente que registraste su solicitud.\n- NUNCA confirmes una reserva, cita, cupo, disponibilidad ni precio que no esté en el conocimiento: eso lo confirma una persona del equipo.\n- JSON puro, sin markdown ni texto adicional."
+            },
+            {
+              "role": "user",
+              "content": "Hola, quiero información"
+            }
+          ]
+        }
+      },
+      {
+        "to": "graph",
+        "method": "POST",
+        "path": "/v25.0/100000000000001/messages",
+        "auth": "meta_token(org_golden_a)",
+        "body": {
+          "messaging_product": "whatsapp",
+          "to": "525512345678",
+          "type": "text",
+          "text": {
+            "body": "Te paso con una persona del equipo."
+          }
+        }
+      }
+    ],
+    "sse": [
+      {
+        "org": "org_golden_a",
+        "type": "message.new",
+        "data": {
+          "conversationId": "<cv#1>",
+          "message": {
+            "id": "<msg#1>",
+            "conversationId": "<cv#1>",
+            "direction": "in",
+            "type": "text",
+            "text": "Hola, quiero información",
+            "status": "delivered",
+            "error": null,
+            "aiGenerated": false,
+            "origin": "operator",
+            "media": null,
+            "createdAt": "<now-1m>"
+          }
+        }
+      },
+      {
+        "org": "org_golden_a",
+        "type": "conversation.updated",
+        "data": {
+          "conversation": {
+            "id": "<cv#1>"
+          }
+        }
+      },
+      {
+        "org": "org_golden_a",
+        "type": "message.new",
+        "data": {
+          "conversationId": "<cv#1>",
+          "message": {
+            "id": "<msg#2>",
+            "conversationId": "<cv#1>",
+            "direction": "out",
+            "type": "text",
+            "text": "Te paso con una persona del equipo.",
+            "status": "pending",
+            "error": null,
+            "aiGenerated": true,
+            "origin": "ai",
+            "media": null,
+            "createdAt": "<db-now>"
+          }
+        }
+      },
+      {
+        "org": "org_golden_a",
+        "type": "conversation.updated",
+        "data": {
+          "conversation": {
+            "id": "<cv#1>",
+            "handoffReason": "modelo"
+          }
+        }
+      }
+    ],
+    "consoleErrors": 0
+  },
+  "agent > ventana cerrada → handoff ventana sin llamar al modelo ni a Graph": {
+    "db": {
+      "contact": [
+        {
+          "organization_id": "org_golden_a",
+          "id": "<ct#1>",
+          "wa_identity": "525512345678",
+          "phone": "525512345678",
+          "wa_user_id": null,
+          "name": "Ana Golden",
+          "notes": null,
+          "ficha": null,
+          "source": null,
+          "archived_at": null,
+          "created_at": "<db-now>",
+          "updated_at": "<db-now>"
+        }
+      ],
+      "conversation": [
+        {
+          "organization_id": "org_golden_a",
+          "id": "<cv#1>",
+          "contact_id": "<ct#1>",
+          "is_test": false,
+          "ai_enabled": true,
+          "handoff_at": "<now>",
+          "handoff_reason": "ventana",
+          "last_inbound_at": "<now-25h>",
+          "last_message_at": "<now-25h>",
+          "unread_count": 1,
+          "created_at": "<db-now>",
+          "updated_at": "<now>"
+        }
+      ],
+      "message": [
+        {
+          "organization_id": "org_golden_a",
+          "id": "<msg#1>",
+          "conversation_id": "<cv#1>",
+          "wa_message_id": "wamid.golden.in.old.1",
+          "direction": "in",
+          "type": "text",
+          "text": "Mensaje de ayer",
+          "status": "delivered",
+          "error": null,
+          "ai_generated": false,
+          "origin": "operator",
+          "media_asset_id": null,
+          "wa_timestamp": "<now-25h>",
+          "created_at": "<db-now>"
+        }
+      ],
+      "media_asset": [],
+      "lead": [
+        {
+          "organization_id": "org_golden_a",
+          "id": "<ld#1>",
+          "contact_id": "<ct#1>",
+          "stage_id": "stg_golden_a_nuevo",
+          "position": 0,
+          "last_activity_at": "<now-25h>",
+          "created_at": "<db-now>",
+          "updated_at": "<db-now>"
+        }
+      ],
+      "lead_stage_event": [
+        {
+          "organization_id": "org_golden_a",
+          "lead_id": "<ld#1>",
+          "contact_id": "<ct#1>",
+          "from_stage_id": null,
+          "to_stage_id": "stg_golden_a_nuevo",
+          "to_stage_name": "Nuevo",
+          "to_stage_kind": "open",
+          "source": "sistema",
+          "approximate": false,
+          "occurred_at": "<now-25h>"
+        }
+      ],
+      "template": [],
+      "wa_address_book_entry": [],
+      "credentials": {
+        "org_golden_a": {
+          "organizationId": "org_golden_a",
+          "wabaId": "200000000000001",
+          "phoneNumberId": "100000000000001",
+          "displayPhoneNumber": "+52 55 1000 0001",
+          "verifiedName": "Golden A",
+          "status": "connected",
+          "onboardingMode": "manual",
+          "appDisconnectedAt": null,
+          "token": "meta_token(org_golden_a)"
+        },
+        "org_golden_b": {
+          "organizationId": "org_golden_b",
+          "wabaId": "200000000000002",
+          "phoneNumberId": "100000000000002",
+          "displayPhoneNumber": "+52 55 1000 0002",
+          "verifiedName": "Golden B",
+          "status": "connected",
+          "onboardingMode": "manual",
+          "appDisconnectedAt": null,
+          "token": "meta_token(org_golden_b)"
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "body": {
+        "received": true
+      }
+    },
+    "requests": [],
+    "sse": [
+      {
+        "org": "org_golden_a",
+        "type": "message.new",
+        "data": {
+          "conversationId": "<cv#1>",
+          "message": {
+            "id": "<msg#1>",
+            "conversationId": "<cv#1>",
+            "direction": "in",
+            "type": "text",
+            "text": "Mensaje de ayer",
+            "status": "delivered",
+            "error": null,
+            "aiGenerated": false,
+            "origin": "operator",
+            "media": null,
+            "createdAt": "<now-25h>"
+          }
+        }
+      },
+      {
+        "org": "org_golden_a",
+        "type": "conversation.updated",
+        "data": {
+          "conversation": {
+            "id": "<cv#1>"
+          }
+        }
+      },
+      {
+        "org": "org_golden_a",
+        "type": "conversation.updated",
+        "data": {
+          "conversation": {
+            "id": "<cv#1>",
+            "handoffReason": "ventana"
+          }
+        }
+      }
+    ],
+    "consoleErrors": 0
+  },
+  "agent > conversación del Laboratorio → responde el modelo, se persiste en sandbox, ninguna petición a Graph": {
+    "db": {
+      "contact": [
+        {
+          "organization_id": "org_golden_a",
+          "id": "ct_golden_lab_persona",
+          "wa_identity": "5200000000001",
+          "phone": "5200000000001",
+          "wa_user_id": null,
+          "name": "Persona del Laboratorio",
+          "notes": null,
+          "ficha": null,
+          "source": null,
+          "archived_at": "<db-now>",
+          "created_at": "<db-now>",
+          "updated_at": "<db-now>"
+        }
+      ],
+      "conversation": [
+        {
+          "organization_id": "org_golden_a",
+          "id": "cv_golden_lab_a",
+          "contact_id": "ct_golden_lab_persona",
+          "is_test": true,
+          "ai_enabled": true,
+          "handoff_at": null,
+          "handoff_reason": null,
+          "last_inbound_at": "<now-1m>",
+          "last_message_at": "<now>",
+          "unread_count": 0,
+          "created_at": "<db-now>",
+          "updated_at": "<now>"
+        }
+      ],
+      "message": [
+        {
+          "organization_id": "org_golden_a",
+          "id": "msg_golden_lab_in_1",
+          "conversation_id": "cv_golden_lab_a",
+          "wa_message_id": null,
+          "direction": "in",
+          "type": "text",
+          "text": "¿Tienen cita mañana?",
+          "status": "delivered",
+          "error": null,
+          "ai_generated": false,
+          "origin": "operator",
+          "media_asset_id": null,
+          "wa_timestamp": "<now-1m>",
+          "created_at": "<db-now>"
+        },
+        {
+          "organization_id": "org_golden_a",
+          "id": "<msg#1>",
+          "conversation_id": "cv_golden_lab_a",
+          "wa_message_id": null,
+          "direction": "out",
+          "type": "text",
+          "text": "Lo confirmo con el equipo.",
+          "status": "sent",
+          "error": null,
+          "ai_generated": true,
+          "origin": "ai",
+          "media_asset_id": null,
+          "wa_timestamp": null,
+          "created_at": "<db-now>"
+        }
+      ],
+      "media_asset": [],
+      "lead": [],
+      "lead_stage_event": [],
+      "template": [],
+      "wa_address_book_entry": [],
+      "credentials": {
+        "org_golden_a": {
+          "organizationId": "org_golden_a",
+          "wabaId": "200000000000001",
+          "phoneNumberId": "100000000000001",
+          "displayPhoneNumber": "+52 55 1000 0001",
+          "verifiedName": "Golden A",
+          "status": "connected",
+          "onboardingMode": "manual",
+          "appDisconnectedAt": null,
+          "token": "meta_token(org_golden_a)"
+        },
+        "org_golden_b": {
+          "organizationId": "org_golden_b",
+          "wabaId": "200000000000002",
+          "phoneNumberId": "100000000000002",
+          "displayPhoneNumber": "+52 55 1000 0002",
+          "verifiedName": "Golden B",
+          "status": "connected",
+          "onboardingMode": "manual",
+          "appDisconnectedAt": null,
+          "token": "meta_token(org_golden_b)"
+        }
+      }
+    },
+    "requests": [
+      {
+        "to": "ai",
+        "method": "POST",
+        "path": "/api/v1/chat/completions",
+        "auth": "ai_token",
+        "body": {
+          "model": "golden/modelo-sintetico",
+          "messages": [
+            {
+              "role": "system",
+              "content": "Eres \"Asistente Golden\", el asistente de WhatsApp de este negocio. Respondes en el idioma en que te escribe el cliente (si no queda claro, en español neutro), con mensajes breves y naturales para chat.\n\nTono: cercano\n\nInstrucciones del negocio:\nAtiende citas de un negocio de prueba.\n\nCONOCIMIENTO DEL NEGOCIO (tu única fuente de verdad; si algo no está aquí, NO lo inventes — di que lo confirmarás con el equipo o escala):\nP: ¿Horario?\nR: De 9 a 19 h\n\nEtapas del pipeline disponibles: Nuevo | Ganado\n\nEn cada turno respondes ÚNICAMENTE un objeto JSON con UNA acción:\n- {\"action\":\"none\"} — no responder nada.\n- {\"action\":\"reply\",\"text\":\"...\"} — responder al cliente.\n- {\"action\":\"update_lead\",\"note\":\"...\",\"reply\":\"...\"} — guardar una nota del lead (reply opcional).\n- {\"action\":\"move_stage\",\"stage\":\"<nombre exacto de etapa>\",\"reply\":\"...\"} — mover el lead (reply opcional).\n- {\"action\":\"handoff\",\"reason\":\"...\",\"farewell\":\"...\"} — escalar a un humano (farewell opcional para despedirte).\nReglas duras:\n- Si el cliente pide hablar con una persona/humano/asesor → handoff.\n- Si la pregunta NO está cubierta por el conocimiento → NO inventes: responde que lo confirmarás o escala.\n- Si detectas intención clara de compra → move_stage a la etapa de interesados y dile al cliente que registraste su solicitud.\n- NUNCA confirmes una reserva, cita, cupo, disponibilidad ni precio que no esté en el conocimiento: eso lo confirma una persona del equipo.\n- JSON puro, sin markdown ni texto adicional."
+            },
+            {
+              "role": "user",
+              "content": "¿Tienen cita mañana?"
+            }
+          ]
+        }
+      }
+    ],
+    "sse": [],
+    "consoleErrors": 0
+  }
+}

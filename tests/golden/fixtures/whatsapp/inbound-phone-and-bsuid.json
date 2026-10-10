@@ -1,0 +1,41 @@
+{
+  "object": "whatsapp_business_account",
+  "entry": [
+    {
+      "id": "200000000000001",
+      "changes": [
+        {
+          "field": "messages",
+          "value": {
+            "messaging_product": "whatsapp",
+            "metadata": {
+              "display_phone_number": "525510000001",
+              "phone_number_id": "100000000000001"
+            },
+            "contacts": [
+              {
+                "profile": {
+                  "name": "Beto Teléfono"
+                },
+                "wa_id": "5215587654321",
+                "user_id": "MX.1000000000000000001"
+              }
+            ],
+            "messages": [
+              {
+                "from": "5215587654321",
+                "from_user_id": "MX.1000000000000000001",
+                "id": "wamid.golden.in.bsuid.2",
+                "timestamp": "1893499140",
+                "type": "text",
+                "text": {
+                  "body": "Ahora con teléfono"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
