@@ -114,3 +114,13 @@ Metodo: script nello scratchpad (non versionato) che cambia **un** frammento, es
 - Doppio invio del modulo → due messaggi (stesso contatto, stessa conversazione, stesso lead). Idempotenza fuori ambito (spec).
 - Il preflight rivela solo se un'origine è registrata da qualche organizzazione dell'istanza.
 - La CI su GitHub non è stata eseguita (nessun push).
+
+## Aggiornamento — rebase dopo il merge della PR #8 (`origin/main` = `0bc731e`)
+
+- `site-leads` ribasato su `0bc731e` (rebase pulito, due conflitti risolti a mano):
+  - `drizzle/meta/_journal.json`: preso quello di `main`, tolta la mia 0015 e **rigenerata** con `drizzle-kit generate --name richieste_sito` → `0015_richieste_sito`, `idx 15`; `0015_snapshot.json.prevId` = id dello snapshot 0014 (catena verificata). L'SQL generato contiene solo le mie istruzioni; poi riapplicati a mano `SET LOCAL lock_timeout`, i commenti e lo scambio NOT VALID del CHECK. Un secondo `drizzle-kit generate`: «No schema changes».
+  - `scripts/e2e-selftest.mjs`: tenute entrambe le sezioni (007 e 008-sito), nell'ordine 007 → 008 → 009.
+  - `src/server/ai/pipeline.ts`: unione automatica; controllate entrambe le guardie: prima la lista di accesso (007, prima di leggere lo storico), poi l'ultimo entrante **non web**, e i messaggi web fuori dal contesto del modello.
+- Nuovo golden: accesso riservato attivo con risposta per gli esterni + richiesta web + `runAgentTurn` forzato → nessuna chiamata IA, nessun invio Graph, nessun messaggio in uscita (la risposta fissa partirebbe solo con la finestra aperta, cioè dopo un WhatsApp vero).
+- Gate rifatti: `tsc` e `eslint` verdi; unità **1167/1167** (68 file); golden su base nuova `vocero_golden_web2` **132/132** (107 di `main` + 25 di 008), `git diff origin/main -- tests/golden/__golden__` vuoto; `next build` verde; E2E su base nuova `vocero_web_e2e2` (con `SUPERADMIN_EMAILS` per la sezione 007) **193/193**, poi V1–V6 = 0 e, al riavvio del runner, V1–V7 = 0; nessuna «doppia scrittura … fallita» e nessuna `vsk_` nel log.
+- Sabotaggi dopo il rebase: `runAgentTurn` senza `isAllowedIdentity` → golden 007: 4 rossi; `runAgentTurn` senza la guardia `web` → golden 008: 1 rosso. Ripristinati, albero pulito.

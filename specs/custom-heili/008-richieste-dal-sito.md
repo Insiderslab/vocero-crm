@@ -2,13 +2,12 @@
 
 > Personalizzazione sul fork pubblicato su crm.heili.cloud.
 > **Stato: ✅ IMPLEMENTATA (con una parte bloccata, vedi D1)** (2026-10-11),
-> branch locale `site-leads` (base `origin/main` @ `83c6a13`, con la doppia
-> scrittura di 005 R1).
+> branch locale `site-leads`, ribasato su `origin/main` @ `0bc731e` (dopo la
+> PR #8, 007).
 > **Corsia: COMPLETA** — migrazione nuova `drizzle/0015_*.sql` (tabella
 > `site_request_config`, colonna `contact.email`, valore `web` nel CHECK di
-> `message.channel`). **Numerazione provvisoria:** la PR #8 aggiunge
-> `drizzle/0014_*`; questa migrazione va rigenerata o rinumerata dopo il suo
-> merge. Registro: `docs/lavoro/2026-10-11-richieste-dal-sito.md`.
+> `message.channel`), rigenerata dopo il merge della PR #8: discende dallo
+> snapshot `0014_bitter_sway`. Registro: `docs/lavoro/2026-10-11-richieste-dal-sito.md`.
 
 **Constitution Check**: nessuna dipendenza nuova (II ✔️ — il modulo del sito
 chiama il CRM, il CRM non chiama nessuno); segreti (I ✔️ — della chiave si
@@ -245,5 +244,6 @@ La pagina «Sito web» mostra un modulo HTML e uno script `fetch` da copiare.
 - E2E (`scripts/e2e-selftest.mjs`, sezione «008-sito»).
 - Sabotaggi: una per guardia (23, tutti visti; elenco nel registro).
 
-**Esito (2026-10-11):** unità 1091/1091, golden 118/118 (94 invariati + 24),
-E2E 151/151, `tsc`, `eslint`, `next build` verdi.
+**Esito (2026-10-11, dopo il rebase su `0bc731e`):** unità 1167/1167, golden
+132/132 (107 di `main` invariati + 25), E2E 193/193, `tsc`, `eslint`,
+`next build` verdi.
