@@ -25,6 +25,10 @@ export type LegalMessages = {
   chrome: {
     skipToContent: string;
     lastUpdated: string;
+    /** Etichetta accanto alla data finche i testi non sono rivisti da un legale. */
+    draftLabel: string;
+    /** Avviso visibile finche i testi non sono rivisti da un legale. */
+    draftNotice: string;
     nav: string;
     privacy: string;
     terms: string;
@@ -40,6 +44,17 @@ export type LegalKind = "privacy" | "terms" | "deletion";
 
 /** Data dell'ultima revisione dei testi (ISO). Aggiornarla a ogni modifica. */
 export const LEGAL_LAST_UPDATED = "2026-10-10";
+
+/**
+ * I testi sono bozze finche l'owner non imposta LEGAL_TEXTS_REVIEWED=true
+ * (dopo la revisione di un avvocato). Fail-closed: qualunque altro valore,
+ * o assenza, = bozza, con avviso visibile sulle pagine.
+ */
+export function legalTextsReviewed(
+  env: Record<string, string | undefined> = process.env
+): boolean {
+  return env.LEGAL_TEXTS_REVIEWED?.trim() === "true";
+}
 
 export const LEGAL_PATHS: Record<LegalKind, string> = {
   privacy: "/privacy",

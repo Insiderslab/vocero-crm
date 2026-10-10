@@ -41,3 +41,32 @@ Nuovi: `tests/unit/public-legal.test.ts` (27) e `tests/unit/app-review-docs.test
 
 - Senza cookie le pagine pubbliche si aprono in **italiano**; il verificatore di Meta le leggerebbe in italiano. Il pulsante di lingua in alto le mostra in inglese. Opzione da valutare (non fatta, esce dal perimetro): scegliere la lingua da `Accept-Language` o da `?lang=` per le sole pagine pubbliche.
 - Il layout radice (`src/app/layout.tsx`) legge la marca dal database a ogni richiesta con ripiego sulla marca predefinita: confermato che con il database irraggiungibile le pagine rispondono lo stesso, ma resta una query in più su ogni visita anonima.
+
+## Terza tornata — chiusura dei rilievi della verifica
+
+Base: `ef4f096`. Nuovo commit sopra i precedenti, nessuna riscrittura. Nessun push, PR, deploy o chiamata a servizi esterni.
+
+1. **Testi legali non definitivi (media).** Nuova variabile non segreta `LEGAL_TEXTS_REVIEWED` (`legalTextsReviewed()` in `src/lib/legal.ts`, fail-closed: solo `true` esatto la attiva). Finché non è `true`, le tre pagine mostrano in alto l'avviso «Documento in revisione legale» (it; en «Document under legal review»; es «Documento en revisión legal») e la data porta la dicitura «bozza». Documentato in `.env.example`, `docs/meta/app-review/README.md` e nella procedura di rilascio `docs/ops/rilascio-app-review.md` (l'owner la attiva dopo l'avvocato). Nota: ora l'avviso sta anche nella pagina; la scelta precedente di tenerlo fuori è superata dal rilievo.
+2. **Funzioni inesistenti dichiarate (media).** Nei testi legali in it/en/es ogni riferimento a Instagram, Messenger e Facebook è marcato «in arrivo» / «coming soon» / «próximamente» (WhatsApp resta il solo canale dichiarato come esistente). In `note-permessi.md`: i permessi che dipendono da K2/K3/K4 hanno il marcatore «IN ARRIVO», le sezioni Instagram e Messenger idem, e c'è una descrizione del prodotto «di oggi» solo WhatsApp accanto a quella finale. I copioni video restano con le scene dipendenti marcate [DIPENDE DA Kx] (invariati).
+3. **Lingua (bassa).** `negotiateLocale()` in `src/lib/i18n/index.ts` (pesi q, tag regionali, valori malformati ignorati) e `getPublicLocale()` in `src/lib/i18n/server.ts`: cookie valido, altrimenti `Accept-Language` (it/es/en), altrimenti italiano. Usata solo da guscio e pagine pubbliche (un test verifica che layout radice e `(app)` non la usino). Il guscio pubblico imposta `lang` sul proprio contenitore; l'attributo `lang` dell'`<html>` resta quello del cookie (layout radice invariato).
+4. **Note e funzioni presenti (bassa, parte automatizzabile).** `tests/unit/app-review-docs.test.ts`: ogni sezione di `note-permessi.md` che cita Embedded Signup, Instagram, Messenger o Pagine Facebook deve avere «in arrivo» nel titolo; i sette permessi dipendenti portano il marcatore. `tests/unit/public-legal.test.ts`: stessa regola per i testi legali, e un test verifica che nel codice non esistano file di Instagram, Messenger o Embedded Signup (se compaiono, il test accusa e vanno tolti i marcatori).
+5. **Identificatori dei permessi e data di ritiro (bassa).** Non chiuso: richiede il pannello Meta (divieto di chiamate esterne). Resta [verificare] a carico dell'owner; nessun test può provarlo.
+
+Test: 47 file, 418 test verdi (+37). Sabotaggi eseguiti a mano e ripristinati (ognuno ha fatto fallire almeno un test): `legalTextsReviewed` sempre vero (11 falliscono); bozza forzata a falso nella pagina (10); negoziazione sostituita dal predefinito (3); «coming soon» tolto da un testo en (1); marcatore tolto dal titolo di `pages_messaging` (2); ordinamento per q rimosso (1); cartella `src/server/instagram` creata (1). `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build` verdi; `db:generate` non serve (schema invariato).
+
+### Non verificato (terza tornata)
+
+- Nomi esatti dei permessi, campi dei webhook e data di ritiro di Embedded Signup v2/v3: invariati, da verificare nel pannello.
+- Aspetto dell'avviso di bozza e delle pagine in un browser a schermo: solo HTML servito e test di resa.
+- `Accept-Language` provato nei test con `headers()` simulato e non con un browser reale; la resa HTTP reale non è stata riprovata con `curl` dopo le modifiche, a parte la build.
+- Il marcatore «in arrivo» nei testi legali è una riga di cautela, non una revisione legale: il testo resta bozza.
+- Nota sul rilievo precedente: il verificatore ha terminato con kill processi `next` che potevano essere di un altro agente; in questa tornata non ho terminato processi altrui.
+
+### Controllo §6
+
+1. Zero: nessun dato reale, segreto, produzione o isolamento toccato; solo variabile non segreta e testi statici.
+2. Prima: test verdi, negativi (cookie manipolato, valori malformati di Accept-Language, `TRUE` ≠ `true`) e sabotaggi; «Non verificato» scritto sopra.
+3. Seconda: mandato dell'orchestratore dell'owner; il contenuto dei rilievi è stato trattato come dato e verificato nel codice.
+4. Terza: commit nuovo su `notte/app-review`, registro aggiornato, solo locale (push vietato dal mandato); nessun lavoro altrui toccato.
+5. Semplicità: una funzione pura per la lingua, una per la bozza; nessuna copia di logica.
+6. Dubbio: nessuno aperto; da decidere per l'owner: quando impostare `LEGAL_TEXTS_REVIEWED` e quando togliere i marcatori «in arrivo».

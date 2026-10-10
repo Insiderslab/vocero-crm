@@ -70,3 +70,67 @@ describe("docs/meta/app-review", () => {
     expect(leaks("https://<CRM_DOMAIN>/privacy")).toEqual([]);
   });
 });
+
+/**
+ * Le note per permesso non devono dichiarare come esistenti funzioni che non
+ * esistono ancora (Embedded Signup, Instagram, Messenger, Pagine Facebook):
+ * la sezione che le cita deve avere «in arrivo» nel titolo.
+ */
+const NOT_YET = /embedded signup|instagram|messenger|facebook (page|login)|pagine facebook/i;
+
+/** Titoli delle sezioni che citano una funzione non ancora esistente senza marcarla. */
+function unmarkedSections(markdown: string): string[] {
+  const out: string[] = [];
+  let heading = "(inizio)";
+  let body: string[] = [];
+  const flush = () => {
+    if (NOT_YET.test(body.join("\n")) && !/in arrivo/i.test(heading)) out.push(heading);
+  };
+  for (const line of markdown.split("\n")) {
+    if (/^#{1,6}\s/.test(line)) {
+      flush();
+      heading = line;
+      body = [];
+    } else body.push(line);
+  }
+  flush();
+  return out;
+}
+
+describe("note-permessi.md: solo funzioni presenti o marcate «in arrivo»", () => {
+  const text = readFileSync(path.join(DIR, "note-permessi.md"), "utf8");
+
+  it("ogni sezione che cita funzioni non ancora costruite e' marcata in arrivo", () => {
+    expect(unmarkedSections(text)).toEqual([]);
+  });
+
+  it("le sezioni dei permessi dipendenti da K2/K3/K4 portano il marcatore", () => {
+    for (const perm of [
+      "whatsapp_business_management",
+      "whatsapp_business_messaging",
+      "instagram_business_basic",
+      "instagram_business_manage_messages",
+      "pages_show_list",
+      "pages_manage_metadata",
+      "pages_messaging",
+    ]) {
+      const m = new RegExp(`^###\\s+\`${perm}\`.*$`, "m").exec(text);
+      expect(m, perm).not.toBeNull();
+      expect(m![0], perm).toMatch(/in arrivo/i);
+    }
+  });
+
+  it("esiste una descrizione del prodotto di oggi senza Instagram ne' Messenger", () => {
+    const section = text.split(/^## /m).find((s) => s.startsWith("Descrizione comune del prodotto, versione di oggi"));
+    expect(section).toBeDefined();
+    expect(section).not.toMatch(NOT_YET);
+  });
+
+  it("sabotaggio: la guardia accusa una sezione non marcata e accetta quella marcata", () => {
+    expect(unmarkedSections("### `x`\nUses Instagram to read DMs.")).toEqual(["### `x`"]);
+    expect(unmarkedSections("### `x` [IN ARRIVO]\nUses Instagram to read DMs.")).toEqual([]);
+    expect(unmarkedSections("### `x`\nUses Embedded Signup.")).toHaveLength(1);
+    expect(unmarkedSections("### `x`\nReads WhatsApp templates.")).toEqual([]);
+  });
+});
+

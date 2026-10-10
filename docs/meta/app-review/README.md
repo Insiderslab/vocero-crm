@@ -11,7 +11,7 @@
 | `checklist-tech-provider-embedded-signup-v4.md` | Checklist per diventare Tech Provider e per Embedded Signup v4 |
 | `valori-pannello-meta.md` | Valori da inserire nel pannello Meta (URL pubblici, domini, webhook), con segnaposto di dominio |
 
-Pagine pubbliche del CRM (non autenticate, in italiano, inglese e spagnolo; cambio lingua dal pulsante in alto):
+Pagine pubbliche del CRM (non autenticate, in italiano, inglese e spagnolo; lingua da cookie, poi `Accept-Language`; cambio lingua dal pulsante in alto):
 
 | Pagina | Percorso |
 |---|---|
@@ -20,6 +20,14 @@ Pagine pubbliche del CRM (non autenticate, in italiano, inglese e spagnolo; camb
 | Cancellazione dei dati | `/cancellazione-dati` |
 
 Il titolare e il contatto che compaiono nelle pagine si impostano con due variabili d'ambiente, **non segrete**: `LEGAL_ENTITY_NAME` e `LEGAL_CONTACT_EMAIL` (vedi `.env.example`). Finché non sono impostate le pagine mostrano i segnaposto `[LEGAL_ENTITY_NAME]` e `[LEGAL_CONTACT_EMAIL]`: **vanno impostate prima di inviare i link a Meta**, altrimenti il verificatore vede segnaposto.
+
+## Testi legali: bozza finché l'owner non li attiva
+
+Finché la variabile d'ambiente `LEGAL_TEXTS_REVIEWED` non vale esattamente `true`, le tre pagine mostrano in alto l'avviso **«Documento in revisione legale»** (nella lingua del visitatore) e accanto alla data la dicitura **«bozza»**. È fail-closed: assente o con qualunque altro valore = bozza. **L'owner imposta `LEGAL_TEXTS_REVIEWED=true` solo dopo la revisione dell'avvocato** e prima di inviare i link a Meta (procedura in `docs/ops/rilascio-app-review.md`). Se la revisione cambia i testi, aggiornare anche `LEGAL_LAST_UPDATED` in `src/lib/legal.ts`.
+
+Instagram, Messenger ed Embedded Signup oggi non esistono: le pagine li citano solo come «in arrivo» e le note per permesso sono marcate **IN ARRIVO**. Quando K2/K3/K4 saranno reali, si tolgono i marcatori nei testi (`src/lib/i18n/messages/*/legal.ts`) e nelle note.
+
+**Lingua:** le pagine pubbliche usano il cookie `heili-locale` se valido; senza cookie leggono `Accept-Language` (it/es/en, predefinito italiano). Il verificatore di Meta, con browser in inglese, le vede in inglese.
 
 ## Stato onesto: che cosa si può già registrare e che cosa no
 

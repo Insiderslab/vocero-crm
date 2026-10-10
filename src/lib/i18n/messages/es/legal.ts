@@ -10,6 +10,8 @@ const legal: LegalMessages = {
   chrome: {
     skipToContent: "Saltar al contenido",
     lastUpdated: "Última actualización",
+    draftLabel: "borrador",
+    draftNotice: "Documento en revisión legal",
     nav: "Información legal",
     privacy: "Política de privacidad",
     terms: "Términos del servicio",
@@ -19,13 +21,13 @@ const legal: LegalMessages = {
   privacy: {
     title: "Política de privacidad",
     summary:
-      "Cómo {{product}} trata los datos de las cuentas de usuario y de las conversaciones de WhatsApp, Instagram y Messenger que las empresas gestionan con el servicio.",
+      "Cómo {{product}} trata los datos de las cuentas de usuario y de las conversaciones de WhatsApp (Instagram y Messenger: próximamente) que las empresas gestionan con el servicio.",
     sections: [
       {
         title: "1. Quién es el responsable",
         body: [
           "{{product}} es un CRM de mensajería para empresas, ofrecido por {{entity}} («nosotros»). Contacto para cualquier asunto de privacidad: {{email}}.",
-          "Hay dos tipos de datos con papeles distintos. De los datos de las cuentas de usuario (quien entra en el CRM) somos responsables del tratamiento. De los datos de las personas que escriben a una empresa por WhatsApp, Instagram o Messenger, el responsable es la empresa cliente que usa {{product}}; nosotros actuamos como encargados del tratamiento y solo seguimos sus instrucciones.",
+          "Hay dos tipos de datos con papeles distintos. De los datos de las cuentas de usuario (quien entra en el CRM) somos responsables del tratamiento. De los datos de las personas que escriben a una empresa por WhatsApp (y, próximamente, por Instagram o Messenger), el responsable es la empresa cliente que usa {{product}}; nosotros actuamos como encargados del tratamiento y solo seguimos sus instrucciones.",
         ],
         list: [],
       },
@@ -51,7 +53,7 @@ const legal: LegalMessages = {
         title: "4. Con quién compartimos los datos",
         body: ["No vendemos datos ni los usamos para publicidad. Solo intervienen estos terceros:"],
         list: [
-          "Meta Platforms (WhatsApp, Instagram, Facebook Messenger): por los canales que la empresa conecta, recibimos y enviamos mensajes a través de sus interfaces oficiales.",
+          "Meta Platforms (WhatsApp; Instagram y Facebook Messenger: próximamente): por los canales que la empresa conecta, recibimos y enviamos mensajes a través de sus interfaces oficiales.",
           "Proveedor de infraestructura y alojamiento: donde se ejecutan la aplicación y la base de datos, que actúa como encargado.",
           "Proveedor de modelos de lenguaje (compatible con OpenRouter): solo si la empresa activa el agente de IA, el contenido de las conversaciones necesario para redactar una respuesta se envía a ese proveedor. Si la empresa no lo activa, ningún contenido sale hacia IA.",
         ],
@@ -103,12 +105,12 @@ const legal: LegalMessages = {
   terms: {
     title: "Términos del servicio",
     summary:
-      "Condiciones de uso de {{product}}, el CRM de mensajería para WhatsApp, Instagram y Messenger.",
+      "Condiciones de uso de {{product}}, el CRM de mensajería para WhatsApp (Instagram y Messenger: próximamente).",
     sections: [
       {
         title: "1. Objeto",
         body: [
-          "{{product}} es un servicio de {{entity}} que permite a una empresa recibir y gestionar conversaciones de sus clientes por WhatsApp, Instagram y Messenger, organizar contactos y oportunidades y, si lo activa, apoyarse en un agente de IA. Al usarlo aceptas estos términos en nombre propio y de la empresa que representas.",
+          "{{product}} es un servicio de {{entity}} que permite a una empresa recibir y gestionar conversaciones de sus clientes por WhatsApp (y, próximamente, por Instagram y Messenger), organizar contactos y oportunidades y, si lo activa, apoyarse en un agente de IA. Al usarlo aceptas estos términos en nombre propio y de la empresa que representas.",
         ],
         list: [],
       },
@@ -192,12 +194,12 @@ const legal: LegalMessages = {
   deletion: {
     title: "Eliminación de datos",
     summary:
-      "Cómo pedir que eliminemos tus datos de {{product}}, y cómo retirar el acceso que diste desde Facebook, Instagram o WhatsApp.",
+      "Cómo pedir que eliminemos tus datos de {{product}}, y cómo retirar el acceso que diste desde WhatsApp (y, próximamente, desde Facebook o Instagram).",
     sections: [
       {
         title: "1. Cómo pedirlo",
         body: [
-          "Escribe a {{email}} con el asunto «Eliminación de datos» e indica quién eres (tu nombre y el canal por el que usaste el servicio: número de WhatsApp, cuenta de Instagram o Facebook, o correo de tu cuenta) y qué quieres eliminar. No envíes contraseñas ni credenciales: no las necesitamos.",
+          "Escribe a {{email}} con el asunto «Eliminación de datos» e indica quién eres (tu nombre y el canal por el que usaste el servicio: número de WhatsApp o correo de tu cuenta; próximamente: cuenta de Instagram o Facebook) y qué quieres eliminar. No envíes contraseñas ni credenciales: no las necesitamos.",
           "Tratamos las solicitudes manualmente. Para proteger tus datos podemos pedirte una confirmación de identidad antes de borrar nada.",
         ],
         list: [],
@@ -212,7 +214,7 @@ const legal: LegalMessages = {
       {
         title: "3. Si conectaste una cuenta de Meta",
         body: [
-          "Puedes retirar en cualquier momento el acceso que diste a {{product}} desde tu cuenta de Facebook (integraciones de empresa o aplicaciones y sitios web) o de Instagram (aplicaciones y sitios web); los nombres exactos de los menús pueden variar. Al retirarlo dejamos de poder recibir y enviar mensajes por esa cuenta. Los datos ya guardados no se borran solos: pide su eliminación como se explica arriba.",
+          "Puedes retirar en cualquier momento el acceso que diste a {{product}} desde tu cuenta de Facebook (próximamente; integraciones de empresa o aplicaciones y sitios web) o de Instagram (próximamente; aplicaciones y sitios web); los nombres exactos de los menús pueden variar. Al retirarlo dejamos de poder recibir y enviar mensajes por esa cuenta. Los datos ya guardados no se borran solos: pide su eliminación como se explica arriba.",
         ],
         list: [],
       },

@@ -10,6 +10,8 @@ const legal: LegalMessages = {
   chrome: {
     skipToContent: "Skip to content",
     lastUpdated: "Last updated",
+    draftLabel: "draft",
+    draftNotice: "Document under legal review",
     nav: "Legal information",
     privacy: "Privacy policy",
     terms: "Terms of service",
@@ -19,13 +21,13 @@ const legal: LegalMessages = {
   privacy: {
     title: "Privacy policy",
     summary:
-      "How {{product}} handles user account data and the WhatsApp, Instagram and Messenger conversations that businesses manage with the service.",
+      "How {{product}} handles user account data and the WhatsApp conversations (Instagram and Messenger: coming soon) that businesses manage with the service.",
     sections: [
       {
         title: "1. Who is responsible",
         body: [
           "{{product}} is a messaging CRM for businesses, provided by {{entity}} (\"we\"). Contact for any privacy matter: {{email}}.",
-          "There are two kinds of data, with different roles. For user account data (people who log in to the CRM) we are the data controller. For the data of people who message a business on WhatsApp, Instagram or Messenger, the controller is the business customer using {{product}}; we act as processor and follow only its instructions.",
+          "There are two kinds of data, with different roles. For user account data (people who log in to the CRM) we are the data controller. For the data of people who message a business on WhatsApp (and, coming soon, on Instagram or Messenger), the controller is the business customer using {{product}}; we act as processor and follow only its instructions.",
         ],
         list: [],
       },
@@ -53,7 +55,7 @@ const legal: LegalMessages = {
           "We do not sell data and we do not use it for advertising. Only these third parties are involved:",
         ],
         list: [
-          "Meta Platforms (WhatsApp, Instagram, Facebook Messenger): through the channels a business connects, we receive and send messages via their official interfaces.",
+          "Meta Platforms (WhatsApp; Instagram and Facebook Messenger: coming soon): through the channels a business connects, we receive and send messages via their official interfaces.",
           "Infrastructure and hosting provider: where the application and the database run; it acts as a processor.",
           "Language-model provider (OpenRouter-compatible): only if the business turns on the AI agent, the conversation content needed to draft a reply is sent to that provider. If the business does not turn it on, no content leaves for any AI.",
         ],
@@ -105,12 +107,12 @@ const legal: LegalMessages = {
   terms: {
     title: "Terms of service",
     summary:
-      "Conditions of use for {{product}}, the messaging CRM for WhatsApp, Instagram and Messenger.",
+      "Conditions of use for {{product}}, the messaging CRM for WhatsApp (Instagram and Messenger: coming soon).",
     sections: [
       {
         title: "1. Purpose",
         body: [
-          "{{product}} is a service by {{entity}} that lets a business receive and manage its customers' conversations on WhatsApp, Instagram and Messenger, organize contacts and opportunities and, if it turns it on, use an AI agent. By using it you accept these terms on your own behalf and on behalf of the business you represent.",
+          "{{product}} is a service by {{entity}} that lets a business receive and manage its customers' conversations on WhatsApp (and, coming soon, on Instagram and Messenger), organize contacts and opportunities and, if it turns it on, use an AI agent. By using it you accept these terms on your own behalf and on behalf of the business you represent.",
         ],
         list: [],
       },
@@ -194,12 +196,12 @@ const legal: LegalMessages = {
   deletion: {
     title: "Data deletion",
     summary:
-      "How to ask us to delete your data from {{product}}, and how to withdraw the access you granted from Facebook, Instagram or WhatsApp.",
+      "How to ask us to delete your data from {{product}}, and how to withdraw the access you granted from WhatsApp (and, coming soon, from Facebook or Instagram).",
     sections: [
       {
         title: "1. How to request it",
         body: [
-          "Write to {{email}} with the subject \"Data deletion\" and tell us who you are (your name and the channel through which you used the service: WhatsApp number, Instagram or Facebook account, or the email of your account) and what you want deleted. Do not send passwords or credentials: we do not need them.",
+          "Write to {{email}} with the subject \"Data deletion\" and tell us who you are (your name and the channel through which you used the service: WhatsApp number or the email of your account; coming soon: Instagram or Facebook account) and what you want deleted. Do not send passwords or credentials: we do not need them.",
           "We handle requests manually. To protect your data we may ask you to confirm your identity before deleting anything.",
         ],
         list: [],
@@ -214,7 +216,7 @@ const legal: LegalMessages = {
       {
         title: "3. If you connected a Meta account",
         body: [
-          "You can withdraw at any time the access you gave to {{product}} from your Facebook account (business integrations, or apps and websites) or Instagram account (apps and websites); the exact menu names may vary. Once withdrawn, we can no longer receive or send messages on that account. Data already stored is not deleted automatically: request its deletion as explained above.",
+          "You can withdraw at any time the access you gave to {{product}} from your Facebook account (coming soon; business integrations, or apps and websites) or Instagram account (coming soon; apps and websites); the exact menu names may vary. Once withdrawn, we can no longer receive or send messages on that account. Data already stored is not deleted automatically: request its deletion as explained above.",
         ],
         list: [],
       },

@@ -10,6 +10,8 @@ const legal: LegalMessages = {
   chrome: {
     skipToContent: "Vai al contenuto",
     lastUpdated: "Ultimo aggiornamento",
+    draftLabel: "bozza",
+    draftNotice: "Documento in revisione legale",
     nav: "Informazioni legali",
     privacy: "Informativa sulla privacy",
     terms: "Termini del servizio",
@@ -19,13 +21,13 @@ const legal: LegalMessages = {
   privacy: {
     title: "Informativa sulla privacy",
     summary:
-      "Come {{product}} tratta i dati degli account utente e delle conversazioni WhatsApp, Instagram e Messenger che le aziende gestiscono con il servizio.",
+      "Come {{product}} tratta i dati degli account utente e delle conversazioni WhatsApp (Instagram e Messenger: in arrivo) che le aziende gestiscono con il servizio.",
     sections: [
       {
         title: "1. Chi è il titolare",
         body: [
           "{{product}} è un CRM di messaggistica per le aziende, offerto da {{entity}} («noi»). Contatto per ogni questione di privacy: {{email}}.",
-          "Ci sono due tipi di dati, con ruoli diversi. Per i dati degli account utente (chi accede al CRM) siamo titolari del trattamento. Per i dati delle persone che scrivono a un'azienda su WhatsApp, Instagram o Messenger, il titolare è l'azienda cliente che usa {{product}}; noi agiamo come responsabili del trattamento e seguiamo soltanto le sue istruzioni.",
+          "Ci sono due tipi di dati, con ruoli diversi. Per i dati degli account utente (chi accede al CRM) siamo titolari del trattamento. Per i dati delle persone che scrivono a un'azienda su WhatsApp (e, in arrivo, su Instagram o Messenger), il titolare è l'azienda cliente che usa {{product}}; noi agiamo come responsabili del trattamento e seguiamo soltanto le sue istruzioni.",
         ],
         list: [],
       },
@@ -53,7 +55,7 @@ const legal: LegalMessages = {
           "Non vendiamo i dati e non li usiamo per la pubblicità. Intervengono solo questi soggetti terzi:",
         ],
         list: [
-          "Meta Platforms (WhatsApp, Instagram, Facebook Messenger): attraverso i canali che l'azienda collega, riceviamo e inviamo messaggi tramite le loro interfacce ufficiali.",
+          "Meta Platforms (WhatsApp; Instagram e Facebook Messenger: in arrivo): attraverso i canali che l'azienda collega, riceviamo e inviamo messaggi tramite le loro interfacce ufficiali.",
           "Fornitore di infrastruttura e hosting: dove girano l'applicazione e il database; agisce come responsabile del trattamento.",
           "Fornitore di modelli linguistici (compatibile con OpenRouter): solo se l'azienda attiva l'agente AI, il contenuto delle conversazioni necessario a redigere una risposta viene inviato a quel fornitore. Se l'azienda non lo attiva, nessun contenuto esce verso un'AI.",
         ],
@@ -105,12 +107,12 @@ const legal: LegalMessages = {
   terms: {
     title: "Termini del servizio",
     summary:
-      "Condizioni d'uso di {{product}}, il CRM di messaggistica per WhatsApp, Instagram e Messenger.",
+      "Condizioni d'uso di {{product}}, il CRM di messaggistica per WhatsApp (Instagram e Messenger: in arrivo).",
     sections: [
       {
         title: "1. Oggetto",
         body: [
-          "{{product}} è un servizio di {{entity}} che permette a un'azienda di ricevere e gestire le conversazioni dei propri clienti su WhatsApp, Instagram e Messenger, organizzare contatti e opportunità e, se lo attiva, avvalersi di un agente AI. Usandolo accetti questi termini a nome tuo e dell'azienda che rappresenti.",
+          "{{product}} è un servizio di {{entity}} che permette a un'azienda di ricevere e gestire le conversazioni dei propri clienti su WhatsApp (e, in arrivo, su Instagram e Messenger), organizzare contatti e opportunità e, se lo attiva, avvalersi di un agente AI. Usandolo accetti questi termini a nome tuo e dell'azienda che rappresenti.",
         ],
         list: [],
       },
@@ -194,12 +196,12 @@ const legal: LegalMessages = {
   deletion: {
     title: "Cancellazione dei dati",
     summary:
-      "Come chiedere che cancelliamo i tuoi dati da {{product}}, e come revocare l'accesso che hai dato da Facebook, Instagram o WhatsApp.",
+      "Come chiedere che cancelliamo i tuoi dati da {{product}}, e come revocare l'accesso che hai dato da WhatsApp (e, in arrivo, da Facebook o Instagram).",
     sections: [
       {
         title: "1. Come chiederla",
         body: [
-          "Scrivi a {{email}} con oggetto «Cancellazione dei dati» e indica chi sei (il tuo nome e il canale con cui hai usato il servizio: numero WhatsApp, account Instagram o Facebook, o email del tuo account) e che cosa vuoi cancellare. Non inviare password o credenziali: non ci servono.",
+          "Scrivi a {{email}} con oggetto «Cancellazione dei dati» e indica chi sei (il tuo nome e il canale con cui hai usato il servizio: numero WhatsApp o email del tuo account; in arrivo: account Instagram o Facebook) e che cosa vuoi cancellare. Non inviare password o credenziali: non ci servono.",
           "Trattiamo le richieste manualmente. Per proteggere i tuoi dati possiamo chiederti una conferma di identità prima di cancellare qualsiasi cosa.",
         ],
         list: [],
@@ -214,7 +216,7 @@ const legal: LegalMessages = {
       {
         title: "3. Se hai collegato un account Meta",
         body: [
-          "Puoi revocare in qualsiasi momento l'accesso che hai dato a {{product}} dal tuo account Facebook (integrazioni aziendali, oppure app e siti web) o Instagram (app e siti web); i nomi esatti dei menu possono variare. Dopo la revoca non possiamo più ricevere né inviare messaggi su quell'account. I dati già conservati non si cancellano da soli: chiedine la cancellazione come spiegato sopra.",
+          "Puoi revocare in qualsiasi momento l'accesso che hai dato a {{product}} dal tuo account Facebook (in arrivo; integrazioni aziendali, oppure app e siti web) o Instagram (in arrivo; app e siti web); i nomi esatti dei menu possono variare. Dopo la revoca non possiamo più ricevere né inviare messaggi su quell'account. I dati già conservati non si cancellano da soli: chiedine la cancellazione come spiegato sopra.",
         ],
         list: [],
       },

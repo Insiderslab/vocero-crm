@@ -10,12 +10,19 @@ import { renderToStaticMarkup } from "react-dom/server";
  * accesso deve poterle bloccare (le legge il verificatore di Meta).
  */
 
-const state = vi.hoisted(() => ({ locale: undefined as string | undefined }));
+const state = vi.hoisted(() => ({
+  locale: undefined as string | undefined,
+  acceptLanguage: undefined as string | undefined,
+}));
 
 vi.mock("next/headers", () => ({
   cookies: async () => ({
     get: (name: string) =>
       name === "heili-locale" && state.locale ? { value: state.locale } : undefined,
+  }),
+  headers: async () => ({
+    get: (name: string) =>
+      name.toLowerCase() === "accept-language" ? (state.acceptLanguage ?? null) : null,
   }),
 }));
 vi.mock("next/navigation", () => ({
@@ -40,13 +47,14 @@ import TermsPage from "@/app/(public)/termini/page";
 import DeletionPage from "@/app/(public)/cancellazione-dati/page";
 import { LegalPage, legalMetadata } from "@/components/legal/legal-page";
 import { messagesFor } from "@/lib/i18n/messages";
-import { LOCALES } from "@/lib/i18n";
+import { LOCALES, negotiateLocale } from "@/lib/i18n";
 import {
   fillLegal,
   LEGAL_EMAIL_PLACEHOLDER,
   LEGAL_ENTITY_PLACEHOLDER,
   LEGAL_PATHS,
   legalContext,
+  legalTextsReviewed,
   type LegalKind,
 } from "@/lib/legal";
 
@@ -152,6 +160,8 @@ describe("legalContext e fillLegal", () => {
 describe("pagine pubbliche senza sessione", () => {
   beforeEach(() => {
     state.locale = undefined;
+    state.acceptLanguage = undefined;
+    delete process.env.LEGAL_TEXTS_REVIEWED;
   });
 
   for (const l of LOCALES) {
@@ -248,5 +258,148 @@ describe("nessun controllo di accesso blocca le pagine pubbliche", () => {
       "@/lib/auth/session",
     ]);
     expect(forbiddenImports('import Link from "next/link";')).toEqual([]);
+  });
+});
+
+describe("bozza: i testi non appaiono definitivi finche l'owner non li attiva", () => {
+  beforeEach(() => {
+    state.locale = undefined;
+    state.acceptLanguage = undefined;
+    delete process.env.LEGAL_TEXTS_REVIEWED;
+  });
+
+  it("legalTextsReviewed e' fail-closed: solo 'true' esatto sblocca", () => {
+    expect(legalTextsReviewed({})).toBe(false);
+    for (const v of ["", "false", "TRUE", "1", "yes", "truee"])
+      expect(legalTextsReviewed({ LEGAL_TEXTS_REVIEWED: v }), v).toBe(false);
+    expect(legalTextsReviewed({ LEGAL_TEXTS_REVIEWED: "true" })).toBe(true);
+  });
+
+  for (const l of LOCALES) {
+    for (const kind of KINDS) {
+      it(`${kind} in ${l}: senza la variabile mostra avviso e 'bozza' accanto alla data`, async () => {
+        state.locale = l;
+        const chrome = messagesFor(l).legal.chrome;
+        const html = renderToStaticMarkup(await LegalPage({ kind }));
+        expect(html).toContain("data-legal-draft");
+        expect(html).toContain(chrome.draftNotice);
+        expect(html).toContain(`(${chrome.draftLabel})`);
+      });
+
+      it(`${kind} in ${l}: con LEGAL_TEXTS_REVIEWED=true avviso e 'bozza' spariscono`, async () => {
+        state.locale = l;
+        process.env.LEGAL_TEXTS_REVIEWED = "true";
+        const chrome = messagesFor(l).legal.chrome;
+        const html = renderToStaticMarkup(await LegalPage({ kind }));
+        expect(html).not.toContain("data-legal-draft");
+        expect(html).not.toContain(chrome.draftNotice);
+        expect(html).not.toContain(`(${chrome.draftLabel})`);
+      });
+    }
+  }
+
+  it("l'avviso italiano e' esattamente «Documento in revisione legale»", () => {
+    expect(messagesFor("it").legal.chrome.draftNotice).toBe("Documento in revisione legale");
+  });
+
+  it("un valore diverso da 'true' lascia l'avviso (fail-closed nella resa)", async () => {
+    process.env.LEGAL_TEXTS_REVIEWED = "TRUE";
+    const html = renderToStaticMarkup(await LegalPage({ kind: "privacy" }));
+    expect(html).toContain("data-legal-draft");
+  });
+});
+
+describe("canali che non esistono ancora: solo 'in arrivo'", () => {
+  const SOON = /in arrivo|coming soon|pr[óo]ximamente/i;
+  const CHANNEL = /instagram|messenger|facebook/i;
+
+  /** Stringhe che citano un canale inesistente senza il marcatore «in arrivo». */
+  function unmarked(strings: string[]): string[] {
+    return strings.filter((t) => CHANNEL.test(t) && !SOON.test(t));
+  }
+  function allStrings(l: (typeof LOCALES)[number]): string[] {
+    const legal = messagesFor(l).legal;
+    return KINDS.flatMap((k) => [
+      legal[k].summary,
+      ...legal[k].sections.flatMap((s) => [s.title, ...s.body, ...s.list]),
+    ]);
+  }
+
+  for (const l of LOCALES) {
+    it(`${l}: ogni riferimento a Instagram, Messenger o Facebook e' marcato in arrivo`, () => {
+      expect(unmarked(allStrings(l))).toEqual([]);
+      expect(allStrings(l).some((t) => CHANNEL.test(t))).toBe(true);
+    });
+  }
+
+  it("sabotaggio: la guardia accusa un testo che dichiara Instagram come esistente", () => {
+    expect(unmarked(["Gestiamo conversazioni WhatsApp, Instagram e Messenger."])).toHaveLength(1);
+    expect(unmarked(["Instagram (in arrivo)"])).toEqual([]);
+  });
+
+  it("i canali davvero non esistono nel codice (altrimenti togliere i marcatori)", () => {
+    const names = walk(path.join(ROOT, "src/server")).concat(walk(path.join(ROOT, "src/app")));
+    expect(names.filter((f) => /instagram|messenger|embedded-?signup/i.test(f))).toEqual([]);
+  });
+});
+
+describe("lingua delle pagine pubbliche senza cookie: Accept-Language", () => {
+  beforeEach(() => {
+    state.locale = undefined;
+    state.acceptLanguage = undefined;
+  });
+
+  it("negotiateLocale: it/es/en, pesi q, tag regionali, default it", () => {
+    expect(negotiateLocale(undefined)).toBe("it");
+    expect(negotiateLocale("")).toBe("it");
+    expect(negotiateLocale("en-US,en;q=0.9")).toBe("en");
+    expect(negotiateLocale("es-VE")).toBe("es");
+    expect(negotiateLocale("fr-FR,fr;q=0.9,en;q=0.8")).toBe("en");
+    expect(negotiateLocale("en;q=0.5, es;q=0.9")).toBe("es");
+    expect(negotiateLocale("en;q=0, es;q=0")).toBe("it");
+    expect(negotiateLocale("de, fr")).toBe("it");
+    expect(negotiateLocale("*")).toBe("it");
+    expect(negotiateLocale("en;q=abc, es;q=2, ../../x")).toBe("en");
+    expect(negotiateLocale("EN-gb")).toBe("en");
+    expect(negotiateLocale("x".repeat(100000))).toBe("it");
+  });
+
+  for (const l of LOCALES) {
+    it(`senza cookie, Accept-Language ${l} rende la pagina in ${l}`, async () => {
+      state.acceptLanguage = `${l}-XX,${l};q=0.9`;
+      const html = renderToStaticMarkup(await LegalPage({ kind: "privacy" }));
+      expect(html).toContain(messagesFor(l).legal.privacy.title.replace(/'/g, "&#x27;"));
+      const shell = renderToStaticMarkup(
+        await PublicLayout({ children: createElement("span") })
+      );
+      expect(shell).toContain(`lang="${l}"`);
+      const meta = await legalMetadata("privacy");
+      expect(String(meta.title)).toContain(messagesFor(l).legal.privacy.title);
+    });
+  }
+
+  it("il cookie valido prevale su Accept-Language", async () => {
+    state.locale = "es";
+    state.acceptLanguage = "en";
+    const html = renderToStaticMarkup(await LegalPage({ kind: "privacy" }));
+    expect(html).toContain(messagesFor("es").legal.privacy.title);
+  });
+
+  it("un cookie manipolato cade su Accept-Language, poi sul default", async () => {
+    state.locale = "../../etc/passwd";
+    state.acceptLanguage = "en";
+    let html = renderToStaticMarkup(await LegalPage({ kind: "privacy" }));
+    expect(html).toContain(messagesFor("en").legal.privacy.title);
+    state.acceptLanguage = "ja";
+    html = renderToStaticMarkup(await LegalPage({ kind: "privacy" }));
+    expect(html).toContain(messagesFor("it").legal.privacy.title);
+  });
+
+  it("solo il perimetro pubblico negozia: la app autenticata resta sul cookie", () => {
+    const layout = readFileSync(path.join(ROOT, "src/app/layout.tsx"), "utf8");
+    expect(layout).not.toMatch(/negotiateLocale|getPublicLocale|accept-language/i);
+    const appFiles = walk(path.join(ROOT, "src/app/(app)"));
+    for (const f of appFiles)
+      expect(readFileSync(f, "utf8"), f).not.toMatch(/getPublicLocale|negotiateLocale/);
   });
 });

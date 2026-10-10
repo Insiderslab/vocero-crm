@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { DEFAULT_BRANDING } from "@/lib/branding";
-import { getLocale } from "@/lib/i18n/server";
+import { getPublicLocale } from "@/lib/i18n/server";
 import { messagesFor } from "@/lib/i18n/messages";
 import { LEGAL_PATHS, legalContext } from "@/lib/legal";
 import { HeiliMark } from "@/components/heili-mark";
@@ -14,11 +14,12 @@ import { LocaleToggle } from "@/components/locale-toggle";
 export default async function PublicLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  const locale = await getLocale();
+  const locale = await getPublicLocale();
   const { chrome } = messagesFor(locale).legal;
   const { entity, email } = legalContext();
   return (
     <div
+      lang={locale}
       className="flex min-h-screen flex-col"
       style={{ background: "var(--heili-paper)", color: "var(--heili-ink)" }}
     >

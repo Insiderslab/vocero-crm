@@ -1,16 +1,17 @@
 import type { Metadata } from "next";
-import { getLocale } from "@/lib/i18n/server";
+import { getPublicLocale } from "@/lib/i18n/server";
 import { messagesFor } from "@/lib/i18n/messages";
 import {
   fillLegal,
   LEGAL_LAST_UPDATED,
   legalContext,
+  legalTextsReviewed,
   type LegalKind,
 } from "@/lib/legal";
 
-/** Contenuto di una pagina legale nella lingua del visitatore (cookie). */
+/** Contenuto di una pagina legale nella lingua del visitatore (cookie, poi Accept-Language). */
 async function loadDocument(kind: LegalKind) {
-  const locale = await getLocale();
+  const locale = await getPublicLocale();
   const legal = messagesFor(locale).legal;
   return { locale, legal, doc: legal[kind], ctx: legalContext() };
 }
@@ -28,8 +29,19 @@ export async function legalMetadata(kind: LegalKind): Promise<Metadata> {
  */
 export async function LegalPage({ kind }: { kind: LegalKind }) {
   const { legal, doc, ctx } = await loadDocument(kind);
+  const draft = !legalTextsReviewed();
   return (
     <article>
+      {draft && (
+        <p
+          role="note"
+          data-legal-draft
+          className="mb-6 rounded border px-4 py-3 text-sm font-semibold"
+          style={{ borderColor: "var(--heili-line)", background: "var(--heili-panel)" }}
+        >
+          {legal.chrome.draftNotice}
+        </p>
+      )}
       <h1
         className="text-3xl font-semibold tracking-tight"
         style={{ fontFamily: "var(--heili-font-display)" }}
@@ -42,6 +54,7 @@ export async function LegalPage({ kind }: { kind: LegalKind }) {
       <p className="mt-2 text-xs" style={{ color: "var(--heili-soft)" }}>
         {legal.chrome.lastUpdated}:{" "}
         <time dateTime={LEGAL_LAST_UPDATED}>{LEGAL_LAST_UPDATED}</time>
+        {draft && ` (${legal.chrome.draftLabel})`}
       </p>
       {doc.sections.map((section) => (
         <section key={section.title} className="mt-8">
