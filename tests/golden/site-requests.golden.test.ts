@@ -438,6 +438,18 @@ describe("008 protecciones", () => {
     expect((await send(form(), { key: keyB, origin: ORIGIN_B, ip: "192.0.2.201" })).status).toBe(202);
   });
 
+  it("una IP con la clave pública y un origen ajeno no agota el cupo de la clave (30+ peticiones → 403, el sitio sigue)", async () => {
+    const { max } = API_KEY_SCOPES.site.rateLimit;
+    for (let i = 0; i < max + 10; i++) {
+      expect((await send(form(), { origin: "https://evil.example", ip: "198.51.100.66" })).status).toBe(403);
+    }
+    // Ni con la IP ya limitada: tampoco gasta el cupo de la organización.
+    for (let i = 0; i < SITE_IP_LIMIT.max + 25; i++) {
+      await send(form({ message: `ip${i}` }), { ip: "198.51.100.67" });
+    }
+    expect((await send(form({ message: "visitante legítimo" }), { ip: "198.51.100.68" })).status).toBe(202);
+  });
+
   it("body: > 16 KiB → 413 (declarado o real); no JSON → 415; JSON roto → 422", async () => {
     const big = JSON.stringify(form({ message: "x".repeat(MAX_BODY_BYTES) }));
     expect((await send(null, { raw: big })).status).toBe(413);

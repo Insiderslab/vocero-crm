@@ -7,7 +7,7 @@ import {
   generateApiKey,
   type ApiKeyAuthDeps,
 } from "@/server/api-keys";
-import { authenticateSiteKey } from "@/server/site-requests/auth";
+import { authenticateSiteKey, consumeSiteKeyLimit } from "@/server/site-requests/auth";
 import {
   MAX_BODY_BYTES,
   MAX_FIELDS,
@@ -308,12 +308,16 @@ describe("ámbito site de las claves (vsk_, X-Site-Key, sin clave de instancia)"
     vi.unstubAllEnvs();
   });
 
-  it("límite por organización de la clave: 30/min → 429", async () => {
+  it("autenticar NO consume el límite de la clave; lo consume la ruta (30/min → 429)", async () => {
     const d = deps();
     const { max } = API_KEY_SCOPES.site.rateLimit;
     expect(max).toBe(30);
-    for (let i = 0; i < max; i++) expect(await status({ "x-site-key": site.plain }, d)).toMatchObject({ organizationId: "org_a" });
-    expect(await status({ "x-site-key": site.plain }, d)).toBe(429);
+    for (let i = 0; i < max + 5; i++) {
+      expect(await status({ "x-site-key": site.plain }, d)).toMatchObject({ organizationId: "org_a" });
+    }
+    for (let i = 0; i < max; i++) expect(consumeSiteKeyLimit("org_a")).toBeNull();
+    expect(consumeSiteKeyLimit("org_a")?.status).toBe(429);
+    expect(consumeSiteKeyLimit("org_b")).toBeNull(); // por organización
   });
 });
 
