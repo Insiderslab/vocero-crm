@@ -83,6 +83,9 @@ línea) y respuesta para externos.
    existe un saliente con ese texto exacto en la conversación, no se reenvía.
    Si el envío falla (ventana, sin conexión), se registra y no se reintenta en
    ese turno.
+   La idempotencia es por TEXTO exacto: si el owner cambia `outsider_reply`,
+   el texto nuevo se envía (una vez) en el siguiente mensaje de cada
+   conversación externa, aunque ya hubiera recibido el anterior.
 5. Números de la lista → agente normal.
 6. El Laboratorio (`is_test`) NO aplica la restricción: evalúa el
    comportamiento configurado, como ya hace con el interruptor global.
