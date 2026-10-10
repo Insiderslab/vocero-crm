@@ -10,6 +10,7 @@ description: "Compiti del livello canali comune (M1.2–M1.6)"
 **Prerequisiti**:
 - D1 (ADR approvato);
 - C3 integrato (`notte/c3-wapi`, migrazione `0011`);
+- per R1: D18 (stop-first nei passaggi che coinvolgono R0);
 - per R3: M0.4 (backup e ripristino provati) e D10;
 - per M1.6: D2, D13, D14.
 
@@ -51,25 +52,39 @@ description: "Compiti del livello canali comune (M1.2–M1.6)"
 
 ### Test prima del codice
 
-- [ ] T008 [P] [US2] `tests/golden/migration.golden.test.ts`: backfill su A e B. Ogni conversazione punta a un account della **sua** organizzazione; contatto e identità uno a uno
+- [ ] T008 [P] [US2] `tests/golden/migration.golden.test.ts`: riconciliazione su A e B. Ogni conversazione punta a un account della **sua** organizzazione; contatto e identità uno a uno
 - [ ] T009 [P] [US2] Test della FK composta: un'identità di A con contatto di B → errore del DB; una conversazione di A con account di B → errore del DB
-- [ ] T010 [P] [US2] Test di `UNIQUE (channel, external_account_id)`: lo stesso `phone_number_id` in B → rifiutato
-- [ ] T011 [P] [US3] Test di idempotenza del backfill (due esecuzioni, nessun duplicato) e del recupero dopo scritture «vecchie» simulate
+- [ ] T010 [P] [US2] Test di `UNIQUE (channel, external_account_id)`: lo stesso `phone_number_id` in B → rifiutato. Test di `UNIQUE (organization_id, channel, external_id)`: una seconda identità con lo stesso ID esterno nella stessa organizzazione → rifiutata; in un'altra organizzazione → ammessa
+- [ ] T011 [P] [US3] Test della riconciliazione all'avvio (ADR §3.3), con il runner vero:
+  - idempotenza: due esecuzioni, nessun duplicato e nessuna riga modificata la seconda volta;
+  - **inserimenti e aggiornamenti** del codice vecchio fatti con le sue funzioni (`saveCredentials` con numero e token nuovi, `markReconnectRequired`, numeri scambiati tra A e B, collegamento di un'organizzazione senza numero, ingesta di contatti e messaggi): dopo l'avvio di R1 e di R2, `channel_account` uguale a `meta_credentials` campo per campo e V1–V7 a 0; prima della riconciliazione V2 > 0;
+  - ritorno a R2 senza migrazioni pendenti (R2 → R0 → R2): riallineato all'avvio;
+  - account orfano: R2 esce con codice 1 e nomina V1, R1 parte e lo scrive nel log
 
 ### Implementazione
 
 - [ ] T012 [US2] `src/lib/db/schema.ts`: `channelAccount`, `contactIdentity`, `conversation.channelAccountId`, `message.channel` e `message.externalMessageId`, `UNIQUE (organization_id, id)` su `contact` e `channel_account`; prefissi `cha`/`ci` in `src/lib/db/ids.ts`
-- [ ] T013 [US3] `pnpm db:generate`, poi completa a mano `drizzle/0012_*.sql` con FK composte, CHECK e il backfill di ADR §3.3 (senza `RAISE`). `wapi_credentials` non si tocca (FR-015)
+- [ ] T013 [US3] `pnpm db:generate`, poi completa a mano `drizzle/0012_*.sql` come **fase A** di ADR §3.3: solo catalogo, `SET LOCAL lock_timeout = '5s'`, `CHECK` e FK di `conversation` `NOT VALID`, funzioni `channels_legacy_*`; nessun indice su tabelle esistenti, nessun backfill. Gli indici e i vincoli restano dichiarati in `schema.ts` e quindi nello snapshot di Drizzle (così un `db:generate` successivo non li rigenera); solo il loro `CREATE`/`VALIDATE` passa dal file SQL al runner (T013b), con un commento nel file che lo dice. `wapi_credentials` non si tocca (FR-015)
+- [ ] T013b [US3] `scripts/migrate.mjs` e `scripts/migrate-channels.mjs`: passi 1–5 di ADR §3.3 (fase B fuori transazione con indici `CONCURRENTLY` e `VALIDATE`, gestione degli indici `INVALID`, fase C con lotti, V7), modalità `avvisa` come costante di R1. Il bundle di `Dockerfile:26` include il modulo nuovo
 - [ ] T014 [US1] Doppia scrittura in `src/server/whatsapp/credentials.ts:86`, `:121` (stessa transazione)
 - [ ] T015 [US1] Doppia scrittura delle identità: `src/server/inbox/identity.ts:116`, `src/app/api/contacts/route.ts:160`, `src/server/lab/runner.ts:241`, `src/server/seed/demo.ts:187`
 - [ ] T016 [US1] Doppia scrittura delle conversazioni: `src/server/inbox/ingest.ts:169`, `src/server/seed/demo.ts:205` (Laboratorio escluso)
 - [ ] T017 [US1] Doppia scrittura dei messaggi: `src/server/inbox/ingest.ts:294`, `:383`, `src/server/inbox/send.ts:129`, `src/server/whatsapp/templates.ts:379`, `src/server/seed/demo.ts:216`
 - [ ] T018 [US1] Aggiorna i mock della tabella nei test unitari toccati (es. `tests/unit/credentials.test.ts:22`) **senza** indebolire le asserzioni
-- [ ] T019 [US3] Scrivi `docs/ops/rilascio-canali.md`: passi di R1, R2 e R3, le 6 query di verifica, il rollback per rilascio, le misure
-- [ ] T020 [US3] Prove su PostgreSQL usa e getta (`plan.md` §6, punti 1–4 e 6): da zero ×2; dati simulati (≥ 100 000 messaggi, 2 organizzazioni); **immagine precedente su DB a `0012`**; backfill dopo scritture vecchie; durata ed `EXPLAIN`. Esiti e misure nel registro
-- [ ] T021 [US2] Sabotaggi: togli `organization_id` dalla FK composta; togli la condizione `ca.organization_id = cv.organization_id` dal backfill; togli una doppia scrittura. Ognuno deve far fallire un test
+- [ ] T019 [US3] Scrivi `docs/ops/rilascio-canali.md`: passi di R1, R2 e R3, come leggere V1–V7 (chiamando `channels_legacy_check()`, senza ricopiarne le query), il rollback per rilascio con lo **stop-first** dei passaggi che coinvolgono R0 (D18) e il comportamento di Coolify verificato, le misure
+- [ ] T020 [US3] Prove su PostgreSQL usa e getta (`plan.md` §6, punti 1–9): da zero ×2; dati simulati; **immagine precedente su DB a `0012`**; aggiornamenti del codice vecchio; ritorno a R2 senza migrazioni pendenti; fail-closed; **sonda di lock** per fase e fase A dietro una transazione lunga; indice `INVALID`; durata di ogni fase e dell'avvio (soglia 60 s), `EXPLAIN`. Esiti e misure nel registro
+- [ ] T021 [US2] Sabotaggi, ognuno deve far fallire un test (esito nel registro):
+  - togli `organization_id` dalla FK composta;
+  - togli la condizione `ca.organization_id = cv.organization_id` dalla riconciliazione;
+  - togli una doppia scrittura;
+  - togli l'indice `UNIQUE (channel, external_account_id)` → T010 rosso;
+  - togli l'indice `UNIQUE (organization_id, channel, external_id)` → T010 rosso;
+  - togli i due `UPDATE` di `channel_account` dalla riconciliazione → T011 (aggiornamenti) rosso;
+  - togli il primo `UPDATE` (liberazione dei numeri) → T011 (scambio di numeri) rosso;
+  - togli V2 da `channels_legacy_check()` → T011 (V2 > 0 prima della riconciliazione) rosso;
+  - togli la riconciliazione dal runner → T011 (ritorno a R2 senza migrazioni pendenti) rosso
 
-**Checkpoint:** golden **invariati** e verdi; `pnpm test:e2e` verde; 6 verifiche a 0 su dati simulati. **Rilascio R1** (owner).
+**Checkpoint:** golden **invariati** e verdi; `pnpm test:e2e` verde; V1–V7 a 0 su dati simulati, anche dopo gli aggiornamenti del codice vecchio; nessuna sonda bloccata oltre la fase A. **Rilascio R1** (owner).
 
 ---
 
@@ -92,7 +107,7 @@ description: "Compiti del livello canali comune (M1.2–M1.6)"
 - [ ] T029 [US1] `src/app/api/webhooks/[channel]/[webhookToken]/route.ts` con lo slug `wa`; rimuovi `src/app/api/webhooks/wa/` (stesso URL, ADR §3.5)
 - [ ] T030 [US1] Letture nuove nei punti di `plan.md` §5.1–5.3 (`identity.ts`, `status.ts:43`, `bot/context`, `bot/typing`, `start-conversation`, `credentials.ts` come vista di `channel_account`). I contratti pubblicati restano invariati (FR-010)
 - [ ] T031 [US1] `src/server/inbox/*` e `src/server/whatsapp/*` diventano moduli sottili con le stesse firme esportate (`plan.md` §4); nessun chiamante cambia import in questo pacchetto
-- [ ] T032 [US3] `drizzle/0013_*.sql`: backfill ripetuto + `RAISE EXCEPTION` con le 6 verifiche. Sabotaggio: una riga disallineata → la migrazione fallisce e il container non parte
+- [ ] T032 [US3] Modalità `blocca` nel runner di R2 (costante, nessuna variabile d'ambiente): un'anomalia di V1–V7 o un errore della riconciliazione → exit 1, il container non parte. Nessuna migrazione Drizzle per R2. Sabotaggio: modalità rimessa ad `avvisa` → il test dell'account orfano (T011) fallisce
 - [ ] T033 [US1] DTO dei messaggi: campo **additivo** `channel` in `serializeMessage` (`src/server/inbox/ingest.ts:437`); i golden HTTP accettano solo campi additivi dichiarati nel registro
 - [ ] T034 [US1] Sabotaggi di `plan.md` §7.3: slug sconosciuto, ordine nel gestore, sandbox nel nucleo
 
@@ -131,12 +146,12 @@ description: "Compiti del livello canali comune (M1.2–M1.6)"
 
 - [ ] T045 [US6] `src/server/channels/instagram/{parse,send,capabilities,adapter}.ts`, portato da `heili-dm@7ce1633` con la nota d'origine (file e righe). Le chiamate passano dal client Graph del CRM, con base URL configurabile
 - [ ] T046 [US6] Trasporto per canale in `src/lib/meta/client.ts` (`resolveGraphTransport`): Wapi solo per `whatsapp` (FR-016)
-- [ ] T047 [US6] `src/server/channels/instagram/oauth.ts` + `src/app/api/channels/instagram/{connect,callback}/route.ts`: stato con organizzazione, utente e nonce in cookie `httpOnly`, firmato con `BETTER_AUTH_SECRET`; solo owner e admin; token cifrato con `lib/crypto`; `secret_expires_at`
-- [ ] T048 [US6] `CHANNELS_ENABLED` in `src/lib/env.ts` e `.env.example` (placeholder e guida inline, regola delle credenziali di `CLAUDE.md`); il registro filtra gli slug
+- [ ] T047 [US6] `src/server/channels/instagram/oauth.ts` + `src/app/api/channels/instagram/{connect,callback}/route.ts`: `client_id` = `INSTAGRAM_APP_ID`, `client_secret` = `INSTAGRAM_APP_SECRET`, `redirect_uri` = `INSTAGRAM_REDIRECT_URI` (ADR §3.6); stato con organizzazione, utente e nonce in cookie `httpOnly`, firmato con `BETTER_AUTH_SECRET`; solo owner e admin; token cifrato con `lib/crypto`; `secret_expires_at`
+- [ ] T048 [US6] In `src/lib/env.ts`: `CHANNELS_ENABLED` e le quattro variabili di Instagram (`INSTAGRAM_APP_ID`, `INSTAGRAM_APP_SECRET`, `INSTAGRAM_REDIRECT_URI` con la stessa origine di `APP_BASE_URL`, `INSTAGRAM_WEBHOOK_VERIFY_TOKEN` di almeno 32 caratteri e diverso da `META_WEBHOOK_VERIFY_TOKEN`). In `.env.example` il blocco commentato di ADR §3.6 con i segnaposto `REEMPLAZA_...` e la guida in linea (regola delle credenziali di `CLAUDE.md`). Il registro carica Instagram solo se `CHANNELS_ENABLED` lo contiene **e** le quattro variabili sono valide; altrimenti 404 e log con i soli nomi. Firma Instagram solo con `INSTAGRAM_APP_SECRET`. Test: variabile mancante → 404 senza scritture; firma con `META_APP_SECRET` → 401; firma assente → 401; URI di ritorno su un'altra origine → canale spento; nessun valore segreto nei log
 - [ ] T049 [US6] Migrazione `wa_identity DROP NOT NULL` (ADR §3.9, «Vincolo di schema»), poi gestione del NULL in `bot/context`, `export/contacts`, `start-conversation` e invio, con test: contatto solo-Instagram non visibile via `?waIdentity=`, export senza stringa vuota. Il CHECK di `channel` comprende già `instagram` da R1. Altre colonne (es. `media_asset.source_url`) solo additive, con `pnpm db:generate`
-- [ ] T049b [US3] Passo di rollback R2→R1 per ambienti con Instagram acceso in `docs/ops/rilascio-canali.md` (verifica `wa_identity IS NULL` = 0); test che la verifica 2 di ADR §3.3 accetta i contatti senza identità WhatsApp
+- [ ] T049b [US3] Passo di rollback R2→R1 per ambienti con Instagram acceso in `docs/ops/rilascio-canali.md` (verifica `wa_identity IS NULL` = 0); test che V3 di ADR §3.3 accetta i contatti senza identità WhatsApp
 - [ ] T050 [US6] Mock Instagram di sviluppo dietro `src/lib/dev-guard.ts` ed estensione di `pnpm test:e2e` (DM in entrata, risposta, eco)
-- [ ] T051 [US6] Sabotaggi: firma Instagram facoltativa; filtro per canale del trasporto rimosso; stato OAuth senza organizzazione; `CHANNELS_ENABLED` ignorato. Ognuno deve far fallire un test
+- [ ] T051 [US6] Sabotaggi: firma Instagram facoltativa; ripiego su `META_APP_SECRET`; registro che carica Instagram con una variabile mancante; controllo dell'origine di `INSTAGRAM_REDIRECT_URI` tolto; filtro per canale del trasporto rimosso; stato OAuth senza organizzazione; `CHANNELS_ENABLED` ignorato. Ognuno deve far fallire un test
 - [ ] T052 [US6] Controllo «astrazione validata» (ADR §3.9): `git diff --stat` su `src/server/channels/core/`, `src/server/ai/` e sulla route `[channel]` vuoto. Se non è vuoto: fermarsi e proporre la revisione dell'ADR
 - [ ] T053 [US6] Prova end-to-end reale **dell'owner** in modalità sviluppo (D16). L'esito, o «non eseguita» con il motivo, va nel registro (SC-008)
 
@@ -148,7 +163,7 @@ description: "Compiti del livello canali comune (M1.2–M1.6)"
 
 ## Fase 7: R3 — contrai (rilascio successivo, non in M1)
 
-- [ ] T054 [US3] `drizzle/0015_*.sql` (numero secondo l'ordine reale dei merge): backfill + verifiche + `DROP` di ADR §3.3; indice della conversazione `(organization_id, contact_id, channel_account_id)` (D6); arbitro `ON CONFLICT` per organizzazione
+- [ ] T054 [US3] Migrazione di R3 (numero secondo l'ordine reale dei merge): il runner riconcilia e verifica in modalità `blocca` **prima** di applicarla; poi `DROP` di ADR §3.3 e `DROP FUNCTION channels_legacy_*`; indice della conversazione `(organization_id, contact_id, channel_account_id)` creato `CONCURRENTLY` nel runner (D6); arbitro `ON CONFLICT` per organizzazione
 - [ ] T055 [US3] Rimozione della doppia scrittura e delle letture vecchie; `waIdentity` del bot e dell'export ricavati da `contact_identity` (contratti invariati)
 - [ ] T056 [US3] Prerequisiti verificati e scritti: R2 in produzione da ≥ 7 giorni, backup ripristinato con successo, test E2E WhatsApp dell'owner riuscito
 - [ ] T057 Commit `refactor:` separato: rimuovi `getOrCreateContact` (`src/server/inbox/ingest.ts:149-161`, nessun chiamante) e i moduli sottili senza più chiamanti (Leggi §3.5)

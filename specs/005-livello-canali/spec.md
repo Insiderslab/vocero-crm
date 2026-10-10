@@ -49,7 +49,7 @@ Come agenzia che ospita più clienti sulla stessa istanza, ho la garanzia che la
 **Scenari di accettazione:**
 1. **Dato** un payload per il numero di B, **quando** viene elaborato, **allora** in A non cambia nessuna riga.
 2. **Dato** uno stato con il `wamid` di un messaggio di A che arriva sul numero di B, **quando** viene elaborato, **allora** il messaggio di A non cambia.
-3. **Dato** il backfill su un DB con A e B, **quando** termina, **allora** ogni conversazione punta a un `channel_account` della **sua** organizzazione, e la query di verifica n. 5 dell'ADR §3.3 restituisce 0.
+3. **Dato** la riconciliazione (il backfill) su un DB con A e B, **quando** termina, **allora** ogni conversazione punta a un `channel_account` della **sua** organizzazione, e la verifica V6 dell'ADR §3.3 restituisce 0.
 4. **Dato** un tentativo (anche da codice) di inserire una `contact_identity` di A che punta a un contatto di B, **quando** si scrive nel DB, **allora** il DB lo rifiuta (FK composta).
 5. **Dato** un secondo `channel_account` con lo stesso `(channel, external_account_id)` in un'altra organizzazione, **quando** si salva, **allora** viene rifiutato (come oggi `meta_credentials_phone_uq`).
 
@@ -61,14 +61,17 @@ Come owner che rilascia in produzione, posso applicare la migrazione e, se qualc
 
 **Perché questa priorità:** la migrazione M1.2 è il punto più delicato del piano (§5 Rischi).
 
-**Test indipendente:** su un PostgreSQL usa e getta: (a) applicazione da zero; (b) aggiornamento da un DB con dati simulati di produzione (≥ 100 000 messaggi, 2 organizzazioni); (c) rollback di R1 riavviando l'immagine precedente; (d) ripetizione del backfill (idempotenza).
+**Test indipendente:** su un PostgreSQL usa e getta: (a) applicazione da zero; (b) aggiornamento da un DB con dati simulati di produzione (≥ 100 000 messaggi, 2 organizzazioni); (c) rollback di R1 riavviando l'immagine precedente; (d) ripetizione della riconciliazione (idempotenza); (e) **inserimenti e aggiornamenti** del codice vecchio durante il rollback, poi ritorno a R1/R2; (f) letture e scritture su `message` sondate durante ogni fase della migrazione.
 
 **Scenari di accettazione:**
-1. **Dato** un DB di produzione simulato, **quando** parte R1, **allora** le cinque verifiche dell'ADR §3.3 danno 0 righe anomale e la durata è registrata.
-2. **Dato** R1 applicato, **quando** si riavvia l'immagine precedente, **allora** l'app parte, riceve e invia; al ritorno a R1/R2 il backfill ripetuto riallinea le righe scritte nel frattempo.
-3. **Dato** un backfill eseguito due volte, **quando** termina la seconda, **allora** non ci sono righe duplicate.
-4. **Dato** un DB in cui una riga non è allineata, **quando** parte la migrazione di R2 (o R3), **allora** la migrazione fallisce con un messaggio chiaro e il container non serve traffico (fail-closed).
-5. **Dato** R3 pronto, **quando** l'owner lo rilascia, **allora** esiste un backup verificato da un ripristino riuscito e R2 è stato in produzione per il periodo concordato (D10).
+1. **Dato** un DB di produzione simulato, **quando** parte R1, **allora** le verifiche V1–V7 dell'ADR §3.3 danno 0 righe anomale e la durata di ogni fase è registrata.
+2. **Dato** R1 applicato, **quando** si riavvia l'immagine precedente, **allora** l'app parte, riceve e invia.
+3. **Dato** il codice vecchio che, dopo R1, **inserisce o aggiorna** righe (numero ricollegato, token ruotato, `reconnect_required`, numeri scambiati tra due organizzazioni, organizzazione che collega il numero, contatti, conversazioni e messaggi nuovi), **quando** si torna a R1 o a R2, **allora** prima di servire traffico la riconciliazione all'avvio riallinea anche gli aggiornamenti: ogni campo copiato di `channel_account` è uguale a `meta_credentials` e V1–V7 danno 0.
+4. **Dato** R2 già applicato una volta (nessuna migrazione pendente), **quando** si torna a R2 dopo un rollback, **allora** la riconciliazione gira comunque all'avvio: non dipende dal registro delle migrazioni.
+5. **Dato** una riconciliazione eseguita due volte, **quando** termina la seconda, **allora** non ci sono righe duplicate né modificate.
+6. **Dato** un DB con un'anomalia che la riconciliazione non può correggere (es. un account orfano), **quando** parte un'immagine R2 o R3, **allora** il runner esce con errore, il log dice quale verifica è fallita (senza valori) e il container non serve traffico (fail-closed). Con un'immagine R1 l'anomalia va nel log e il container parte (R1 legge ancora le colonne vecchie).
+7. **Dato** traffico su `message` durante la migrazione di R1, **quando** gira ogni fase, **allora** letture e scritture non restano bloccate oltre il `lock_timeout` della fase A (5 s); gli indici si creano `CONCURRENTLY` e il CHECK si valida senza bloccare le scritture (ADR §3.3, «Sequenza dei lock»).
+8. **Dato** R3 pronto, **quando** l'owner lo rilascia, **allora** esiste un backup verificato da un ripristino riuscito e R2 è stato in produzione per il periodo concordato (D10).
 
 ---
 
@@ -114,11 +117,12 @@ Come agenzia, prima di investire in Instagram e Messenger per i clienti, voglio 
 **Scenari di accettazione:**
 1. **Dato** un account Instagram di prova collegato all'organizzazione A, **quando** arriva un webhook `object: "instagram"` con un DM, **allora** si crea un contatto con identità `instagram` (IGSID, legata all'account) e il messaggio compare nella bandeja con `channel = 'instagram'`.
 2. **Dato** lo stesso IGSID ricevuto da un account di A e da un account di B, **quando** vengono elaborati, **allora** esistono due contatti separati, uno per organizzazione.
-3. **Dato** un webhook Instagram con firma mancante o errata, **quando** arriva, **allora** la risposta è 401 e non si scrive nulla, anche se `META_APP_SECRET` di WhatsApp non è configurato.
+3. **Dato** un webhook Instagram con firma mancante o errata, **quando** arriva, **allora** la risposta è 401 e non si scrive nulla, anche se `META_APP_SECRET` di WhatsApp non è configurato; e una firma calcolata con `META_APP_SECRET` invece che con `INSTAGRAM_APP_SECRET` è rifiutata.
 4. **Dato** un'organizzazione con chiave Wapi propria (C3), **quando** il CRM invia un DM Instagram, **allora** la richiesta va a `graph.instagram.com` e **mai** a `WAPI_BASE_URL`.
 5. **Dato** `CHANNELS_ENABLED=whatsapp` (default), **quando** arriva un POST su `/api/webhooks/instagram/<token>`, **allora** la risposta è 404 e Instagram non compare nell'interfaccia.
 6. **Dato** uno stato OAuth creato per l'organizzazione A, **quando** il callback arriva con la sessione di un utente di B, o di un `member` di A, **allora** il collegamento è rifiutato e nessun `channel_account` viene creato.
 7. **Dato** un messaggio `is_echo` inviato dall'app Instagram del titolare, **quando** viene elaborato, **allora** compare come uscente `manual` e mette in pausa l'AI come l'eco di WhatsApp.
+8. **Dato** `CHANNELS_ENABLED=whatsapp,instagram` ma una delle variabili `INSTAGRAM_APP_ID`, `INSTAGRAM_APP_SECRET`, `INSTAGRAM_REDIRECT_URI`, `INSTAGRAM_WEBHOOK_VERIFY_TOKEN` mancante o non valida (es. `INSTAGRAM_REDIRECT_URI` su un'origine diversa da `APP_BASE_URL`), **quando** arriva un GET o un POST su `/api/webhooks/instagram/<token>` o si apre il collegamento, **allora** la risposta è 404, non si scrive nulla e il log d'avvio elenca solo i nomi delle variabili mancanti.
 
 ### Casi limite
 
@@ -129,6 +133,7 @@ Come agenzia, prima di investire in Instagram e Messenger per i clienti, voglio 
 - `wamid` uguale in due organizzazioni: oggi il secondo viene scartato; da R3 viene salvato in entrambe (ADR §3.2, nota d'isolamento).
 - Contatto archiviato che riscrive: viene riattivato come oggi.
 - Payload con `entry` di più numeri: ogni evento si instrada per il suo account.
+- Due organizzazioni che si scambiano il numero mentre gira il codice vecchio (rollback di R1): la riconciliazione libera prima i numeri cambiati e poi li riassegna, senza violare `UNIQUE (channel, external_account_id)` (ADR §3.3).
 - Organizzazione con chiave Wapi (C3, `wapi_credentials`) e senza numero collegato: nessun `channel_account`; la chiave resta dov'è e l'instradamento è identico a C3.
 - Chiave Wapi revocata dopo R1: nessun effetto sui dati dei canali (la tabella non entra nella migrazione).
 - Contatto solo-Instagram prima di R3: `wa_identity` NULL (M1.6); non compare in `GET /api/bot/context?waIdentity=`, e l'export non inventa un valore. In produzione Instagram resta spento fino a R3 (ADR D17).
@@ -142,15 +147,15 @@ Come agenzia, prima di investire in Instagram e Messenger per i clienti, voglio 
 - **FR-002** `parse` DEVE essere puro (niente DB, rete, orologio) e preservare l'ordine di elaborazione di oggi (per WhatsApp: stati prima dei messaggi di ogni `change`).
 - **FR-003** La sandbox del Laboratorio, l'ordine dei controlli d'invio, la finestra di risposta, l'idempotenza, la monotonìa degli stati e la risoluzione dell'organizzazione DEVONO restare nel nucleo; nessun adattatore li reimplementa.
 - **FR-004** Il sistema DEVE aggiungere `channel_account`, `contact_identity`, `conversation.channel_account_id`, `message.channel`, `message.external_message_id` con i vincoli dell'ADR §3.2, comprese le FK composte con `organization_id`.
-- **FR-005** La migrazione DEVE seguire tre rilasci (R1 espandi + backfill + doppia scrittura; R2 letture nuove + verifica; R3 contrazione) con il rollback dell'ADR §3.3.
-- **FR-006** Il backfill DEVE essere idempotente e ripetuto all'inizio di R2 e R3; le verifiche DEVONO bloccare la migrazione (eccezione) se trovano righe non allineate.
+- **FR-005** La migrazione DEVE seguire tre rilasci (R1 espandi + riconciliazione all'avvio + doppia scrittura; R2 letture nuove + verifiche bloccanti; R3 contrazione) con il rollback dell'ADR §3.3.
+- **FR-006** Fino a R3, ogni avvio di un'immagine che legge le strutture nuove DEVE, prima di servire traffico, riconciliarle con le colonne vecchie (inserimenti **e aggiornamenti**, in modo idempotente) ed eseguire le verifiche V1–V7 dell'ADR §3.3. La riconciliazione NON DEVE dipendere dal registro delle migrazioni. In R2 e R3 un'anomalia o un errore DEVE impedire l'avvio; in R1 DEVE andare nel log. La modalità è una costante del rilascio, non configurabile.
 - **FR-007** In R1 e R2 ogni scrittura su `meta_credentials`, `contact`, `conversation` e `message` DEVE scrivere anche la struttura nuova, nella stessa transazione.
 - **FR-008** Il webhook DEVE essere servito da `/api/webhooks/<slug>/[token]` con l'ordine di controlli dell'ADR §3.5; l'URL `/api/webhooks/wa/<token>` DEVE restare valido e identico nel comportamento.
 - **FR-009** I canali nuovi DEVONO verificare la firma in modo obbligatorio (fail-closed); WhatsApp in M1 mantiene la regola di oggi (D3).
 - **FR-010** I contratti pubblicati DEVONO restare identici: `/api/bot/*` (compreso `?waIdentity=`), `/api/export/*` (campo `waIdentity`), i codici di `SendError` nelle risposte HTTP, gli eventi SSE (il DTO del messaggio può ricevere solo campi **additivi**, es. `channel`).
 - **FR-011** L'unione di contatti tra canali DEVE richiedere la conferma di un owner o admin e lasciare un audit; l'unica unione automatica ammessa è quella attestata dal provider nello stesso evento e canale (WhatsApp telefono+BSUID).
 - **FR-012** Una suite golden con DB reale DEVE essere registrata sul codice di oggi **prima** di qualsiasi modifica e DEVE passare senza modifiche ai golden dopo M1.2 e M1.3. Senza DB fallisce (non si salta).
-- **FR-013** Ogni guardia nuova (FK composte, verifiche di R2/R3, routing per slug, firma dei canali nuovi) DEVE avere un test di sabotaggio registrato.
+- **FR-013** Ogni guardia nuova (FK composte, indici `UNIQUE (channel, external_account_id)` e `UNIQUE (organization_id, channel, external_id)`, riconciliazione all'avvio e verifiche V1–V7, routing per slug, firma e variabili dei canali nuovi) DEVE avere un test di sabotaggio registrato.
 - **FR-014** Le capacità di WhatsApp DEVONO riprodurre le costanti di oggi (`WINDOW_MS` 24 h, `MEDIA_LIMITS`, modelli fuori finestra).
 - **FR-015** `wapi_credentials` (C3) NON DEVE essere migrata né letta dal nucleo in M1; l'instradamento Graph resta quello di C3 per WhatsApp.
 - **FR-016** Il trasporto Graph DEVE essere deciso per canale: il desvío a Wapi vale solo per `whatsapp`; ogni altro canale va diretto al suo host Meta (fail-closed: canale sconosciuto → nessuna chiamata).
@@ -158,6 +163,8 @@ Come agenzia, prima di investire in Instagram e Messenger per i clienti, voglio 
 - **FR-018** I canali diversi da WhatsApp DEVONO essere spenti per istanza finché l'owner non li accende (`CHANNELS_ENABLED`, default `whatsapp`): webhook 404, nessuna voce nell'interfaccia.
 - **FR-019** Il collegamento OAuth di un canale DEVE legare lo stato a organizzazione, utente e nonce in cookie `httpOnly`, e verificare al callback sessione, organizzazione e ruolo owner/admin.
 - **FR-020** Nessun agente DEVE chiamare Meta; la prova reale del secondo canale è dell'owner e il suo esito (o la sua assenza) DEVE essere scritto nel registro.
+- **FR-021** Instagram DEVE avere variabili d'istanza proprie: `INSTAGRAM_APP_ID`, `INSTAGRAM_APP_SECRET` (scambio del token e firma dei webhook), `INSTAGRAM_REDIRECT_URI` (stessa origine di `APP_BASE_URL`), `INSTAGRAM_WEBHOOK_VERIFY_TOKEN` (diverso da quello di WhatsApp), con segnaposto `REEMPLAZA_...` e guida in `.env.example` (ADR §3.6). Se una manca o non è valida, il canale DEVE restare spento (404); NON DEVE esistere un ripiego su `META_APP_SECRET` né un webhook Instagram accettato senza firma.
+- **FR-022** La migrazione di R1 NON DEVE tenere `ACCESS EXCLUSIVE` su `message` oltre le istruzioni di solo catalogo: colonne e vincoli `NOT VALID` nella migrazione Drizzle, poi `VALIDATE CONSTRAINT` e `CREATE UNIQUE INDEX CONCURRENTLY` fuori dalla transazione, riconciliazione dei messaggi a lotti, `lock_timeout` sulle istruzioni che prendono lock forti (ADR §3.3).
 
 ### Entità chiave
 
@@ -170,7 +177,7 @@ Come agenzia, prima di investire in Instagram e Messenger per i clienti, voglio 
 ## Criteri di successo *(obbligatorio)*
 
 - **SC-001** 100 % dei casi golden verdi senza modifiche ai file golden dopo R1, R2 e R3.
-- **SC-002** 0 righe anomale nelle cinque verifiche del backfill su una copia con ≥ 100 000 messaggi e 2 organizzazioni; durata registrata nel registro di M1.2.
+- **SC-002** 0 righe anomale nelle verifiche V1–V7 dell'ADR §3.3 su una copia con ≥ 100 000 messaggi e 2 organizzazioni, anche dopo aggiornamenti simulati del codice vecchio; durata di ogni fase e sonde di lock registrate nel registro di M1.2.
 - **SC-003** Il self-test end-to-end esistente resta verde; il test end-to-end WhatsApp dell'owner è riuscito prima di R3.
 - **SC-004** Un adattatore finto passa la suite di contratto **senza** diff in `src/server/channels/core/*`.
 - **SC-005** Tutti i test negativi con due organizzazioni passano; ogni sabotaggio registrato fa fallire almeno un test.
@@ -192,8 +199,11 @@ Come agenzia, prima di investire in Instagram e Messenger per i clienti, voglio 
 ## Supposti (Costituzione VII)
 
 - I `wamid` di Meta sono univoci almeno per numero; **non verificato** che lo siano sull'istanza (ADR §3.2).
-- Il migratore Drizzle non fallisce se il DB ha una migrazione più recente del codice; **da verificare in M1.2**.
+- Il migratore Drizzle non fallisce se il DB ha una migrazione più recente del codice: letto in `drizzle-orm` 0.38.4 e provato su PostgreSQL 16 con il migratore di `810272a` (ADR §3.3); **da ripetere con l'immagine vera in M1.2**.
+- Drizzle applica tutte le migrazioni pendenti in una sola transazione (`drizzle-orm` 0.38.4, `pg-core/dialect.js:60-71`): se cambia versione, la sequenza dei lock dell'ADR §3.3 va ricontrollata.
+- Meta riprova le consegne dei webhook falliti durante un avvio stop-first (D18): **da riconfermare in K0**.
 - PostgreSQL ≥ 11 (aggiunta di colonna con default senza riscrittura); l'immagine di produzione usa PostgreSQL 16 (`specs/001-vocero-core/plan.md`).
 - Le capacità di Instagram e Messenger nell'ADR §3.6 sono da confermare in K0 con la documentazione Meta.
+- Quale segreto usa Meta per firmare i webhook di *Instagram API with Instagram Login* (app Instagram o app Facebook): **da riconfermare in K0** e nella prova reale; il CRM usa solo `INSTAGRAM_APP_SECRET` (ADR §3.5).
 - L'app «Dm Heili» di heili-dm è *Live* con solo accesso Standard e **senza** App Review (documenti di heili-dm al 31/08 e al 05/10: ADR §3.8); lo stato attuale nella console Meta **non è verificato** (D14).
 - Meta ammette un solo URL di callback per oggetto webhook e per app: da riconfermare in K0.

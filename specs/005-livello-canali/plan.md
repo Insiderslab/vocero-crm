@@ -21,7 +21,7 @@ Il CRM oggi è legato a WhatsApp nel modello dati (`contact.wa_identity`, `messa
 
 **Dipendenze principali**: Next.js 15 (App Router), Drizzle ORM 0.38, Better Auth, Zod, nanoid. **Nessuna dipendenza nuova** in M1.2–M1.5. M1.6 riusa `fetch` e `lib/crypto`; il codice OAuth viene portato da heili-dm, non installato.
 
-**Archiviazione**: PostgreSQL 16. Le migrazioni Drizzle stanno in `drizzle/` e si applicano all'avvio del container (`Dockerfile:60`: `node migrate.mjs && node server.js`). Se una migrazione fallisce, il server non parte: è questo che rende fail-closed le verifiche `RAISE EXCEPTION` di R2 e R3.
+**Archiviazione**: PostgreSQL 16. Le migrazioni Drizzle stanno in `drizzle/` e si applicano all'avvio del container (`Dockerfile:60`: `node migrate.mjs && node server.js`). Se il runner esce con errore, il server non parte: è questo che rende fail-closed la riconciliazione e le verifiche V1–V7 in modalità `blocca` (R2, R3). Drizzle 0.38.4 applica tutte le migrazioni pendenti in **una sola transazione**: per questo indici `CONCURRENTLY`, `VALIDATE` e riconciliazione a lotti stanno nel runner, non nei file Drizzle (ADR §3.3).
 
 **Test**:
 - Vitest (`tests/unit/**/*.test.ts`, `vitest.config.ts`);
@@ -50,13 +50,13 @@ Il CRM oggi è legato a WhatsApp nel modello dati (`contact.wa_identity`, `messa
 
 | Principio | Valutazione | Stato |
 |---|---|---|
-| I. Sicurezza dei dati | Segreti di canale cifrati con `lib/crypto` (stesso formato di `meta_credentials`). Il backfill copia il cifrato senza decifrarlo. La chiave Wapi resta in `wapi_credentials`. Il trasporto si decide per canale, così la chiave Wapi non va mai a un host non-WhatsApp | ✅ |
+| I. Sicurezza dei dati | Segreti di canale cifrati con `lib/crypto` (stesso formato di `meta_credentials`). La riconciliazione copia il cifrato senza decifrarlo. La chiave Wapi resta in `wapi_credentials`. Il trasporto si decide per canale, così la chiave Wapi non va mai a un host non-WhatsApp. Instagram ha segreto, token di verifica e URI di ritorno propri (ADR §3.6), senza ripiego sui valori di WhatsApp | ✅ |
 | II. Sovranità (indurito) | M1.2–M1.5: nessuna dipendenza nuova. **M1.6:** chiamate a `graph.instagram.com` e `api.instagram.com`, cioè Meta ma non *WhatsApp Cloud API*. Il testo del Principio II non lo permette | ⚠️ M1.6 richiede D2 |
 | III. Multi-tenancy reale | `organization_id NOT NULL` sulle tabelle nuove; FK composte `(organization_id, …)`; `channel_account UNIQUE (channel, external_account_id)` come guardia di routing; test negativi con due organizzazioni | ✅ |
-| IV. Idempotenza | `UNIQUE (organization_id, channel, external_message_id)`; backfill ripetibile con ID deterministici; stati monotòni nel nucleo | ✅ |
+| IV. Idempotenza | `UNIQUE (organization_id, channel, external_message_id)`; riconciliazione ripetibile a ogni avvio con ID deterministici; stati monotòni nel nucleo | ✅ |
 | V. Qualità verificabile | Golden prima del codice; sabotaggio per ogni guardia; elenco esplicito di ciò che non è verificato in ogni registro | ✅ |
 | VI. Spec prima del codice | Ciclo completo (modello dati e contratto pubblicato): spec, plan e tasks in questa cartella prima di M1.2 | ✅ |
-| VII. Tracciabilità | Decisioni nell'ADR (D1–D17), supposti nella spec | ✅ |
+| VII. Tracciabilità | Decisioni nell'ADR (D1–D18), supposti nella spec | ✅ |
 | VIII. Foco verticale (WhatsApp) | M1.2–M1.5 non aggiungono canali. **M1.6** aggiunge Instagram, anche se spento in produzione | ⚠️ M1.6 richiede D2 |
 | IX. Verifica in vivo | WhatsApp: `pnpm test:e2e` contro wa-mock. Instagram: E2E con un mock Instagram di sviluppo dietro `src/lib/dev-guard.ts`, più la prova reale dell'owner (D16) | ✅ |
 
@@ -67,6 +67,8 @@ Il CRM oggi è legato a WhatsApp nel modello dati (`contact.wa_identity`, `messa
 | Principi II e VIII (M1.6) | Validare il contratto con un secondo provider reale prima di R3 (ADR §3.9) | Solo l'adattatore finto: non prova che il contratto regga un provider diverso; un errore scoperto in M3 costa una seconda migrazione |
 | Tre rilasci invece di uno | Rollback senza backup in R1 e R2 | Migrazione in un colpo: nessun ritorno indietro (ADR §4) |
 | Doppia scrittura per due rilasci | Le letture vecchie restano valide durante il rollback | Trigger nel DB: logica nascosta e fuori dai test (ADR §4) |
+| Riconciliazione e verifiche a ogni avvio, fino a R3 | Il codice vecchio, dopo un rollback, aggiorna righe che il solo backfill della migrazione non riallinea, e una migrazione registrata non si riesegue (ADR §3.3) | Backfill solo nella migrazione: provato insufficiente; trigger temporanei o divieto di rollback: ADR §4 |
+| Migrazione di R1 in tre fasi (Drizzle, passi online, riconciliazione) | Nessun lock lungo su `message` (ADR §3.3, «Sequenza dei lock») | Un solo file Drizzle: `ACCESS EXCLUSIVE` per tutta la durata |
 
 ## 4. Struttura del progetto
 
@@ -100,6 +102,8 @@ src/server/channels/
 │   ├── adapter.ts  parse.ts  send.ts  capabilities.ts
 └── instagram/               # M1.6
     ├── adapter.ts  parse.ts  send.ts  oauth.ts  capabilities.ts
+scripts/migrate.mjs                                       # M1.2: passi 1-5 di ADR §3.3 (riconciliazione, Drizzle, passi online, riconciliazione, poi server)
+scripts/migrate-channels.mjs                              # M1.2: passi online idempotenti, ciclo dei lotti, V7, modalità del rilascio (costante)
 src/app/api/webhooks/[channel]/[webhookToken]/route.ts   # sostituisce webhooks/wa/[webhookToken]
 src/app/api/channels/instagram/connect/route.ts           # M1.6, minimo
 src/app/api/channels/instagram/callback/route.ts          # M1.6, minimo
@@ -108,7 +112,7 @@ tests/unit/channels/contract.ts                           # suite di contratto c
 tests/unit/channels/{whatsapp,instagram,fake}/*.test.ts
 ```
 
-**Decisione di struttura:** `src/server/inbox/*` e `src/server/whatsapp/*` non si cancellano in M1.3. Diventano moduli sottili che delegano a `channels/` e tengono le stesse firme esportate, perché le chiamano 28 file di `src/` (§5.6–5.8). Si eliminano in un commit `refactor:` dedicato solo quando non hanno più chiamanti (Leggi §3.5).
+**Decisione di struttura:** `src/server/inbox/*` e `src/server/whatsapp/*` non si cancellano in M1.3. Diventano moduli sottili che delegano a `channels/` e tengono le stesse firme esportate, perché li chiamano i file elencati in §5.6–5.8. Si eliminano in un commit `refactor:` dedicato solo quando non hanno più chiamanti (Leggi §3.5).
 
 ## 5. Inventario esatto dei punti del codice
 
@@ -353,24 +357,30 @@ grep -rn "wapiCredentials\|wapi_credentials\|getWapiKeyByOrg\|resolveGraphTransp
 
 ## 6. Migrazione: file e sequenza
 
+Il meccanismo (riconciliazione all'avvio, V1–V7, modalità, sequenza dei lock) è deciso in ADR §3.3: qui solo file e prove.
+
 | Passo | File | Contenuto |
 |---|---|---|
 | 0 | — | C3 integrato (migrazione `0011`). Golden registrati sul codice invariato (commit 1 di M1.2) |
-| R1 | `src/lib/db/schema.ts` → `pnpm db:generate` → `drizzle/0012_*.sql` completata a mano | DDL di ADR §3.2. In fondo, il backfill di ADR §3.3. **Il backfill non contiene `RAISE`**: in R1 un DB di produzione con un'anomalia non deve impedire la partenza. Le anomalie si misurano con le query di `docs/ops/rilascio-canali.md` |
+| R1 | `src/lib/db/schema.ts` → `pnpm db:generate` → `drizzle/0012_*.sql` completata a mano | **Fase A**, solo catalogo, con `SET LOCAL lock_timeout = '5s'`: tabelle nuove con i loro indici (sono vuote), colonne nuove di `conversation` e `message`, `CHECK` e FK composta di `conversation` **`NOT VALID`**, funzioni `channels_legacy_sync`, `channels_legacy_sync_messages`, `channels_legacy_check` di ADR §3.3. **Niente** indici su tabelle esistenti, niente backfill, niente `RAISE`. Indici e vincoli restano dichiarati in `schema.ts` (snapshot di Drizzle coerente, nessuna rigenerazione); solo il loro `CREATE`/`VALIDATE` passa al runner |
+| R1 | `scripts/migrate-channels.mjs` | **Fase B**, un'istruzione per volta, fuori transazione, `lock_timeout = '5s'`: `CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS` su `contact (organization_id, id)` e su `message (organization_id, channel, external_message_id)`, FK composta di `contact_identity` verso `contact`, `VALIDATE CONSTRAINT` del CHECK di `message` e della FK di `conversation`. Indice `INVALID` → `DROP INDEX CONCURRENTLY` e nuovo tentativo. **Fase C**: riconciliazione (messaggi a lotti di 5 000 in autocommit), V1–V6, V7 |
+| R1 | `scripts/migrate.mjs` | passi 1–5 di ADR §3.3; modalità `avvisa` |
 | R1 | `src/lib/db/ids.ts` | prefissi `cha`, `ci` |
 | R1 | punti di §5.9 | doppia scrittura |
-| R2 | `drizzle/0013_*.sql` (solo SQL a mano, senza modifiche di schema) | ripete il backfill e poi `DO $$ … RAISE EXCEPTION … $$` con le 6 verifiche di ADR §3.3 |
-| R2 | §5.1–5.8 | letture nuove, adattatore WhatsApp, route `[channel]` |
-| M1.6 | `drizzle/0014_*.sql` (numero da riassegnare all'ordine reale dei merge) | `ALTER TABLE contact ALTER COLUMN wa_identity DROP NOT NULL` (ADR §3.9). Nessun altro cambio; Instagram resta spento in produzione fino a R3 (D17) |
-| R3 | `drizzle/0015_*.sql` | backfill + verifiche + `DROP` (ADR §3.3), indice univoco della conversazione per account (D6), `ON CONFLICT` sull'indice per organizzazione |
+| R2 | nessuna migrazione | modalità `blocca` (costante nel codice di R2); letture nuove, adattatore WhatsApp, route `[channel]` (§5.1–5.8) |
+| M1.6 | migrazione Drizzle (numero secondo l'ordine reale dei merge) | `ALTER TABLE contact ALTER COLUMN wa_identity DROP NOT NULL` (ADR §3.9): solo catalogo. Nessun altro cambio; Instagram resta spento in produzione fino a R3 (D17) |
+| R3 | migrazione Drizzle (numero secondo l'ordine reale dei merge) | il runner riconcilia e verifica in modalità `blocca` **prima** di applicarla; poi `DROP` (ADR §3.3), `DROP FUNCTION channels_legacy_*`, indice univoco della conversazione per account (D6, `CONCURRENTLY` nel runner), `ON CONFLICT` sull'indice per organizzazione |
 
-**Prove richieste in M1.2** (PostgreSQL 16 usa e getta, nello scratchpad, mai dati reali):
-1. migrazioni da zero, due volte di fila (idempotenza);
-2. DB alla `0011` con dati simulati (2 organizzazioni, ≥ 100 000 messaggi, contatti BSUID e telefono, una conversazione `is_test`, un messaggio fallito con ID NULL, una chiave Wapi revocata), poi R1, poi le 6 verifiche a 0;
-3. **rollback di R1**: immagine `810272a`+C3 avviata su un DB già a `0012`. Se il migratore Drizzle rifiuta un registro più recente, il rollback di R1 va riscritto prima del rilascio (rischio ADR §6);
-4. backfill ripetuto dopo scritture del codice vecchio (simulate con insert senza colonne nuove), poi verifiche a 0;
-5. sabotaggio della verifica di R2: una riga disallineata a mano → la migrazione `0013` fallisce;
-6. misure: durata di R1, `EXPLAIN` della risoluzione del contatto prima e dopo.
+**Prove richieste in M1.2** (PostgreSQL 16 usa e getta, nello scratchpad, mai dati reali), tutte con il runner vero:
+1. migrazioni da zero, due volte di fila (idempotenza di fasi A, B e C);
+2. DB alla `0011` con dati simulati (2 organizzazioni, ≥ 100 000 messaggi, contatti BSUID e telefono, una conversazione `is_test`, un messaggio fallito con ID NULL, una chiave Wapi revocata, un'organizzazione senza numero), poi R1, poi V1–V7 a 0;
+3. **rollback di R1**: immagine `810272a`+C3 avviata su un DB già a `0012`. Il migratore deve partire senza applicare nulla (già provato con il migratore di `810272a` nella terza tornata di M1.1; si ripete con l'immagine vera);
+4. **aggiornamenti del codice vecchio** durante il rollback, eseguiti con le funzioni vere di R0 (`saveCredentials`, `markReconnectRequired`, ingesta, invio), non con SQL a mano: numero ricollegato, token ruotato, `reconnect_required`, **numeri scambiati tra A e B**, collegamento di un'organizzazione che non aveva numero, contatti, conversazioni e messaggi nuovi. Poi avvio di R1 e di R2: V1–V7 a 0 e `channel_account` uguale a `meta_credentials` campo per campo. Lo stesso scenario prima della riconciliazione deve dare V2 > 0 (la verifica vede il difetto);
+5. **ritorno a R2 senza migrazioni pendenti** (R2 → R1 → R0 → R2): la riconciliazione gira comunque all'avvio e riallinea;
+6. **fail-closed**: un'anomalia non correggibile (account orfano: `meta_credentials` cancellata a mano) → R2 esce con codice 1 e il log nomina V1; R1 parte e lo scrive nel log;
+7. **lock**: una sonda legge e inserisce su `message` ogni 0,2 s con `lock_timeout = 200 ms` durante le fasi A, B e C, e nessuna resta bloccata; fase A dietro una transazione lunga su `message` → rinuncia, annulla e ritenta (il prototipo della terza tornata di M1.1 dà già questi risultati su 1 milione di messaggi);
+8. un `CREATE INDEX CONCURRENTLY` interrotto (indice `INVALID`) → al riavvio il runner lo ricrea;
+9. misure: durata di ogni fase e dell'avvio totale (soglia di 60 s, ADR §3.3), `EXPLAIN` della risoluzione del contatto prima e dopo.
 
 ## 7. Golden e suite di contratto
 
@@ -392,7 +402,7 @@ grep -rn "wapiCredentials\|wapi_credentials\|getWapiKeyByOrg\|resolveGraphTransp
 | `webhook-auth.golden.test.ts` | token errato 404 · firma errata 401 · body illeggibile 200 · GET 200/403/404 |
 | `send.golden.test.ts` | testo · allegato · upload fallito · posizione · contatti · modello con variabili · destinatario solo BSUID · finestra chiusa · 190 → `reconnect_required` · 5xx → `meta_unavailable` · **organizzazione A su conversazione di B → rifiutato senza fetch** · trasporto Wapi per organizzazione (C3) |
 | `agent.golden.test.ts` | risposta · finestra chiusa → `ventana` · Laboratorio senza `fetch` |
-| `migration.golden.test.ts` | backfill su A e B · FK composta che rifiuta un'identità incrociata · indice `(channel, external_account_id)` tra organizzazioni · verifica di R2 che fallisce su una riga disallineata |
+| `migration.golden.test.ts` | riconciliazione su A e B · FK composta che rifiuta un'identità incrociata · indice `(channel, external_account_id)` tra organizzazioni · indice `(organization_id, channel, external_id)` nella stessa organizzazione · aggiornamenti del codice vecchio riallineati (numero, token, stato, scambio di numeri) · ritorno a R2 senza migrazioni pendenti · V2 che vede un campo alterato a mano · modalità `blocca` su un account orfano · sonda di lock durante le fasi A, B e C |
 
 ### 7.2 Suite di contratto (`pnpm test`, dopo M1.3)
 
@@ -408,10 +418,11 @@ La eseguono `whatsapp/`, `fake/` e, in M1.6, `instagram/`.
 
 ### 7.3 Sabotaggi (uno per guardia, registrati)
 
-Le guardie sono quelle di ADR §3.7, più:
+Le guardie sono quelle di ADR §3.7 (compresi i due indici univoci e i quattro sabotaggi della riconciliazione), più:
 - slug sconosciuto → 404;
 - `CHANNELS_ENABLED` che spegne un canale;
-- firma obbligatoria di Instagram;
+- firma obbligatoria di Instagram, solo con `INSTAGRAM_APP_SECRET`;
+- variabili di Instagram mancanti o non valide → canale spento (§7.4);
 - trasporto per canale (§7.4);
 - stato OAuth legato a sessione e organizzazione.
 
@@ -421,7 +432,10 @@ Le guardie sono quelle di ADR §3.7, più:
 - lo stesso IGSID in A e B dà due contatti;
 - callback OAuth con lo stato di A e la sessione di B → rifiutato; con un `member` di A → rifiutato;
 - organizzazione con chiave Wapi propria: un invio Instagram non chiama mai `WAPI_BASE_URL` e il bearer `hlp_` non compare in nessuna richiesta. **Sabotaggio:** rimuovere il filtro per canale in `resolveGraphTransport` → il test fallisce;
-- `CHANNELS_ENABLED=whatsapp`: POST su `/api/webhooks/instagram/<token>` → 404.
+- `CHANNELS_ENABLED=whatsapp`: POST su `/api/webhooks/instagram/<token>` → 404;
+- `CHANNELS_ENABLED=whatsapp,instagram` con una delle quattro variabili di ADR §3.6 mancante: GET, POST e collegamento → 404, nessuna scrittura, log con i soli nomi. **Sabotaggio:** il registro carica l'adattatore anche con variabili mancanti → il test fallisce;
+- webhook firmato con `META_APP_SECRET` (presente) invece di `INSTAGRAM_APP_SECRET` → 401. **Sabotaggio:** ripiego su `META_APP_SECRET` → il test fallisce;
+- `INSTAGRAM_REDIRECT_URI` su un'origine diversa da `APP_BASE_URL` → canale spento. **Sabotaggio:** controllo dell'origine tolto → il test fallisce.
 
 ## 8. Ordine di lavoro con Meta (sintesi di ADR §3.8)
 

@@ -31,7 +31,7 @@ La direzione dell'owner (`docs/visione/crm-multicanale-multicliente.md`) chiede 
 
 1. **Un contratto `ChannelAdapter`** (§3.1): ogni canale fornisce *parse* puro del webhook → eventi normalizzati, *verifica della firma*, *invio*, *capacità* dichiarate e *stato della connessione*. Il **nucleo** (contatti, conversazioni, messaggi, idempotenza, SSE, lead, agente AI, sandbox del Laboratorio, finestra di risposta) non conosce il canale: legge solo eventi normalizzati e capacità.
 2. **Modello dati comune** (§3.2): `channel_account` (da `meta_credentials`), `contact_identity` (da `contact.wa_identity`), `conversation.channel_account_id`, `message.channel` + `message.external_message_id` (da `wa_message_id`). La chiave Wapi di C3 (`wapi_credentials`) resta una credenziale di *trasporto* dell'organizzazione: non si migra, e vale solo per WhatsApp.
-3. **Migrazione in tre rilasci** (§3.3): *espandi* (R1: tabelle e colonne nuove, backfill, doppia scrittura, letture ancora sulle vecchie), *migra le letture* (R2), *contrai* (R3: le colonne vecchie si tolgono in un rilascio successivo). Ogni rilascio ha il suo rollback.
+3. **Migrazione in tre rilasci** (§3.3): *espandi* (R1: tabelle e colonne nuove, backfill, doppia scrittura, letture ancora sulle vecchie), *migra le letture* (R2), *contrai* (R3: le colonne vecchie si tolgono in un rilascio successivo). Ogni rilascio ha il suo rollback. Fino a R3, ogni avvio che legge le strutture nuove le **riconcilia** con le vecchie (anche gli aggiornamenti) e le **verifica** (V1–V7) prima di servire traffico; la migrazione è divisa in fasi per non tenere lock lunghi su `message`.
 4. **WhatsApp è il primo adattatore e deve comportarsi in modo identico**, dimostrato da **test golden** registrati sul codice di oggi **prima** di toccarlo (§3.7).
 5. **Webhook per canale**: `/api/webhooks/<canale>/[token]` con un unico gestore nel nucleo; **l'URL di WhatsApp `/api/webhooks/wa/<token>` non cambia** (è configurato in Meta e nell'`override_callback_uri` di Wapi) (§3.5).
 6. **Instagram, Messenger ed email si innestano aggiungendo un adattatore e una riga di registro**, senza modificare il nucleo (§3.6). Lo dimostra in M1.3 un adattatore finto che passa la stessa suite di contratto.
@@ -285,7 +285,7 @@ Nomi delle colonne in `snake_case` nel DB, `camelCase` in Drizzle. Prefissi `nan
 | `legacy_meta_credentials_id` | text NULL UNIQUE | traccia del backfill; si toglie in R3 |
 | `created_at`, `updated_at` | timestamp NOT NULL default now() | |
 
-Indici: `UNIQUE (channel, external_account_id)` — **è la guardia d'isolamento del routing**: due organizzazioni non possono rivendicare lo stesso numero/account (oggi `meta_credentials_phone_uq`, `schema.ts:458`); `UNIQUE (organization_id, channel)` — in M1 un solo account per canale e organizzazione, come `meta_credentials_org_uq` (`schema.ts:456`; allentarlo è la decisione D4); `INDEX (channel, external_parent_id)`; `UNIQUE (organization_id, id)` per le chiavi esterne composte qui sotto.
+Indici: `UNIQUE (channel, external_account_id)` — **è la guardia d'isolamento del routing**: due organizzazioni non possono rivendicare lo stesso numero/account (oggi `meta_credentials_phone_uq`, `schema.ts:458`); ha il suo test e il suo sabotaggio (§3.7); `UNIQUE (organization_id, channel)` — in M1 un solo account per canale e organizzazione, come `meta_credentials_org_uq` (`schema.ts:456`; allentarlo è la decisione D4); `INDEX (channel, external_parent_id)`; `UNIQUE (organization_id, id)` per le chiavi esterne composte qui sotto.
 
 **`wapi_credentials` (pacchetto C3) — credenziale di *trasporto*, non account di canale.** Sul branch `notte/c3-wapi` (`6146791`) C3 aggiunge la tabella `wapi_credentials` (migrazione `drizzle/0011_classy_bloodstorm.sql`): una riga per organizzazione con la chiave del gateway Wapi (`hlp_live_…`) cifrata con `lib/crypto` (`key_cipher`/`key_iv`/`key_tag`), `key_last4`, `created_by`, `revoked_at`; `UNIQUE (organization_id)`. La chiave **non identifica un account di canale**: non ha `phone_number_id`, si salva anche senza numero collegato (`src/app/api/settings/whatsapp/wapi-key/route.ts:58`) e decide solo **da dove passa** una chiamata Graph (`decideGraphRoute`, `src/lib/meta/client.ts` su C3: chiave propria → Wapi; globale solo legacy con una sola organizzazione; ambiguo → bloccato; altrimenti Meta diretto). Metterla dentro `channel_account` violerebbe `external_account_id NOT NULL` per le organizzazioni con chiave e senza numero, e mescolerebbe due segreti con cicli di vita diversi (il token Meta si ricollega, la chiave Wapi si revoca).
 
@@ -302,21 +302,21 @@ Decisione:
 |---|---|---|
 | `id` | text PK | `ci_…` |
 | `organization_id` | text NOT NULL → `organization` ON DELETE CASCADE | |
-| `contact_id` | text NOT NULL | FK **composta** `(organization_id, contact_id)` → `contact (organization_id, id)` ON DELETE CASCADE: un'identità non può puntare a un contatto di un'altra organizzazione, nemmeno per errore del codice (richiede `UNIQUE (organization_id, id)` su `contact`) |
+| `contact_id` | text NOT NULL | FK **composta** `(organization_id, contact_id)` → `contact (organization_id, id)` ON DELETE CASCADE: un'identità non può puntare a un contatto di un'altra organizzazione, nemmeno per errore del codice (richiede un indice univoco `(organization_id, id)` su `contact`, creato `CONCURRENTLY` in §3.3: PostgreSQL accetta un indice univoco come destinazione della FK, provato su PostgreSQL 16) |
 | `channel` | text NOT NULL, stesso CHECK | |
 | `external_id` | text NOT NULL | WA: **lo stesso valore di `wa_identity`** (telefono normalizzato 521→52 o `bsuid:<id>`) · IG: IGSID · Messenger: PSID · email: indirizzo in minuscolo |
 | `channel_account_id` | text NULL | FK composta `(organization_id, channel_account_id)` → `channel_account (organization_id, id)`. Valorizzata solo per gli ID con ambito di account (IGSID e PSID valgono solo per l'account che li ha visti); NULL per WhatsApp |
 | `created_at` | timestamp NOT NULL default now() | |
 
-Indici: `UNIQUE (organization_id, channel, external_id)` (richiesto dall'owner); `INDEX (organization_id, contact_id)`.
+Indici: `UNIQUE (organization_id, channel, external_id)` (richiesto dall'owner; guardia con test e sabotaggio, §3.7); `INDEX (organization_id, contact_id)`.
 
 Differenza voluta rispetto a Chatwoot: lì `source_id` è univoco per inbox; qui per organizzazione e canale. Così lo stesso telefono che scrive a due numeri della stessa organizzazione è **un solo contatto**. Conseguenza documentata: lo stesso utente su due account Instagram della stessa organizzazione ha due IGSID diversi, quindi due identità, che si uniscono solo con conferma.
 
 **`conversation.channel_account_id`** — text NULL, FK composta `(organization_id, channel_account_id)` → `channel_account (organization_id, id)` **ON DELETE NO ACTION** (non `RESTRICT`: con `RESTRICT` la cancellazione a cascata di un'organizzazione può fallire a seconda dell'ordine; con `NO ACTION` il controllo avviene a fine istruzione). Un account non si cancella: si scollega (`status = disconnected`) e la storia resta. NULL per le conversazioni del Laboratorio (`is_test`), che simulano WhatsApp: regola esplicita `canale(conv) = account?.channel ?? "whatsapp"`.
 
-**`message.channel`** — text NOT NULL default `'whatsapp'`, CHECK. Su PostgreSQL ≥ 11 l'aggiunta con default costante non riscrive la tabella.
+**`message.channel`** — text NOT NULL default `'whatsapp'`, CHECK. L'aggiunta, il CHECK (`NOT VALID` e poi `VALIDATE`) e l'indice univoco stanno in fasi separate, con la stima dei lock in §3.3 («Sequenza dei lock»).
 
-**`message.external_message_id`** — text NULL (i messaggi del Laboratorio e i falliti prima dell'invio non hanno ID esterno, come oggi `wa_message_id`). Indice `UNIQUE (organization_id, channel, external_message_id)`; i NULL non collidono.
+**`message.external_message_id`** — text NULL (i messaggi del Laboratorio e i falliti prima dell'invio non hanno ID esterno, come oggi `wa_message_id`). Indice `UNIQUE (organization_id, channel, external_message_id)`, creato `CONCURRENTLY` fuori dalla transazione di Drizzle (§3.3); i NULL non collidono.
 
 > Nota d'isolamento (Legge Zero, segnalata e non corretta qui): oggi `wa_message_id` è univoco **sull'istanza** e la ingesta fa `onConflictDoNothing` su quella colonna (`ingest.ts:307`, `:395`). Se due organizzazioni ricevessero lo stesso `wamid`, il messaggio della seconda verrebbe scartato in silenzio. Con Meta è improbabile (i `wamid` sono generati dal provider e i numeri sono univoci tra organizzazioni), ma **non è verificato**. L'indice nuovo per organizzazione chiude il caso in R3, quando diventa l'arbitro del conflitto.
 
@@ -329,72 +329,165 @@ Differenza voluta rispetto a Chatwoot: lì `source_id` è univoco per inbox; qui
 
 ### 3.3 (c) Migrazione in due tempi (tre rilasci) e rollback
 
-Lo schema segue il precedente del repo: migrazione Drizzle generata e poi **completata a mano** con backfill idempotente, come `drizzle/0001_old_sabra.sql` (identità BSUID). Le migrazioni si applicano all'avvio del container, in transazione.
+Lo schema segue il precedente del repo: migrazione Drizzle generata e poi **completata a mano**, come `drizzle/0001_old_sabra.sql` (identità BSUID). Le migrazioni si applicano all'avvio del container (`scripts/migrate.mjs`, poi `server.js`: `Dockerfile:60`).
+
+**Due fatti del migratore che decidono la forma della migrazione** (letti in `drizzle-orm` 0.38.4, `pg-core/dialect.js:44-72`, e provati su PostgreSQL 16 usa e getta, registro di lavoro, «Terza tornata»):
+1. Drizzle applica **tutte** le migrazioni pendenti in **una sola transazione** (`dialect.js:60-71`). Ogni lock preso da un'istruzione resta fino alla fine dell'ultima migrazione pendente, e `CREATE INDEX CONCURRENTLY` (che non può stare in una transazione) **non può stare in un file Drizzle**.
+2. Drizzle confronta solo il `created_at` dell'ultima migrazione registrata (`dialect.js:56-62`): un'immagine più vecchia avviata su un DB che ha già una migrazione più recente **non applica nulla e parte**. È il presupposto del rollback di R1 (provato con il migratore di `810272a`).
 
 **Prerequisiti (bloccanti):** C3 (`wapi_credentials`, oggi nel worktree `notte/c3-wapi`, migrazione `0011`) integrato prima di generare la migrazione di M1.2, altrimenti due `0011` e il journal di Drizzle in conflitto; backup giornaliero e ripristino provato (M0.4) prima di R3.
 
+R0 = l'immagine di oggi (nessuna struttura nuova, nessuna doppia scrittura).
+
 | Rilascio | Schema | Codice | Letture | Rollback |
 |---|---|---|---|---|
-| **R1 — espandi** (M1.2) | `CREATE TABLE channel_account`, `contact_identity`; `ALTER TABLE conversation ADD channel_account_id`; `ALTER TABLE message ADD channel, external_message_id`; indici; `UNIQUE (organization_id, id)` su `contact`; **backfill nella stessa migrazione** (SQL sotto) | **Doppia scrittura** in tutti i punti di scrittura (plan.md §5.9), nella stessa transazione della scrittura vecchia | **Tutte ancora sulle colonne vecchie**: comportamento identico per costruzione | Immagine precedente. Le colonne nuove sono additive e ignorate dal codice vecchio (Drizzle seleziona solo le colonne del suo schema). Le righe scritte nel frattempo dal codice vecchio restano senza colonne nuove: le recupera il backfill ripetuto in R2. Non si cancella nulla. |
-| **R2 — migra le letture** (M1.3) | Migrazione che **ripete il backfill** (idempotente) e poi **verifica**: se resta anche una riga non allineata, `RAISE EXCEPTION` e il container non parte | Adattatore WhatsApp dietro il contratto; letture da `channel_account`, `contact_identity`, `external_message_id`; **doppia scrittura mantenuta** | Nuove | A R1: sicuro, perché le colonne vecchie sono ancora scritte. |
-| **R3 — contrai** (rilascio successivo, dopo il periodo di prova D10) | Ripete backfill e verifica; `ALTER TABLE contact DROP wa_identity` (e indice), `message DROP wa_message_id` (e il vincolo univoco globale), `DROP TABLE meta_credentials`, `channel_account DROP legacy_meta_credentials_id`; l'indice per organizzazione diventa l'arbitro di `ON CONFLICT` | Smette di scrivere le colonne vecchie. I contratti pubblicati restano: `GET /api/bot/context?waIdentity=` si risolve su `contact_identity` (canale `whatsapp`); l'export continua a esporre il campo `waIdentity` ricavato dall'identità | Nuove | **Solo da backup** (M0.4). Per questo R3 esce solo dopo: R2 in produzione per il periodo concordato, test end-to-end dell'owner riuscito, backup verificato con un ripristino. |
+| **R1 — espandi** (M1.2) | Fase A (Drizzle, solo catalogo): tabelle `channel_account`, `contact_identity`; colonne nuove di `conversation` e `message`; vincoli `NOT VALID`; funzioni di riconciliazione. Fase B (passi online fuori transazione): indici `CONCURRENTLY`, `VALIDATE`. Fase C: riconciliazione e verifiche in modalità **avvisa** | **Doppia scrittura** in tutti i punti di scrittura (plan.md §5.9), nella stessa transazione della scrittura vecchia | **Tutte ancora sulle colonne vecchie**: comportamento identico per costruzione | A R0: immagine precedente, **stop-first** (D18). R0 ignora le colonne nuove (Drizzle seleziona solo le colonne del suo schema) e non le legge. Quello che R0 inserisce **o aggiorna** nel frattempo lo riallinea la **riconciliazione all'avvio** della prossima immagine R1 o R2 (sotto), che copre anche gli aggiornamenti. Non si cancella nulla. |
+| **R2 — migra le letture** (M1.3) | Nessuna migrazione. All'avvio: riconciliazione e verifiche in modalità **blocca** (anomalia → il container non parte) | Adattatore WhatsApp dietro il contratto; letture da `channel_account`, `contact_identity`, `external_message_id`; **doppia scrittura mantenuta** | Nuove | A R1: sicuro, R1 continua la doppia scrittura. **A R0 no** (procedura): R0 non scrive le strutture nuove. Se succede lo stesso, al ritorno a R2 la riconciliazione all'avvio riallinea prima di servire traffico. |
+| **R3 — contrai** (rilascio successivo, dopo il periodo di prova D10) | **Prima** delle migrazioni Drizzle: riconciliazione e verifiche in modalità **blocca**. Poi migrazione: `DROP` di `contact.wa_identity` (e indice), `message.wa_message_id` (e vincolo univoco globale), `meta_credentials`, `channel_account.legacy_meta_credentials_id`, funzioni `channels_legacy_*`; l'indice per organizzazione diventa l'arbitro di `ON CONFLICT` | Smette di scrivere le colonne vecchie. I contratti pubblicati restano: `GET /api/bot/context?waIdentity=` si risolve su `contact_identity` (canale `whatsapp`); l'export continua a esporre `waIdentity` ricavato dall'identità | Nuove | **Solo da backup** (M0.4). Per questo R3 esce solo dopo: R2 in produzione per il periodo concordato, test end-to-end dell'owner riuscito, backup verificato con un ripristino. |
 
-**Backfill di R1 (bozza vincolante nella forma, da provare in M1.2 su PostgreSQL usa e getta):**
+#### Riconciliazione all'avvio (R1 e R2, fino a R3)
+
+**Difetto della bozza del commit `0b5acd3`, provato dalla verifica e riprodotto qui:** il backfill stava solo nella migrazione e usava `ON CONFLICT (legacy_meta_credentials_id) DO NOTHING`. Recuperava gli inserimenti del codice vecchio, non gli aggiornamenti, e una migrazione già registrata non si riesegue. Su PostgreSQL 16, dopo che il codice vecchio aveva scambiato i numeri di A e B, ruotato un token e messo `reconnect_required`, il backfill ripetuto lasciava `channel_account` con i valori vecchi e il solo conteggio delle righe passava. In R2 non sarebbe solo uno scarto silenzioso: con lo scambio di numeri, i messaggi del numero ora di B sarebbero stati instradati verso A (Legge Zero).
+
+**Invariante:** *ogni immagine che legge le strutture nuove, prima di servire traffico, le riallinea alle colonne vecchie e verifica V1–V7.* Fino a R3 la fonte di verità sono le colonne vecchie (`meta_credentials`, `contact.wa_identity`, `message.wa_message_id`), perché sono le uniche che tutte le immagini scrivono. La riconciliazione non dipende dal registro delle migrazioni: copre R1→R0→R1, R2→R1→R2, R2→R0→R2 e un riavvio qualsiasi.
+
+**Passi di `scripts/migrate.mjs` (M1.2), in quest'ordine:**
+1. se le funzioni `channels_legacy_*` esistono già: riconciliazione + verifiche, nella modalità dell'immagine;
+2. migrazioni Drizzle (fase A, con `SET LOCAL lock_timeout = '5s'`);
+3. passi online (fase B), idempotenti, uno per istruzione, fuori transazione, con `lock_timeout = '5s'`; un indice lasciato `INVALID` da un `CONCURRENTLY` interrotto (`pg_index.indisvalid = false`) si elimina con `DROP INDEX CONCURRENTLY` e si ricrea;
+4. se le funzioni esistono: riconciliazione + verifiche (in R1 al primo avvio è il backfill);
+5. `node server.js`.
+
+Il passo 1 serve a R3: le verifiche girano **prima** che la migrazione tolga le colonne vecchie. Su un errore di lock il runner riprova come oggi (15 tentativi a 2 s, `scripts/migrate.mjs:22-41`): la fase A annullata non lascia nulla (provato).
+
+**Modalità:** costante nel codice di ogni rilascio, **non** variabile d'ambiente, e nessun interruttore per saltarla (Leggi: nessuna eccezione ai controlli).
+- R1 `avvisa`: anomalie e errori vanno nel log con il numero per verifica (mai i valori), e il container parte, perché R1 legge ancora le colonne vecchie.
+- R2 e R3 `blocca`: una verifica diversa da 0, o un errore della riconciliazione, fa uscire il runner con codice 1, e il container non serve traffico.
+
+**Cosa riallinea (bozza vincolante nella forma, provata su PostgreSQL 16; la crea la fase A di R1):**
 
 ```sql
--- channel_account da meta_credentials: stesso cifrato (stessa ENCRYPTION_KEY, stesso formato), nessuna decifratura in SQL.
-INSERT INTO "channel_account" (id, organization_id, channel, external_account_id, external_parent_id,
-  display_name, verified_name, secret_cipher, secret_iv, secret_tag, status,
-  legacy_meta_credentials_id, created_at, updated_at)
-SELECT 'cha_' || substr(md5(mc.id), 1, 20), mc.organization_id, 'whatsapp', mc.phone_number_id, mc.waba_id,
-       mc.display_phone_number, mc.verified_name, mc.token_cipher, mc.token_iv, mc.token_tag, mc.status,
-       mc.id, mc.created_at, mc.updated_at
-FROM "meta_credentials" mc
-ON CONFLICT (legacy_meta_credentials_id) DO NOTHING;
+-- Riconciliazione dal vecchio (fonte di verità fino a R3) al nuovo. Idempotente.
+CREATE OR REPLACE FUNCTION channels_legacy_sync() RETURNS void LANGUAGE plpgsql AS $fn$
+BEGIN
+  -- (1) account. Prima libera i numeri cambiati: tollera lo scambio di numeri tra due organizzazioni,
+  --     che un solo UPDATE farebbe fallire sull'indice UNIQUE (channel, external_account_id).
+  UPDATE channel_account ca SET external_account_id = 'resync:' || ca.id
+    FROM meta_credentials mc
+   WHERE ca.legacy_meta_credentials_id = mc.id
+     AND ca.external_account_id IS DISTINCT FROM mc.phone_number_id;
+  -- Poi riallinea TUTTI i campi copiati: numero, WABA, nomi, token cifrato, stato (gli aggiornamenti del codice vecchio).
+  UPDATE channel_account ca SET
+      external_account_id = mc.phone_number_id, external_parent_id = mc.waba_id,
+      display_name = mc.display_phone_number, verified_name = mc.verified_name,
+      secret_cipher = mc.token_cipher, secret_iv = mc.token_iv, secret_tag = mc.token_tag,
+      status = mc.status, updated_at = greatest(ca.updated_at, mc.updated_at)
+    FROM meta_credentials mc
+   WHERE ca.legacy_meta_credentials_id = mc.id
+     AND (ca.external_account_id, ca.external_parent_id, ca.display_name, ca.verified_name,
+          ca.secret_cipher, ca.secret_iv, ca.secret_tag, ca.status)
+         IS DISTINCT FROM
+         (mc.phone_number_id, mc.waba_id, mc.display_phone_number, mc.verified_name,
+          mc.token_cipher, mc.token_iv, mc.token_tag, mc.status);
+  -- Infine inserisce gli account nuovi. Stesso cifrato (stessa ENCRYPTION_KEY, stesso formato), nessuna decifratura in SQL.
+  INSERT INTO channel_account (id, organization_id, channel, external_account_id, external_parent_id,
+      display_name, verified_name, secret_cipher, secret_iv, secret_tag, status,
+      legacy_meta_credentials_id, created_at, updated_at)
+  SELECT 'cha_' || substr(md5(mc.id), 1, 20), mc.organization_id, 'whatsapp', mc.phone_number_id, mc.waba_id,
+         mc.display_phone_number, mc.verified_name, mc.token_cipher, mc.token_iv, mc.token_tag, mc.status,
+         mc.id, mc.created_at, mc.updated_at
+    FROM meta_credentials mc
+  ON CONFLICT (legacy_meta_credentials_id) DO NOTHING;
+  -- (2) identità WhatsApp mancanti: una per contatto, external_id = wa_identity (1:1, nessun alias).
+  INSERT INTO contact_identity (id, organization_id, contact_id, channel, external_id, created_at)
+  SELECT 'ci_' || substr(md5(c.id), 1, 20), c.organization_id, c.id, 'whatsapp', c.wa_identity, c.created_at
+    FROM contact c
+   WHERE c.wa_identity IS NOT NULL
+  ON CONFLICT DO NOTHING;
+  -- (3) conversazioni reali senza account: solo account della STESSA organizzazione.
+  UPDATE conversation cv SET channel_account_id = ca.id
+    FROM channel_account ca
+   WHERE ca.organization_id = cv.organization_id AND ca.channel = 'whatsapp'
+     AND cv.is_test = false AND cv.channel_account_id IS NULL;
+END $fn$;
 
--- contact_identity: una riga per contatto, external_id = wa_identity (1:1, nessun alias).
-INSERT INTO "contact_identity" (id, organization_id, contact_id, channel, external_id, created_at)
-SELECT 'ci_' || substr(md5(c.id), 1, 20), c.organization_id, c.id, 'whatsapp', c.wa_identity, c.created_at
-FROM "contact" c
-ON CONFLICT (organization_id, channel, external_id) DO NOTHING;
-
--- conversation.channel_account_id: solo conversazioni reali, solo account della STESSA organizzazione.
-UPDATE "conversation" cv SET channel_account_id = ca.id
-FROM "channel_account" ca
-WHERE ca.organization_id = cv.organization_id AND ca.channel = 'whatsapp'
-  AND cv.is_test = false AND cv.channel_account_id IS NULL;
-
--- message.external_message_id: copia di wa_message_id (channel ha già il default 'whatsapp').
-UPDATE "message" SET external_message_id = wa_message_id
-WHERE external_message_id IS NULL AND wa_message_id IS NOT NULL;
+-- (4) messaggi, a lotti per chiave primaria: il runner la chiama in autocommit finché restituisce NULL
+--     (un lotto = una transazione breve; nessun lock lungo su message).
+CREATE OR REPLACE FUNCTION channels_legacy_sync_messages(after_id text, batch int) RETURNS text
+LANGUAGE plpgsql AS $fn$
+DECLARE last_id text;
+BEGIN
+  SELECT max(id) INTO last_id
+    FROM (SELECT id FROM message WHERE id > coalesce(after_id, '') ORDER BY id LIMIT batch) s;
+  IF last_id IS NULL THEN RETURN NULL; END IF;
+  UPDATE message SET external_message_id = wa_message_id
+   WHERE id > coalesce(after_id, '') AND id <= last_id
+     AND wa_message_id IS NOT NULL AND external_message_id IS DISTINCT FROM wa_message_id;
+  RETURN last_id;
+END $fn$;
 ```
 
-Gli ID del backfill sono deterministici (`md5` dell'ID d'origine, esadecimale invece dell'alfabeto base36 di `nanoid`): rieseguire il backfill non duplica nulla. Il codice nuovo usa `newId()`. Entrambi i formati sono testo univoco: nessun codice deve interpretare la forma dell'ID.
+Le righe dell'account escluse dalla riconciliazione sono quelle senza `legacy_meta_credentials_id` (Instagram di M1.6); i messaggi esclusi sono quelli con `wa_message_id` NULL (Laboratorio, falliti prima dell'invio, Instagram).
 
-**Verifica dopo il backfill** (query in `docs/ops/rilascio-canali.md`, da scrivere in M1.2; le stesse diventano il `RAISE EXCEPTION` di R2 e R3):
-1. `count(meta_credentials) = count(channel_account WHERE legacy_meta_credentials_id IS NOT NULL)`;
-2. ogni contatto con `wa_identity` non NULL ha esattamente un'identità `whatsapp` con `external_id = wa_identity`, e nessun contatto con `wa_identity` NULL ha un'identità `whatsapp` (in R1 `wa_identity` è ancora NOT NULL; il caso NULL esiste solo da M1.6, vedi §3.9);
-3. nessuna conversazione reale senza `channel_account_id` in un'organizzazione che ha un account WhatsApp;
-4. `0` messaggi con `wa_message_id IS DISTINCT FROM external_message_id` dove `wa_message_id` non è NULL;
-5. `0` righe dove l'organizzazione della conversazione e quella del suo `channel_account` differiscono (doppia sicurezza: lo impedisce già la FK composta);
-6. `wapi_credentials` invariata: stesso numero di righe e stesse `(organization_id, key_last4, revoked_at)` prima e dopo (la migrazione non la tocca; il controllo prova che nessuno l'ha toccata per errore).
+**Cosa non serve riallineare, e perché (verificato con `grep` su `810272a`; se cambia, la verifica lo intercetta e R2 non parte):**
+- `contact.wa_identity` non viene mai aggiornata dal codice: nessun `.set(` con `waIdentity` in `src/`, e `identity.ts:68` lo dichiara. Per questo la riconciliazione inserisce solo le identità mancanti; una divergenza fa fallire V3;
+- `message.wa_message_id` non viene mai aggiornato dopo l'inserimento: gli unici `UPDATE` su `message` toccano `status` (`status.ts:58`) e `media_asset_id` (`ingest.ts:130`), che non hanno copia nelle strutture nuove;
+- `meta_credentials` non si cancella mai fuori dalla cascata dell'organizzazione, che cancella anche `channel_account`. Un account orfano fa fallire V1;
+- le cancellazioni di contatti, conversazioni e messaggi si propagano per cascata o toccano la stessa riga.
 
-**Misure richieste in M1.2 (Leggi §3.4):** durata della migrazione su una copia con dati simulati di produzione (≥ 100 000 messaggi); `EXPLAIN` della risoluzione del contatto prima (`contact` per `wa_identity`) e dopo (`contact_identity`). Se l'`UPDATE` dei messaggi supera qualche secondo, si spezza a lotti in una migrazione dedicata.
+Gli ID della riconciliazione sono deterministici (`md5` dell'ID d'origine, esadecimale invece dell'alfabeto base36 di `nanoid`): ripeterla non duplica nulla. Il codice nuovo usa `newId()`. Entrambi i formati sono testo univoco: nessun codice deve interpretare la forma dell'ID.
 
-**Da verificare in M1.2 (non verificato qui):** che un'immagine più vecchia, avviata su un DB che ha già la migrazione di R1 nel registro `__drizzle_migrations`, parta senza errori. È il presupposto del rollback di R1.
+**Finestra residua: la sovrapposizione dei container.** Se R0 scrive mentre un container R1 o R2 è già partito, quelle scritture aspettano il prossimo avvio. Con R1 non ha effetto, perché R1 legge le colonne vecchie. Con R2 sarebbe una finestra di dati vecchi. Regola (D18): ogni passaggio che coinvolge R0 (rollback di R1, ritorno da R0) si fa **stop-first**, prima si ferma il vecchio container e poi si avvia il nuovo; R1↔R2 può sovrapporsi, perché R1 scrive anche le strutture nuove. *Non verificato:* il comportamento predefinito di Coolify (rolling se l'app ha un healthcheck); si controlla in M1.2 e si scrive in `docs/ops/rilascio-canali.md`.
+
+**Alternative valutate per questa finestra** (§4): trigger di sincronizzazione temporanei nel DB; divieto di rollback del codice dopo R1. Scartate per i motivi del §4.
+
+#### Verifiche V1–V7
+
+**Unica fonte** dell'elenco: gli altri documenti rimandano qui per nome (V1…V7), senza ripeterne il numero. Le prime sei sono la funzione `channels_legacy_check()` (creata dalla fase A di R1, restituisce `(verifica, anomalie)`); V7 la fa il runner.
+1. **V1 — account presenti:** ogni riga di `meta_credentials` ha il suo `channel_account` (per `legacy_meta_credentials_id`), e nessun `channel_account` con `legacy_meta_credentials_id` punta a una riga che non esiste più;
+2. **V2 — account uguali campo per campo:** per ogni coppia, `organization_id`, `channel = 'whatsapp'`, `external_account_id = phone_number_id`, `external_parent_id = waba_id`, `display_name`, `verified_name`, `secret_cipher`/`secret_iv`/`secret_tag` = `token_*` e `status` sono uguali (`IS DISTINCT FROM` sulla tupla). È la verifica che mancava;
+3. **V3 — identità:** ogni contatto con `wa_identity` non NULL ha esattamente un'identità `whatsapp` con `external_id = wa_identity`, e nessuna identità `whatsapp` diverge dalla `wa_identity` del suo contatto (in R1 `wa_identity` è ancora NOT NULL; il caso NULL esiste solo da M1.6, §3.9);
+4. **V4 — conversazioni:** nessuna conversazione reale senza `channel_account_id` in un'organizzazione che ha un account WhatsApp;
+5. **V5 — messaggi:** `0` messaggi con `wa_message_id` non NULL e `external_message_id IS DISTINCT FROM wa_message_id`;
+6. **V6 — isolamento:** `0` conversazioni il cui `channel_account` è di un'altra organizzazione (doppia sicurezza: lo impedisce già la FK composta);
+7. **V7 — `wapi_credentials` invariata:** il runner legge `(organization_id, key_last4, revoked_at)` prima del passo 1 e dopo il passo 4, e li confronta. La migrazione non la tocca: il controllo prova che nessuno l'ha toccata per errore.
+
+Le query stanno in `docs/ops/rilascio-canali.md` (da scrivere in M1.2) come riferimento, ma **la fonte eseguibile è la funzione**: il documento operativo la chiama, non la ricopia.
+
+#### Sequenza dei lock (`message.channel` e indici) e stima
+
+La bozza precedente faceva tutto in una migrazione: `ADD COLUMN channel … NOT NULL DEFAULT … CHECK`, l'indice univoco non concorrente, il backfill dei messaggi. Con il migratore in un'unica transazione, l'`ACCESS EXCLUSIVE` dell'`ADD COLUMN` resta per tutta la durata, e `message` non si può né leggere né scrivere: webhook, invii e bandeja fermi. Ora la stessa modifica è divisa così:
+
+| Fase | Istruzione | Lock su `message` (o tabella indicata) | Cosa blocca | Durata misurata (1 000 003 messaggi, 279 MB) |
+|---|---|---|---|---|
+| A (Drizzle, transazione) | `ALTER TABLE message ADD COLUMN channel text NOT NULL DEFAULT 'whatsapp'` | `ACCESS EXCLUSIVE` | tutto, ma solo per il tempo del catalogo: su PostgreSQL ≥ 11 il default costante non riscrive la tabella | fase A intera (tutte le istruzioni) ≈ 25 ms |
+| A | `ADD COLUMN external_message_id text` | `ACCESS EXCLUSIVE` | idem | compresa sopra |
+| A | `ADD CONSTRAINT message_channel_ck CHECK (…) NOT VALID` | `ACCESS EXCLUSIVE` | idem, **senza scansione** | compresa sopra |
+| A | `ALTER TABLE conversation ADD COLUMN channel_account_id text` e FK composta `NOT VALID` | `ACCESS EXCLUSIVE` / `SHARE ROW EXCLUSIVE` su `conversation` | idem, senza scansione | compresa sopra |
+| B (fuori transazione) | `CREATE UNIQUE INDEX CONCURRENTLY contact_org_id_uq ON contact (organization_id, id)` | `SHARE UPDATE EXCLUSIVE` su `contact` | nessuna lettura o scrittura; solo altre DDL e `VACUUM` | proporzionale a `contact` |
+| B | FK composta di `contact_identity` verso `contact` (`contact_identity` è ancora vuota: la riempie la fase C) | `SHARE ROW EXCLUSIVE` su `contact` e `contact_identity` | le scritture su `contact`, per il solo tempo del controllo su una tabella vuota | millisecondi; si salta se la FK esiste già |
+| B | `CREATE UNIQUE INDEX CONCURRENTLY message_org_channel_ext_uq ON message (organization_id, channel, external_message_id)` | `SHARE UPDATE EXCLUSIVE` | idem; aspetta la fine delle transazioni già aperte | 1,35 s |
+| B | `ALTER TABLE message VALIDATE CONSTRAINT message_channel_ck` | `SHARE UPDATE EXCLUSIVE` | idem (scansione completa senza bloccare le scritture) | 0,20 s |
+| B | `ALTER TABLE conversation VALIDATE CONSTRAINT conversation_channel_account_fk` | `SHARE UPDATE EXCLUSIVE` su `conversation`, `ROW SHARE` su `channel_account` | idem | proporzionale a `conversation` |
+| C | `channels_legacy_sync()` | `ROW EXCLUSIVE` + lock di riga | solo le righe toccate | 11 ms |
+| C | `channels_legacy_sync_messages(…, 5000)` in autocommit | `ROW EXCLUSIVE` + lock di riga per lotto | solo le righe del lotto | 29 s in 201 lotti (una connessione per lotto nella prova) |
+| C | `channels_legacy_check()` | `ACCESS SHARE` | nulla | 0,11 s |
+
+Misura fatta su PostgreSQL 16 in un container di sviluppo, con una sonda che ogni 0,2 s leggeva e inseriva un messaggio con `lock_timeout = 200 ms`. Fasi A, B e C: **0 sonde bloccate** su 125. La migrazione della bozza precedente, sugli stessi dati: **23,9 s** di `ACCESS EXCLUSIVE` (`ADD COLUMN` con `CHECK` 0,19 s, indice 1,14 s, `UPDATE` 22,5 s), con la sonda di lettura e quella di scrittura rifiutate per lock. L'`ALTER TABLE message` della fase A dietro una transazione lunga su `message`: rinuncia dopo il `lock_timeout` e annulla tutta la fase A senza lasciare nulla; il runner ritenta.
+
+Le cifre sono **indicative** (macchina di sviluppo, dati sintetici). Restano compito di M1.2 (T020): la misura su una copia con il volume e la forma di produzione, e la durata totale dell'avvio. La fase C allunga l'avvio, e con lo stop-first l'avvio è tempo di indisponibilità. **Soglia:** se in T020 l'avvio supera 60 s, in R1 la parte dei messaggi della fase C passa dopo l'avvio del server, in un job in-process a lotti; R1 non legge `external_message_id`, e R2 resta in modalità `blocca` finché V5 non è a 0. La scelta va nel registro di M1.2.
+
+**Misure richieste in M1.2 (Leggi §3.4):** oltre a quelle sopra, `EXPLAIN` della risoluzione del contatto prima (`contact` per `wa_identity`) e dopo (`contact_identity`).
 
 ### 3.4 (d) Inventario dei punti da toccare
 
-L'inventario esatto `file:riga` di tutti gli usi di `wa_identity`, `wa_message_id`, `meta_credentials`, `/api/webhooks/wa`, `src/server/inbox/*`, `src/server/whatsapp/*`, `src/server/ai/*` (e dei consumatori fuori da queste cartelle) è in **[`specs/005-livello-canali/plan.md` §5](../../specs/005-livello-canali/plan.md#5-inventario-esatto-dei-punti-del-codice)**: una sola copia, perché i numeri di riga cambiano a ogni commit (§3.2 delle Leggi). Riepilogo:
+L'inventario esatto `file:riga` sta **solo** in **[`specs/005-livello-canali/plan.md` §5](../../specs/005-livello-canali/plan.md#5-inventario-esatto-dei-punti-del-codice)**, con i comandi per rigenerarlo (§5.12). Qui non si ripetono né righe né conteggi, perché cambiano a ogni commit (§3.2 delle Leggi). Il plan copre:
+- `wa_identity`, `wa_message_id`, `meta_credentials` e le funzioni di `src/server/whatsapp/credentials.ts`, `wapi_credentials` (C3);
+- `/api/webhooks/wa`;
+- `src/server/inbox/*`, `src/server/whatsapp/*`, `src/server/ai/*` e i loro importatori fuori da queste cartelle;
+- i punti di doppia scrittura, i consumatori della finestra di 24 ore e la sandbox.
 
-| Simbolo | Punti nel codice applicativo | Contratti pubblicati coinvolti |
-|---|---|---|
-| `wa_identity` | 20 righe di codice in 8 file di `src/` | `GET /api/bot/context?waIdentity=` e DTO; export contatti (`waIdentity`) |
-| `wa_message_id` | 23 righe di codice in 7 file di `src/` (più i mock di sviluppo in `src/server/dev/` e `src/app/api/dev/`) | API dei mock (`waMessageId`), non pubblica |
-| `meta_credentials` e funzioni di `credentials.ts` | 1 tabella, 6 funzioni esportate, 11 file chiamanti in `src/` + 1 test | nessuno (la UI mostra solo le ultime 4 cifre del token) |
-| `wapi_credentials` (C3, `notte/c3-wapi`) | 1 tabella, 4 funzioni in `wapi-credentials.ts`, 2 file chiamanti (`lib/meta/client.ts`, route `wapi-key`) | `GET/PUT/DELETE /api/settings/whatsapp/wapi-key` (non cambia in M1) |
-| `/api/webhooks/wa` | 1 route + 2 punti che costruiscono l'URL (+ `.env.example:33`, `tests/e2e/us1-inbox.md:74`) | **URL configurato in Meta e in Wapi: non cambia** |
-| `src/server/inbox/*`, `src/server/whatsapp/*`, `src/server/ai/*` | 8 + 5 + 5 file; importati da 28 file di `src/` fuori da queste cartelle e da 12 file di test | `SendError`/`TemplateError` → codici HTTP; DTO di `serializeMessage`/`serializeConversation` (SSE e API) |
+Contratti pubblicati coinvolti (non cambiano in M1): `GET /api/bot/context?waIdentity=` e il suo DTO; l'export dei contatti (`waIdentity`); l'URL del webhook configurato in Meta e in Wapi; `GET/PUT/DELETE /api/settings/whatsapp/wapi-key` (C3); i codici di `SendError`/`TemplateError` nelle risposte HTTP; i DTO di `serializeMessage`/`serializeConversation` (SSE e API), che ricevono solo campi additivi.
 
 ### 3.5 (e) Instradamento dei webhook per canale
 
@@ -406,14 +499,16 @@ L'inventario esatto `file:riga` di tutti gli usi di `wa_identity`, `wa_message_i
   4. `JSON.parse` protetto: body illeggibile → **200** senza effetti (Meta riprova e poi disattiva il webhook);
   5. risposta **200 `{"received":true}`**; il lavoro va in `after()`: `parse` → per ogni evento si risolve `channel_account` con `(channel, external_account_id)` (o `external_parent_id`) → organizzazione; account sconosciuto → avviso nel log e scarto (come `ingest.ts:200-208`); poi ingesta idempotente nel nucleo.
 - **GET:** `adapter.webhook.handshake` (Meta: `hub.challenge`); senza handshake → 405.
-- **Token:**
-  - i canali Meta (WhatsApp, Instagram, Messenger) usano `META_WEBHOOK_VERIFY_TOKEN`, come oggi;
-  - l'email usa un token **per account**, salvato come hash (lo stesso schema delle chiavi `bot_api_key`): il token identifica anche l'account, quindi l'organizzazione.
-- **Firma:**
-  - WhatsApp in M1: identica a oggi, cioè facoltativa se `META_APP_SECRET` manca;
-  - Instagram e Messenger: obbligatoria, fail-closed, con il segreto dell'app Meta (heili-dm accetta sia il segreto dell'app Facebook sia quello dell'app Instagram: `heili-dm/lib/meta/webhook.ts:13-16`);
+- **Token (segmento dell'URL e `hub.verify_token`), uno per canale, mai condiviso:**
+  - WhatsApp: `META_WEBHOOK_VERIFY_TOKEN`, come oggi (URL invariato);
+  - Instagram: `INSTAGRAM_WEBHOOK_VERIFY_TOKEN` (§3.6, «Configurazione d'istanza»). È un'app Meta diversa (D14), e così chi conosce il token di WhatsApp, che oggi qualunque ruolo legge da `src/app/api/settings/webhook/route.ts`, non apre anche Instagram;
+  - Messenger: variabili proprie, definite in K0/K4 con la stessa regola;
+  - email: un token **per account**, salvato come hash (lo stesso schema delle chiavi `bot_api_key`): il token identifica anche l'account, quindi l'organizzazione.
+- **Firma (segreto per canale, nessun ripiego sul segreto di un altro canale):**
+  - WhatsApp in M1: identica a oggi, cioè facoltativa se `META_APP_SECRET` manca. Rendere obbligatoria la firma anche per WhatsApp è la decisione D3;
+  - Instagram: obbligatoria, fail-closed, **solo** con `INSTAGRAM_APP_SECRET`, mai con `META_APP_SECRET`. heili-dm accetta sia il segreto dell'app Facebook sia quello dell'app Instagram (`heili-dm/lib/meta/webhook.ts:13-16`): quale dei due Meta usi per firmare i webhook di *Instagram API with Instagram Login* è **da riconfermare in K0** e nella prova reale (passo 6 di §3.8). Se risulta quello dell'app Facebook, si aggiunge una variabile dedicata con una revisione di questo ADR, non un ripiego;
+  - Messenger: obbligatoria, fail-closed, con il segreto della sua app (nome della variabile in K0/K4);
   - email: HMAC del ricevitore con un segreto condiviso.
-  - Rendere obbligatoria la firma anche per WhatsApp è la decisione D3.
 
 ### 3.6 (f) Come si innestano Instagram, Messenger ed email senza toccare il nucleo
 
@@ -446,6 +541,33 @@ Il nucleo (`src/server/channels/core/*`, `src/server/ai/*`, gestore dei webhook)
 | `lib/meta/webhook.ts:207-241` `parseMessageEvents` (`object = "instagram"`, `entry[].messaging[]`, `message.mid`, `is_echo`/`is_deleted`/`is_unsupported`) | sì come base di `parse` | Nel CRM `is_echo` diventa un evento `echo` (oggi heili-dm lo scarta) |
 | commenti, risposte private, insights, media | **no** | Fuori dal CRM (foco verticale) |
 
+**Configurazione d'istanza di Instagram (M1.6).** Gli stessi quattro valori di heili-dm, con nomi del CRM (heili-dm: `INSTAGRAM_APP_ID` e `INSTAGRAM_APP_SECRET` in `lib/env.ts:32-37` e `:81-84`, `WEBHOOK_VERIFY_TOKEN` in `app/api/webhook/route.ts:22`, URI di ritorno ricavato da `NEXTAUTH_URL` in `app/api/instagram/connect/route.ts:27`):
+
+| Variabile | Uso | Regola |
+|---|---|---|
+| `INSTAGRAM_APP_ID` | `client_id` dell'autorizzazione e dello scambio del codice (`oauth.ts:79`, `:95`) | obbligatoria se Instagram è acceso |
+| `INSTAGRAM_APP_SECRET` | `client_secret` dello scambio e del rinnovo del token (`oauth.ts:96`, `client.ts:719`) **e** segreto della firma dei webhook Instagram | obbligatoria; mai sostituita da `META_APP_SECRET`; mai nei log |
+| `INSTAGRAM_REDIRECT_URI` | `redirect_uri` dell'autorizzazione e dello scambio; deve essere identico a quello registrato nell'app Meta | obbligatorio; deve avere la stessa origine di `APP_BASE_URL` e percorso `/api/channels/instagram/callback`, altrimenti Instagram resta spento (niente codice OAuth verso un host diverso) |
+| `INSTAGRAM_WEBHOOK_VERIFY_TOKEN` | segmento di `/api/webhooks/instagram/<token>` e `hub.verify_token` del GET di verifica | obbligatorio, almeno 32 caratteri (`openssl rand -hex 32`); diverso da `META_WEBHOOK_VERIFY_TOKEN` |
+
+Regola fail-closed: Instagram è acceso **solo** se `CHANNELS_ENABLED` contiene `instagram` **e** le quattro variabili sono presenti e valide (oltre a `ENCRYPTION_KEY` e `BETTER_AUTH_SECRET`, già obbligatorie). Se manca qualcosa, il registro non carica l'adattatore: webhook (GET e POST) e collegamento rispondono **404**, nessuna scrittura, e all'avvio il log elenca **i nomi** delle variabili mancanti, mai i valori, come `getMissingInstagramOAuthEnv` di heili-dm (`lib/env.ts:39-47`). Nessun ramo di codice accetta un webhook Instagram senza firma.
+
+In `.env.example` (M1.6, T048) un blocco commentato, con i segnaposto e la guida in linea richiesti da `CLAUDE.md` («Manejo de credenciales»):
+
+```bash
+# --- Instagram (M1.6, OPCIONAL: apagado si CHANNELS_ENABLED no incluye "instagram") ---
+# Sin estas 4 variables Instagram queda apagado (404). Se obtienen en developers.facebook.com
+# → la app Meta del CRM → Instagram → configuración de la API con inicio de sesión de Instagram
+# (ruta exacta de la consola: a reconfirmar en K0).
+# CHANNELS_ENABLED=whatsapp,instagram
+# INSTAGRAM_APP_ID=REEMPLAZA_id_de_la_app_de_instagram
+# INSTAGRAM_APP_SECRET=REEMPLAZA_secreto_de_la_app_de_instagram
+# Debe coincidir EXACTAMENTE con la URI registrada en la app de Meta:
+# INSTAGRAM_REDIRECT_URI=REEMPLAZA_https://crm.tudominio.com/api/channels/instagram/callback
+# Genera con:  openssl rand -hex 32   (distinto de META_WEBHOOK_VERIFY_TOKEN)
+# INSTAGRAM_WEBHOOK_VERIFY_TOKEN=REEMPLAZA_token_de_verificacion_instagram
+```
+
 Regole di porting:
 - le chiamate passano dal client Graph unico del CRM (`src/lib/meta/client.ts`), con base URL configurabile (`graph.instagram.com`) e un mock di sviluppo. Niente `fetch` sparsi (Costituzione: «aislamiento de integraciones»);
 - ogni file portato riporta l'origine (`heili-dm@7ce1633`, file e righe).
@@ -468,7 +590,7 @@ Vincoli di Meta da tenere presenti per Instagram (da confermare in K0; nessuna c
 - I webhook arrivano con `object = "page"` e `entry[].messaging[]` (stessa forma di Instagram: il `parse` condivide un modulo `meta-messaging`).
 - Invio: `POST graph.facebook.com/<PAGE_ID>/messages` con `messaging_type: "RESPONSE"`.
 - Iscrizione: `/<PAGE_ID>/subscribed_apps`.
-- Capacità: finestra 24 ore (i tag dei messaggi, se approvati, la estendono) e `maxTextLength` 2000.
+- Capacità (**da riconfermare in K0**, citate a memoria): finestra 24 ore (i tag dei messaggi, se approvati, la estendono) e `maxTextLength` 2000.
 - I nomi esatti dei permessi si confermano in K0.
 
 **Email (K5 v1, M4).**
@@ -508,7 +630,7 @@ Vincoli di Meta da tenere presenti per Instagram (da confermare in K0; nessuna c
 - un payload per il numero di B non crea né modifica nulla in A;
 - uno stato con un `wamid` di A che arriva sul numero di B non cambia il messaggio di A (oggi filtrato da `status.ts:42`);
 - un invio con l'organizzazione A su una conversazione di B → rifiutato senza `fetch`;
-- il backfill non assegna mai a una conversazione un account di un'altra organizzazione.
+- la riconciliazione non assegna mai a una conversazione un account di un'altra organizzazione.
 
 **Sabotaggio (uno per guardia, registrato nel registro di lavoro):** si inverte la guardia, almeno un golden deve diventare rosso, poi si ripristina. Guardie:
 - sandbox (`is_test`);
@@ -519,7 +641,15 @@ Vincoli di Meta da tenere presenti per Instagram (da confermare in K0; nessuna c
 - filtro per organizzazione in `applyStatusUpdate`;
 - pausa dell'AI sull'eco;
 - FK composta (inserimento di un'identità con contatto di un'altra organizzazione → errore del DB);
-- `RAISE EXCEPTION` della verifica di R2.
+- `UNIQUE (channel, external_account_id)` di `channel_account`: tolto l'indice, lo stesso numero salvato in un'altra organizzazione deve far fallire il test T010;
+- `UNIQUE (organization_id, channel, external_id)` di `contact_identity`: tolto l'indice, una seconda identità con lo stesso ID esterno nella stessa organizzazione deve far fallire il suo test;
+- riconciliazione degli aggiornamenti: tolti i due `UPDATE` di `channel_account` (cioè tornati al solo inserimento), il test «codice vecchio aggiorna numero, token e stato» deve diventare rosso;
+- liberazione dei numeri: tolto il primo `UPDATE`, il test dello scambio di numeri tra due organizzazioni deve diventare rosso;
+- V2: tolta dalla funzione di verifica, il test che altera a mano un campo copiato deve diventare rosso;
+- riconciliazione **all'avvio**: tolta dal runner (cioè solo nella migrazione), il test «ritorno a R2 senza migrazioni pendenti» deve diventare rosso;
+- modalità `blocca` di R2: messa ad `avvisa`, il test dell'account orfano deve diventare rosso (il container partirebbe).
+
+Prova anticipata sui prototipi SQL di §3.3 (PostgreSQL 16, registro, «Terza tornata»): i due indici e i tre sabotaggi della riconciliazione si comportano come scritto. Le prove definitive sono quelle di M1.2 sul codice vero.
 
 **Più** il self-test end-to-end esistente (`pnpm test:e2e`, `scripts/e2e-selftest.mjs` contro wa-mock) verde prima e dopo, e il test end-to-end WhatsApp dell'owner prima di R3.
 
@@ -545,7 +675,7 @@ L'accesso Standard lo permette: copre tutti gli account che hanno un ruolo sull'
 
 Conclusione: **una nuova App Review non si evita**, né per Instagram né per Messenger. Anche se l'app di heili-dm avesse avuto la review, il caso d'uso approvato sarebbe stato «risposta privata a un commento», non «inbox di un CRM». *Non verificato:* lo stato attuale nella console Meta. Gli agenti non possono accedervi, e i documenti di heili-dm risalgono al 31/08 e al 05/10. L'owner lo controlla in *Dashboard dell'app → Verifica dell'app → Autorizzazioni e funzioni* (D14).
 
-**Vincolo che decide quale app usare.** Meta accetta **un solo URL di callback per oggetto webhook e per app**. «Dm Heili» manda già l'oggetto `instagram` a `dm.heili.cloud` (`PROGETTO-STATO.md:65`). Il CRM ha quindi tre strade (D14):
+**Vincolo che decide quale app usare (da riconfermare in K0: citato a memoria, non riletto nella documentazione Meta).** Meta accetta **un solo URL di callback per oggetto webhook e per app**. «Dm Heili» manda già l'oggetto `instagram` a `dm.heili.cloud` (`PROGETTO-STATO.md:65`). Il CRM ha quindi tre strade (D14):
 - **app nuova del CRM** in modalità sviluppo. È la proposta: la review si chiede sull'app che va in produzione, quindi conviene sviluppare subito su quella;
 - **app di test** derivata da «Dm Heili», con impostazioni proprie. Da verificare in K0;
 - **stessa app con inoltro da heili-dm**. Sconsigliata: lega due prodotti, e heili-dm leggerebbe messaggi destinati al CRM (Legge Zero).
@@ -584,12 +714,12 @@ Un `FakeChannelAdapter` scritto da chi ha scritto il contratto prova soprattutto
 | Eco | `smb_message_echoes` | `message.is_echo` | evento `echo` |
 | Credenziale | token di sistema, `reconnect_required` su 190 | token di 60 giorni, da rinnovare | `secret_expires_at`, `checkHealth`, stato `expiring` |
 | Host e trasporto | `graph.facebook.com` o Wapi (C3) | `graph.instagram.com`, **mai Wapi** | trasporto per canale (§3.2) |
-| Firma | `META_APP_SECRET` facoltativa (D3) | obbligatoria, fail-closed | `verifySignature` per adattatore |
+| Firma | `META_APP_SECRET` facoltativa (D3) | obbligatoria, fail-closed, solo `INSTAGRAM_APP_SECRET` | `verifySignature` per adattatore |
 
 **Pacchetto nuovo M1.6 — «Adattatore Instagram in modalità sviluppo»** (Sonnet alto / verifica Opus), dopo M1.3 e in parallelo a M1.4 e M1.5. Contenuto:
 - adattatore (`parse`, `verifySignature`, `handshake`, `send` testo, `fetchMedia` per URL, `checkHealth`);
 - collegamento minimo via OAuth, riusando `heili-dm/lib/meta/oauth.ts` con lo stato rafforzato (§3.6), solo per owner e admin;
-- riga di registro dietro un interruttore d'istanza (`CHANNELS_ENABLED`, default `whatsapp`): in produzione Instagram resta spento finché l'owner non lo accende.
+- riga di registro dietro un interruttore d'istanza (`CHANNELS_ENABLED`, default `whatsapp`) e le quattro variabili di §3.6 («Configurazione d'istanza»): in produzione Instagram resta spento finché l'owner non lo accende.
 
 Fuori da M1.6: la pagina «Canali» (K1), il job di rinnovo dei token (M3.1), gli allegati in uscita, Messenger ed email.
 
@@ -618,6 +748,10 @@ Se il punto 6 non è possibile entro M1 (app o account di prova non pronti), M1 
 | Copiare il modulo WhatsApp per ogni canale | Viola il §3.2 delle Leggi; moltiplica i bug (caso reale: la regex UUID in 16 copie, `LEGGI-AI-CODING.md:96`) |
 | Migrazione in un colpo solo (rinominare `wa_identity` in `external_id`) | Nessun rollback senza ripristino da backup; rompe il codice vecchio a metà rilascio |
 | Doppia scrittura con trigger nel DB invece che nel codice | Logica nascosta fuori da TypeScript e dai test unitari; i trigger restano dopo R3 se qualcuno se ne dimentica |
+| Backfill solo nella migrazione, con `ON CONFLICT DO NOTHING` (bozza di `0b5acd3`) | Recupera gli inserimenti, non gli aggiornamenti, e una migrazione registrata non si riesegue: dopo un rollback i dati nuovi restano vecchi senza che il conteggio lo veda (provato, §3.3) |
+| Trigger di sincronizzazione **temporanei** su `meta_credentials`, `contact` e `message` solo per la finestra R1–R2, per coprire anche le scritture di R0 in tempo reale | Avrebbero chiuso anche la sovrapposizione dei container, ma: due scrittori della stessa riga (trigger e doppia scrittura del codice) con ordine e conflitti da gestire, oppure si toglie la doppia scrittura dal codice e si torna all'alternativa sopra; un trigger per riga sulla tabella più calda (`message`); da togliere in R3 con una verifica in più. La riconciliazione all'avvio, con lo stop-first per i passaggi che coinvolgono R0 (D18), chiude la stessa finestra con una sola funzione SQL, provata e verificata da V1–V7 |
+| Vietare il rollback del codice dopo R1 (solo avanti, con correzioni) | Toglie il ritorno indietro proprio nel rilascio più delicato; con la riconciliazione all'avvio il rollback di R1 resta possibile senza perdite |
+| Migrazione di R1 in un solo file Drizzle (DDL, indici, backfill) | Drizzle usa una sola transazione: `ACCESS EXCLUSIVE` su `message` per tutta la durata (23,9 s su 1 milione di messaggi nella prova), e `CONCURRENTLY` impossibile (§3.3, «Sequenza dei lock») |
 | `contact_identity` univoca per account (come Chatwoot) invece che per organizzazione+canale | Lo stesso telefono su due numeri della stessa organizzazione diventerebbe due contatti; l'owner ha chiesto l'ambito per organizzazione |
 | Usare `contact_identity` senza `channel_account_id` | IGSID e PSID valgono solo per l'account che li ha visti: senza l'account non si sa da dove rispondere |
 | Lasciare la finestra di 24 ore come costante | L'email non ha finestra; Instagram e Messenger hanno regole proprie (tag); l'agente AI prometterebbe cose che il canale non fa |
@@ -648,10 +782,11 @@ Se il punto 6 non è possibile entro M1 (app o account di prova non pronti), M1 
 | **D11** | Ambito dell'univocità di `external_message_id`: organizzazione+canale (proposto) oppure account | Organizzazione+canale. Per l'email, lo stesso `Message-ID` inoltrato a due indirizzi della stessa organizzazione verrebbe salvato una volta sola: da rivalutare in M4 | M1.2 |
 | **D12** | Payload reali anonimizzati per i golden | Facoltativi; senza, fixture sintetiche | M1.2 |
 | **D13** | Secondo canale reale dentro M1: aggiungere il pacchetto **M1.6** (adattatore Instagram in modalità sviluppo, spento in produzione dietro `CHANNELS_ENABLED`) | Sì (§3.9): è l'unico modo di sapere in M1 se il contratto regge un secondo provider; costa un pacchetto e anticipa lavoro che M3.1 farebbe comunque. **Modifica la direzione scritta**: la visione (`docs/visione/crm-multicanale-multicliente.md` §4) dice per M1 «WhatsApp come unico adattatore». Serve l'ok esplicito dell'owner | M1.6 |
-| **D14** | Quale app Meta usa il CRM per sviluppo e review: app nuova, app di test di «Dm Heili», oppure «Dm Heili» con inoltro dei webhook da heili-dm. Contestualmente: confermare nella console Meta che «Dm Heili» non ha richieste di review approvate o in corso | App nuova del CRM, la stessa che andrà in review e in produzione (un solo URL di callback per oggetto e per app, §3.8); K0 decide il consolidamento | M1.6 |
+| **D14** | Quale app Meta usa il CRM per sviluppo e review: app nuova, app di test di «Dm Heili», oppure «Dm Heili» con inoltro dei webhook da heili-dm. Contestualmente: confermare nella console Meta che «Dm Heili» non ha richieste di review approvate o in corso | App nuova del CRM, la stessa che andrà in review e in produzione (un solo URL di callback per oggetto e per app, §3.8, vincolo da riconfermare in K0); K0 decide il consolidamento. Con un'app propria Instagram ha variabili proprie (§3.6) | M1.6 |
 | **D15** | Correggere l'ordine in `docs/piani/PIANO-CRM-MULTICANALE.md`: M3 e K3/K4 non «dopo l'App Review», ma sviluppo in modalità sviluppo → prova reale → video → review → apertura | Sì, con un commit sul piano dopo l'approvazione di questo ADR (non fatto qui: un altro pacchetto lavora sui materiali della review) | M1.6, K7 |
 | **D16** | Chi esegue la prova end-to-end con Meta reale (gli agenti non possono chiamare Meta) e su quale ambiente di sviluppo HTTPS raggiungibile da Meta | L'owner, su un ambiente di sviluppo o di staging separato dalla produzione, con account di prova | M1.6 (criterio 6) |
 | **D17** | Accendere Instagram in produzione prima di R3 | No: in produzione `CHANNELS_ENABLED=whatsapp` fino a R3 (rollback di R2 sicuro senza passi manuali). Prima di R3, Instagram solo in sviluppo e staging | M1.6, R3 |
+| **D18** | Strategia di deploy nei passaggi che coinvolgono R0 (rollback di R1, ritorno da R0 a R1 o R2) | **Stop-first**: si ferma il vecchio container, poi si avvia il nuovo. Costa qualche secondo di indisponibilità più la durata della fase C (misurata in T020), ed evita che R0 scriva mentre un container che legge le strutture nuove è già partito (§3.3). Gli altri passaggi possono restare rolling | R1 |
 
 ### Rischi
 
@@ -659,7 +794,10 @@ Se il punto 6 non è possibile entro M1 (app o account di prova non pronti), M1 
 |---|---|---|
 | Conflitto di numerazione delle migrazioni con C3 (`0011`) e con le sue modifiche a `src/lib/meta/client.ts` e `src/server/whatsapp/media.ts` | Alta / medio | M1.2 parte dopo il merge di C3 e rigenera la migrazione; M1.3 si basa su C3 |
 | R3 è irreversibile senza backup | Certa / alto | M0.4 prima di R3, ripristino provato, periodo di prova (D10) |
-| Il rollback di R1 dipende dal comportamento del migratore Drizzle con un registro più recente del codice | Media / medio | Prova esplicita in M1.2 su PostgreSQL usa e getta |
+| Il rollback di R1 dipende dal comportamento del migratore Drizzle con un registro più recente del codice | Bassa / medio | Letto nel codice di `drizzle-orm` 0.38.4 e provato su PostgreSQL 16 con il migratore di `810272a` (parte senza applicare nulla); da ripetere con l'immagine vera in M1.2 (T020) |
+| Dati nuovi non allineati dopo un rollback (aggiornamenti del codice vecchio) | Certa senza riconciliazione / alto (messaggi scartati, invii falliti, instradamento verso l'organizzazione sbagliata con numeri scambiati) | Riconciliazione all'avvio con riallineamento degli aggiornamenti, V2 campo per campo, modalità `blocca` in R2 e R3 (§3.3); test e sabotaggi in T011, T020, T021 |
+| La riconciliazione all'avvio allunga l'avvio su tabelle grandi (stop-first = indisponibilità) | Media / medio | Lotti per chiave primaria; misura in T020; oltre 60 s la parte dei messaggi passa a un job dopo l'avvio in R1 (§3.3) |
+| Lock lunghi su `message` durante la migrazione di R1 | Certa con un solo file Drizzle / alto (webhook e invii fermi) | Fasi A/B/C con `NOT VALID` + `VALIDATE`, indici `CONCURRENTLY`, `lock_timeout`, lotti (§3.3) |
 | `wa_message_id` univoco sull'istanza: il messaggio di un'organizzazione scartato se il `wamid` coincide con quello di un'altra | Bassa / alto (dato perso in silenzio) | Indice per organizzazione come arbitro in R3; da verificare con Meta |
 | Le automazioni (`src/server/automations/engine.ts:74-170`) mandano modelli WhatsApp a contatti scelti per etichetta: dopo M3 un contatto solo-Instagram riceverebbe un modello WhatsApp | Media dopo M3 / medio | M1.5: le automazioni filtrano i contatti con identità `whatsapp` |
 | L'agente AI parla di "WhatsApp" nel prompt (`src/server/ai/prompts.ts:33`) e il mock AI dipende dal prompt (`src/server/dev/ai-mock.ts`) | Certa in M1.5 / basso | Il cambio del prompt è comportamento nuovo: golden aggiornati in modo dichiarato in M1.5, non in M1.3 |
@@ -668,7 +806,8 @@ Se il punto 6 non è possibile entro M1 (app o account di prova non pronti), M1 
 | Allegati in uscita su Instagram e Messenger richiedono un URL pubblico | Certa / medio | URL firmato a tempo, oppure allegati in uscita spenti (lo dice la capacità) |
 | Performance: la risoluzione del contatto passa da `contact_identity` | Bassa / basso | `EXPLAIN` prima/dopo in M1.2 (Leggi §3.4) |
 | La review di Meta respinge la prima richiesta (frequente per le app che inviano DM: `heili-dm/docs/setup.md:336`) | Media / medio (settimane) | Video sulla funzione vera, scope minimi (solo messaggi), giustificazioni per permesso; nel frattempo clienti pilota come tester (accesso Standard) |
-| Il CRM usa la stessa app di heili-dm e i webhook `instagram` arrivano solo a heili-dm (un callback per oggetto e per app) | Certa se si riusa l'app / alto (nessun messaggio Instagram arriva al CRM) | App propria del CRM (D14) |
+| Il CRM usa la stessa app di heili-dm e i webhook `instagram` arrivano solo a heili-dm (un callback per oggetto e per app, vincolo da riconfermare in K0) | Certa se il vincolo è confermato e si riusa l'app / alto (nessun messaggio Instagram arriva al CRM) | App propria del CRM (D14) |
+| Un esecutore riusa `META_APP_SECRET` per Instagram, o rende la firma facoltativa per far passare i webhook | Media senza variabili definite / alto (webhook rifiutati, oppure eventi iniettabili) | Variabili e regola fail-closed in §3.6; test e sabotaggi in T048 e T051 |
 | Con la chiave Wapi dell'organizzazione presente, `resolveGraphTransport` devierebbe a Wapi anche le chiamate Instagram, con la chiave del gateway verso un host sbagliato | Certa senza guardia / alto (segreto inviato al destinatario sbagliato) | Trasporto deciso per canale (§3.2), test negativo + sabotaggio in M1.6 |
 | L'adattatore Instagram obbliga a cambiare il nucleo (il contratto non regge) | Media / medio | È lo scopo di M1.6 scoprirlo in M1: la modifica torna nell'ADR (§3.9, criterio 2), prima di R3 |
 | Collegamento OAuth senza legame a sessione e organizzazione (lo stato di heili-dm lega solo `workspaceId` e ora) | Certa se si porta tale e quale / alto (CSRF: un Instagram altrui collegato nell'organizzazione sbagliata) | Stato rafforzato con nonce in cookie `httpOnly`, utente e ruolo verificati al callback (§3.6); test negativo con due organizzazioni |
