@@ -7,6 +7,7 @@ import {
   CheckCheck,
   Clock3,
   FileText,
+  Globe,
   MapPin,
   Paperclip,
   Smartphone,
@@ -272,6 +273,15 @@ export function MessageThread({ messages }: { messages: MessageDto[] }) {
                     >
                       <Sparkles className="h-3 w-3" strokeWidth={1.7} />{" "}
                       {t("inbox.thread.aiBadge")}
+                    </span>
+                  )}
+                  {m.channel === "web" && (
+                    <span
+                      className="inline-flex items-center gap-0.5 text-[10px] font-medium text-text-3"
+                      title={t("inbox.thread.webTitle")}
+                    >
+                      <Globe className="h-3 w-3" strokeWidth={1.7} />{" "}
+                      {t("inbox.thread.webBadge")}
                     </span>
                   )}
                   {m.origin === "manual" && (

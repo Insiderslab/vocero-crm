@@ -61,6 +61,9 @@ const messages: typeof base = {
     aiBadge: "AI",
     manualTitle: "Sent manually from the WhatsApp Business app",
     manualBadge: "Phone",
+    webTitle:
+      "Arrived through the website form: reply with a template, by phone or by email",
+    webBadge: "Website",
     notDelivered: "Not delivered.",
     noReason: "Meta did not provide a reason.",
   },
@@ -131,6 +134,14 @@ const messages: typeof base = {
     sending: "Sending…",
     send: "Send template",
     sendFailed: "The template could not be sent",
+  },
+  /** 008 — Etiquetas del mensaje de una solicitud del sitio web. */
+  siteRequest: {
+    title: "Request from the website",
+    name: "Name",
+    phone: "Phone",
+    email: "Email",
+    page: "Page",
   },
 };
 export default messages;

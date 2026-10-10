@@ -15,13 +15,18 @@ import { checkRateLimit, clientIp, countInWindow } from "@/lib/rate-limit";
  *   exactamente UNA organización. Con varias se rechaza siempre.
  */
 
-export type ApiKeyScope = "bot" | "export";
+export type ApiKeyScope = "bot" | "export" | "site";
 
 type ScopeConfig = {
   /** Prefijo visible del texto plano: distingue el ámbito antes de consultar. */
   prefix: string;
-  /** Variable de entorno de la clave de instancia heredada. */
-  instanceEnv: "BOT_API_KEY" | "EXPORT_API_KEY";
+  /** Cabecera que trae la clave (en minúsculas). */
+  header: string;
+  /**
+   * Variable de entorno de la clave de instancia heredada. `null` = el ámbito
+   * no tiene clave de instancia (008, sitio): solo vale la de la organización.
+   */
+  instanceEnv: "BOT_API_KEY" | "EXPORT_API_KEY" | null;
   /**
    * Límite por ventana (`max`). Se cuenta por organización
    * (`<bucket>:org:<id>`), así una organización no agota el límite de otra.
@@ -38,13 +43,24 @@ type ScopeConfig = {
 export const API_KEY_SCOPES: Record<ApiKeyScope, ScopeConfig> = {
   bot: {
     prefix: "vbk_",
+    header: "x-api-key",
     instanceEnv: "BOT_API_KEY",
     rateLimit: { bucket: "bot-api", windowMs: 60_000, max: 600 },
   },
   export: {
     prefix: "vex_",
+    header: "x-api-key",
     instanceEnv: "EXPORT_API_KEY",
     rateLimit: { bucket: "export-api", windowMs: 60_000, max: 300 },
+  },
+  // 008 — Formulario del sitio web: clave PUBLICADA en el HTML del sitio (no
+  // es un secreto fuerte, ver la spec), así que el límite por organización es
+  // bajo: un formulario de contacto no manda 30 solicitudes por minuto.
+  site: {
+    prefix: "vsk_",
+    header: "x-site-key",
+    instanceEnv: null,
+    rateLimit: { bucket: "site-api", windowMs: 60_000, max: 30 },
   },
 };
 
@@ -109,8 +125,11 @@ export function requireInstanceKey(req: Request, scope: ApiKeyScope): Response |
   const ip = ipFailureCounter(req, scope, "instance-invalid");
   if (ip.hardBlocked) return tooMany();
 
-  const expected = process.env[API_KEY_SCOPES[scope].instanceEnv];
-  const provided = req.headers.get("x-api-key");
+  const { instanceEnv, header } = API_KEY_SCOPES[scope];
+  // Sin clave de instancia en el ámbito: todo lo que no es una clave de
+  // organización es un fallo (cuenta por IP como cualquier otro).
+  const expected = instanceEnv ? process.env[instanceEnv] : undefined;
+  const provided = req.headers.get(header);
   if (!expected || expected.length < 16 || !provided) return ip.fail();
   const a = Buffer.from(provided);
   const b = Buffer.from(expected);
@@ -178,7 +197,7 @@ export async function authenticateApiKey(
   scope: ApiKeyScope,
   deps: ApiKeyAuthDeps = dbApiKeyAuthDeps
 ): Promise<ApiKeyAuthResult | Response> {
-  const provided = req.headers.get("x-api-key") ?? "";
+  const provided = req.headers.get(API_KEY_SCOPES[scope].header) ?? "";
 
   if (provided.startsWith(API_KEY_SCOPES[scope].prefix)) {
     // Fallos por IP del cliente (ver `ipFailureCounter`): una avalancha solo
@@ -199,6 +218,8 @@ export async function authenticateApiKey(
 
   const denied = requireInstanceKey(req, scope);
   if (denied) return denied;
+  // Defensa: un ámbito sin clave de instancia jamás llega aquí (requireInstanceKey falla).
+  if (!API_KEY_SCOPES[scope].instanceEnv) return apiError(401, "unauthorized", "No autorizado");
 
   // Clave de instancia: solo con una única organización. Se piden dos filas
   // para distinguir "una" de "varias" sin contar toda la tabla.

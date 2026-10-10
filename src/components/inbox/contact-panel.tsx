@@ -176,6 +176,9 @@ export function ContactPanel({
               <p className="text-xs text-text-3">
                 {formatPhone(conversation.contact.phone)}
               </p>
+              {conversation.contact.email && (
+                <p className="truncate text-xs text-text-3">{conversation.contact.email}</p>
+              )}
             </div>
           </div>
 

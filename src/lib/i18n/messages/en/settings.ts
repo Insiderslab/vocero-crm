@@ -9,6 +9,7 @@ const messages: typeof base = {
     templates: "Templates",
     team: "Team",
     apiKeys: "API keys",
+    site: "Website",
   },
   branding: {
     title: "CRM brand",
@@ -234,6 +235,56 @@ const messages: typeof base = {
       removeError: "Could not revoke the key",
       loadError:
         "Could not load the Wapi key status: reload the page.",
+    },
+  },
+  /** 008 — Formulario del sitio web (clave vsk_, orígenes, fragmento). */
+  site: {
+    forbidden:
+      "Only the owner or an admin of the organization configures the website form.",
+    keyTitle: "Website key (vsk_)",
+    keyDescription:
+      "Your website contact or booking form sends it with every request, which arrives in the Inbox as a conversation and in the Pipeline as a lead. The key is visible in your website code: what protects it are the allowed origins, the limits and the trap field. You can rotate it at any time.",
+    noKey: "No key yet: the website form cannot send anything.",
+    activeKey: "Active key {{prefix}}… · created {{created}} · {{used}}",
+    lastUsed: "last used {{date}}",
+    neverUsed: "never used",
+    create: "Create key",
+    rotate: "Rotate key",
+    revoke: "Revoke",
+    confirmRotate:
+      "Rotate the key? The current one stops working now: you will have to paste the new one into the website.",
+    confirmRevoke: "Revoke the key? The website form stops working now.",
+    created: "Key created ✓",
+    shareNow:
+      "Copy it now: it will not be shown again. The snippet below already includes it.",
+    copy: "Copy key",
+    copied: "Copied ✓",
+    hide: "Hide",
+    keyError: "The key could not be changed",
+    loadError: "The website settings could not be loaded: reload the page.",
+    originsTitle: "Allowed origins",
+    originsDescription:
+      "The addresses of your website from which the browser may send the form, one per line (e.g. https://labambola.com). Without origins, only a server can send requests.",
+    originsPlaceholder: "https://www.yoursite.com",
+    originsSave: "Save origins",
+    originsSaved: "Origins saved ✓",
+    originsError: "The origins could not be saved",
+    snippetTitle: "Snippet for your website",
+    snippetDescription:
+      "Paste this form into the contact or booking page. You can change texts and styles; do not remove the \"website\" field (it is the bot trap). For extra fields use name=\"fields[key]\".",
+    snippetPlaceholderNote:
+      "The key cannot be read again: replace vsk_YOUR_KEY with yours, or rotate the key to get the complete snippet.",
+    placeholderKey: "vsk_YOUR_KEY",
+    snippetCopy: "Copy snippet",
+    endpoint: "Form address: {{url}}",
+    form: {
+      name: "Name",
+      phone: "Phone (with country code, e.g. +58 412 1234567)",
+      email: "Email",
+      message: "Message",
+      submit: "Send",
+      thanks: "Thank you! We will contact you soon.",
+      error: "It could not be sent. Please try again.",
     },
   },
 };

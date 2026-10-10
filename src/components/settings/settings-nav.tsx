@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useT } from "@/lib/i18n/client";
-import { canManageApiKeys, canManageWhatsapp, isOrgAdmin } from "@/lib/roles";
+import { canManageApiKeys, canManageSiteForm, canManageWhatsapp, isOrgAdmin } from "@/lib/roles";
 import { cn } from "@/lib/utils";
 import { useRole } from "@/components/role-context";
 
@@ -17,6 +17,7 @@ const TABS = [
   { href: "/settings/templates", key: "templates", visibleFor: isOrgAdmin },
   { href: "/settings/team", key: "team" },
   { href: "/settings/api-keys", key: "apiKeys", visibleFor: canManageApiKeys },
+  { href: "/settings/site", key: "site", visibleFor: canManageSiteForm },
 ] as const;
 
 export function SettingsNav() {

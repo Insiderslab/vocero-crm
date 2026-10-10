@@ -142,7 +142,14 @@ export async function runAgentTurn(conversationId: string): Promise<void> {
     .orderBy(desc(schema.message.createdAt))
     .limit(20);
   history.reverse();
-  const lastInbound = [...history].reverse().find((m) => m.direction === "in");
+  // 008 — Una solicitud del formulario del sitio (`channel = web`) NO es un
+  // mensaje de WhatsApp: no abre la ventana de 24 h y el agente jamás le
+  // contesta por WhatsApp (la responde el equipo a mano). Se busca el último
+  // entrante de WhatsApp; si solo hay solicitudes web, no hay turno (ni
+  // handoff "ventana": la conversación queda como está para el equipo).
+  const lastInbound = [...history]
+    .reverse()
+    .find((m) => m.direction === "in" && m.channel !== "web");
   if (!lastInbound) return;
 
   // Ventana cerrada: el agente JAMÁS envía texto libre → handoff 'ventana'.
@@ -174,7 +181,9 @@ export async function runAgentTurn(conversationId: string): Promise<void> {
       content: buildAgentSystemPrompt({ profile, kb, stages }),
     },
     ...history
-      .filter((m) => m.text)
+      // 008: las solicitudes web las atiende el equipo; no van al proveedor
+      // de IA (traen email, página y campos del formulario).
+      .filter((m) => m.text && m.channel !== "web")
       .map((m) => ({
         role: m.direction === "in" ? ("user" as const) : ("assistant" as const),
         content: m.text!,

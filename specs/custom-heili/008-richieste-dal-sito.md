@@ -75,10 +75,14 @@ In Impostazioni → «Sito web», owner/admin creano la **chiave del sito**
      telefono normalizzato, `email`, `source = "sito"` e la sua identità
      WhatsApp (doppia scrittura 005, come l'alta manuale);
    - **se non esiste e c'è solo l'email: 422 `phone_required`** (vedi D1);
-   - un contatto esistente: si completa `phone`/`email` se mancano, si
-     riattiva se archiviato, e prende il nome del modulo solo se il suo è di
-     riempimento (il telefono o «Contacto de WhatsApp»); `source` non si
-     tocca.
+   - un contatto esistente **non si modifica**: `phone`, `wa_identity`,
+     `email`, nome e `source` restano come sono, anche se il modulo porta
+     altri valori (finiscono solo nel testo del messaggio); due contatti non
+     si uniscono mai. L'unica scrittura è riattivarlo se era archiviato.
+     Motivo: il modulo è pubblico e non verificato, e la lista di accesso
+     dell'agente (PR #8, `src/server/ai/allowlist.ts`) autorizza per
+     `wa_identity` **o** `phone`: un modulo non deve poter dare un'identità
+     a nessuno.
 4. Conversazione: quella reale del contatto (una per contatto fino a R3,
    ADR D6), creata se manca con `getOrCreateConversation`.
 5. Messaggio in entrata con `channel = "web"`, `type = "text"`,
@@ -147,6 +151,31 @@ La pagina «Sito web» mostra un modulo HTML e uno script `fetch` da copiare.
    segnaposto `vsk_LA_TUA_CHIAVE` (la chiave non si può rileggere).
 4. Lo snippet ricorda di aggiungere l'origine del sito tra quelle
    autorizzate.
+
+## Sicurezza
+
+- **La chiave è pubblicata** nell'HTML del sito: non è un segreto forte. Chi
+  la copia può inviare richieste da un server (senza `Origin`). Difese:
+  limiti per chiave e per IP, honeypot, tetto del body, nessun effetto
+  verso l'esterno (niente WhatsApp, niente IA, niente email), rotazione in
+  un clic. Della chiave si salva solo lo SHA-256.
+- **Telefono ed email non verificati.** Un contatto creato dal modulo ha
+  `source = "sito"`: è il marcatore (senza colonne nuove) che telefono ed
+  email li ha scritti un visitante. Il telefono diventa `wa_identity` come
+  nell'alta manuale: se poi quella persona scrive su WhatsApp, Meta ne
+  verifica il numero e il contatto è lo stesso. Rischio residuo,
+  documentato: se un owner mette in lista di accesso (007) un numero che
+  esiste **solo** come contatto creato dal modulo, l'autorizzazione vale
+  comunque solo per i messaggi WhatsApp che arrivano da quel numero (il
+  modulo non invia nulla per WhatsApp e non fa partire l'agente).
+- **Contatti esistenti intoccabili** (US2 AC3): il modulo non cambia
+  identità, email o nome, e non unisce contatti. Chi conosce il telefono o
+  l'email di un contatto può solo aggiungere un messaggio (marcato «Sito
+  web») alla sua conversazione: il team lo vede come richiesta web.
+- **Isolamento**: l'organizzazione viene solo dalla chiave; le ricerche del
+  contatto filtrano per `organization_id`; il preflight non rivela altro che
+  «questa origine è registrata da qualcuno».
+- **Log**: mai la chiave, mai il body.
 
 ## Livello canali (005) — come si rappresenta una richiesta web
 
