@@ -265,6 +265,51 @@ export async function graphRequest<T>(
 }
 
 /**
+ * 009 — Canjea el `code` del Embedded Signup por un token de negocio
+ * (System User de la integración). Es la única llamada a Graph sin bearer:
+ * se autentica con App ID + App Secret, que jamás salen del servidor.
+ * No pasa por Wapi: el canje es siempre con Meta (o el wa-mock en self-test).
+ */
+export async function exchangeEmbeddedSignupCode(input: {
+  code: string;
+  appId: string;
+  appSecret: string;
+}): Promise<string> {
+  const env = getEnv();
+  const qs = new URLSearchParams({
+    client_id: input.appId,
+    client_secret: input.appSecret,
+    code: input.code,
+  });
+  const url = `${env.META_GRAPH_BASE_URL}/${env.META_GRAPH_API_VERSION}/oauth/access_token?${qs}`;
+  let res: Response;
+  try {
+    res = await fetch(url, { method: "GET" });
+  } catch (cause) {
+    throw new MetaApiError("No se pudo contactar la API de Meta", {
+      status: 0,
+      details: cause,
+    });
+  }
+  const json = (await res.json().catch(() => null)) as {
+    access_token?: string;
+    error?: { message?: string; code?: number; type?: string };
+  } | null;
+  if (!res.ok || !json?.access_token) {
+    // El mensaje de Meta no contiene secretos; la URL (con el code) jamás se loguea.
+    throw new MetaApiError(
+      json?.error?.message ?? `Meta respondió ${res.status} al canjear el código`,
+      {
+        status: res.status,
+        code: json?.error?.code ?? null,
+        type: json?.error?.type ?? null,
+      }
+    );
+  }
+  return json.access_token;
+}
+
+/**
  * Normaliza un número al formato canónico. Números móviles de México llegan
  * de Meta como `521` + 10 dígitos (13 en total); enviar con ese `1` extra
  * produce el error 131030 — se usa `52` + 10 dígitos.

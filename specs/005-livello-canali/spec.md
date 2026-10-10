@@ -4,7 +4,7 @@
 
 **Creata**: 2026-10-10
 
-**Stato**: Bozza — dipende dall'approvazione dell'[ADR 0001](../../docs/adr/0001-livello-canali.md) (D1)
+**Stato**: Approvata — [ADR 0001](../../docs/adr/0001-livello-canali.md) approvato dall'owner il 10/10/2026 (D1)
 
 **Carril (Costituzione VI)**: **ciclo completo** (`spec → plan → tasks → implement`): tocca il modello dati (migrazioni) e un contratto pubblicato (webhook). Documenti: questa spec, [plan.md](plan.md), [tasks.md](tasks.md). Le decisioni stanno nell'ADR; qui c'è il comportamento osservabile.
 

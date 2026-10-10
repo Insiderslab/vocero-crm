@@ -72,8 +72,11 @@ export function resolveIdentity(
  */
 export async function getOrCreateContactByIdentity(
   organizationId: string,
-  resolved: ResolvedIdentity
+  resolved: ResolvedIdentity,
+  /** 009 — el historial de coexistence no reactiva archivados. */
+  opts: { reactivate?: boolean } = {}
 ) {
+  const reactivate = opts.reactivate ?? true;
   const db = getDb();
 
   const matchers = [eq(schema.contact.waIdentity, resolved.identity)];
@@ -100,7 +103,7 @@ export async function getOrCreateContactByIdentity(
     if (resolved.waUserId && !existing.waUserId)
       patch.waUserId = resolved.waUserId;
     if (resolved.phone && !existing.phone) patch.phone = resolved.phone;
-    if (existing.archivedAt) patch.archivedAt = null;
+    if (existing.archivedAt && reactivate) patch.archivedAt = null;
     if (Object.keys(patch).length > 0) {
       patch.updatedAt = new Date();
       await db
@@ -112,6 +115,12 @@ export async function getOrCreateContactByIdentity(
     return { contact: existing, isNew: false };
   }
 
+  // 009 — Coexistence: si la agenda de la app WhatsApp Business conoce el
+  // número, ese nombre (el que puso el dueño) gana al nombre de perfil.
+  const addressBookName = resolved.phone
+    ? await lookupAddressBookName(organizationId, resolved.phone)
+    : null;
+
   const inserted = await db
     .insert(schema.contact)
     .values({
@@ -120,7 +129,10 @@ export async function getOrCreateContactByIdentity(
       waIdentity: resolved.identity,
       phone: resolved.phone,
       waUserId: resolved.waUserId,
-      name: resolved.profileName?.trim() || displayFallback(resolved),
+      name:
+        addressBookName ||
+        resolved.profileName?.trim() ||
+        displayFallback(resolved),
     })
     .onConflictDoNothing({
       target: [schema.contact.organizationId, schema.contact.waIdentity],
@@ -142,6 +154,23 @@ export async function getOrCreateContactByIdentity(
   const contact = raced[0];
   if (!contact) throw new Error("contacto no encontrado tras upsert");
   return { contact, isNew: false };
+}
+
+async function lookupAddressBookName(
+  organizationId: string,
+  phone: string
+): Promise<string | null> {
+  const rows = await getDb()
+    .select({ name: schema.waAddressBookEntry.name })
+    .from(schema.waAddressBookEntry)
+    .where(
+      and(
+        eq(schema.waAddressBookEntry.organizationId, organizationId),
+        eq(schema.waAddressBookEntry.waIdentity, phone)
+      )
+    )
+    .limit(1);
+  return rows[0]?.name?.trim() || null;
 }
 
 /** Nombre de respaldo cuando no hay nombre de perfil: nunca el BSUID crudo. */

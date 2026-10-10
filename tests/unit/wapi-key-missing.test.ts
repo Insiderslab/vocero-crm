@@ -70,6 +70,8 @@ const creds = {
   displayPhoneNumber: null,
   verifiedName: null,
   status: "connected" as const,
+  onboardingMode: "manual" as const,
+  appDisconnectedAt: null,
   token: "meta-token-segreto",
 };
 

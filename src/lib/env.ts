@@ -22,6 +22,11 @@ const envSchema = z.object({
   META_APP_SECRET: z.string().optional(),
   META_GRAPH_API_VERSION: z.string().default("v25.0"),
   META_GRAPH_BASE_URL: z.string().url().default("https://graph.facebook.com"),
+  // 009 (custom heili.cloud): Embedded Signup de Meta para conectar el número
+  // de la app WhatsApp Business del teléfono (coexistence). Sin las dos (y sin
+  // META_APP_SECRET) el botón no aparece y el CRM funciona igual.
+  META_APP_ID: z.string().optional(),
+  META_ES_CONFIG_ID: z.string().optional(),
   // Fase 4 (custom heili.cloud): gateway propio Wapi. Si WAPI_BASE_URL existe,
   // las llamadas Graph se desvían ahí (las credenciales Meta viven solo en
   // Wapi). C3: el bearer es la clave Wapi PROPIA de cada organización (tabla

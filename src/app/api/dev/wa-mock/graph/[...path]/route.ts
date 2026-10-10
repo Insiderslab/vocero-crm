@@ -46,6 +46,39 @@ export async function GET(req: Request, ctx: Params) {
   const token = bearerToken(req);
   if (token.endsWith("-invalid")) return invalidTokenResponse();
 
+  // 009 — GET oauth/access_token?code=… → canje del Embedded Signup.
+  // Un code que termina en "-invalid" replica el rechazo de Meta.
+  if (path.length === 2 && path[0] === "oauth" && path[1] === "access_token") {
+    const code = new URL(req.url).searchParams.get("code") ?? "";
+    if (!code || code.endsWith("-invalid")) {
+      return Response.json(
+        {
+          error: {
+            message: "This authorization code has expired.",
+            type: "OAuthException",
+            code: 100,
+            fbtrace_id: "mock",
+          },
+        },
+        { status: 400 }
+      );
+    }
+    return Response.json({ access_token: `mock-es-token-${code}`, token_type: "bearer" });
+  }
+
+  // 009 — GET {wabaId}/phone_numbers → números de la WABA (un solo número).
+  if (path.length === 2 && path[1] === "phone_numbers") {
+    return Response.json({
+      data: [
+        {
+          id: `${path[0]}-phone`,
+          display_phone_number: "+39 347 000 0000",
+          verified_name: "Numero app Vocero",
+        },
+      ],
+    });
+  }
+
   // GET {wabaId}/message_templates → lista para el sync
   if (path.length === 2 && path[1] === "message_templates") {
     const state = getWaMockState();
@@ -210,6 +243,17 @@ export async function POST(req: Request, ctx: Params) {
     };
     state.templates.push(tpl);
     return Response.json({ id: tpl.id, status: "PENDING", category: tpl.category });
+  }
+
+  // 009 — POST {phoneNumberId}/smb_app_data → pedido de sync de coexistence.
+  if (path.length === 2 && path[1] === "smb_app_data") {
+    const state = getWaMockState();
+    state.syncRequests.push({
+      phoneNumberId: path[0]!,
+      syncType: String(body.sync_type ?? ""),
+      at: new Date().toISOString(),
+    });
+    return Response.json({ messaging_product: "whatsapp", request_id: `sync_${nextN()}` });
   }
 
   // POST {wabaId}/subscribed_apps → suscripción (con o sin override)

@@ -39,6 +39,7 @@ const legal: LegalMessages = {
           "Contactos y conversaciones: nombre del contacto, identificador del canal (número de WhatsApp o identificador de usuario que asigna Meta), contenido de los mensajes, archivos adjuntos, fecha y estado de entrega.",
           "Datos que la propia empresa añade: notas, etiquetas, etapas del embudo comercial y fichas de calificación.",
           "Conexión con Meta: identificadores de la cuenta de empresa conectada (por ejemplo, WhatsApp Business y número de teléfono) y la credencial de acceso que Meta concede a la empresa. La credencial se guarda cifrada y nunca se muestra completa.",
+          "Solo si la empresa conecta al CRM el número de su app WhatsApp Business (coexistence) y lo elige en la ventana de Meta: el historial de chats de esa app (hasta 6 meses) y los nombres de la agenda de la app. La agenda solo sirve para poner nombre a los contactos que escriben a la empresa: no crea contactos ni conversaciones.",
         ],
       },
       {

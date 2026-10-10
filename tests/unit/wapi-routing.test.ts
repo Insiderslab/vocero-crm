@@ -220,6 +220,8 @@ describe("media por Wapi (subida y descarga)", () => {
     displayPhoneNumber: null,
     verifiedName: null,
     status: "connected" as const,
+    onboardingMode: "manual" as const,
+    appDisconnectedAt: null,
     token: `meta-${org}`,
   });
 

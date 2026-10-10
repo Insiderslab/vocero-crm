@@ -7,6 +7,11 @@ import {
 } from "@/server/inbox/webhook";
 import { processEchoesValue, processMessagesValue } from "@/server/inbox/ingest";
 import { processTemplateStatusValue } from "@/server/whatsapp/template-events";
+import {
+  processAccountUpdateValue,
+  processHistoryValue,
+  processStateSyncValue,
+} from "@/server/inbox/coexistence";
 
 /**
  * Webhook público de WhatsApp (contrato webhook.md).
@@ -79,6 +84,15 @@ async function processPayload(payload: WebhookPayload): Promise<void> {
         await processEchoesValue(change.value);
       } else if (change.field === "message_template_status_update") {
         await processTemplateStatusValue(entry.id ?? null, change.value);
+      } else if (change.field === "history") {
+        // 009: chats pasados de la app del teléfono (coexistence)
+        await processHistoryValue(change.value);
+      } else if (change.field === "smb_app_state_sync") {
+        // 009: agenda de la app del teléfono (coexistence)
+        await processStateSyncValue(change.value);
+      } else if (change.field === "account_update") {
+        // 009: corte/reconexión de la coexistence
+        await processAccountUpdateValue(entry.id ?? null, change.value);
       }
       // otros fields: ignorar sin error
     }

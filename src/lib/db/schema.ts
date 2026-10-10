@@ -449,6 +449,23 @@ export const metaCredentials = pgTable(
     status: text("status", { enum: ["connected", "reconnect_required"] })
       .notNull()
       .default("connected"),
+    /**
+     * 009 — Cómo se conectó: a mano en el wizard (`manual`), con el Embedded
+     * Signup (`embedded`) o con el Embedded Signup sobre el número de la app
+     * WhatsApp Business del teléfono (`coexistence`).
+     */
+    onboardingMode: text("onboarding_mode", {
+      enum: ["manual", "embedded", "coexistence"],
+    })
+      .notNull()
+      .default("manual"),
+    /**
+     * 009 — Meta avisó (account_update) que la coexistence se cortó: el número
+     * salió de la API (app sin abrir ~14 días, cambio de teléfono o partner
+     * removido). NULL = activa. Se limpia con ACCOUNT_RECONNECTED o al
+     * reconectar.
+     */
+    appDisconnectedAt: timestamp("app_disconnected_at"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
@@ -736,5 +753,36 @@ export const automationRun = pgTable(
       t.createdAt
     ),
     index("automation_run_org_idx").on(t.organizationId, t.createdAt),
+  ]
+);
+
+/* ============================================================
+ * 009 — Coexistence: agenda de la app WhatsApp Business
+ * ============================================================ */
+
+/**
+ * Nombres de la agenda del teléfono que Meta sincroniza (`smb_app_state_sync`).
+ * Tabla aparte a propósito: la agenda trae amigos y familia, y crear un
+ * contacto del CRM por cada entrada llenaría el pipeline de no-prospectos.
+ * Solo sirve para poner nombre a un contacto cuando ya existe o cuando escribe.
+ */
+export const waAddressBookEntry = pgTable(
+  "wa_address_book_entry",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    /** Teléfono normalizado (misma llave que contact.wa_identity). */
+    waIdentity: text("wa_identity").notNull(),
+    name: text("name").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("wa_address_book_org_identity_uq").on(
+      t.organizationId,
+      t.waIdentity
+    ),
   ]
 );
