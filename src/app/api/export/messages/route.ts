@@ -9,7 +9,7 @@ import { MESSAGE_CHRONOLOGY } from "@/server/inbox/queries";
 export const dynamic = "force-dynamic";
 
 /**
- * Extracción de mensajes. Filtros: `?conversation=<id>` (una conversación) y
+ * Extracción de mensajes (con `channel`: `whatsapp` o `web`, 008). Filtros: `?conversation=<id>` (una conversación) y
  * `?since=<ISO 8601>` (incremental para análisis periódico). Tope de 5000 por
  * llamada — para históricos grandes se pagina con `since`.
  */
@@ -32,6 +32,8 @@ export const GET = withExport(async (org, url) => {
       status: schema.message.status,
       aiGenerated: schema.message.aiGenerated,
       origin: schema.message.origin,
+      // 008 — whatsapp | web (solicitud del formulario del sitio) | …
+      channel: schema.message.channel,
       waTimestamp: schema.message.waTimestamp,
       createdAt: schema.message.createdAt,
     })
@@ -69,6 +71,7 @@ export const GET = withExport(async (org, url) => {
       { key: "status", label: "estado" },
       { key: "aiGenerated", label: "generado_ia" },
       { key: "origin", label: "origen" },
+      { key: "channel", label: "canal" },
       { key: "createdAt", label: "creado_en" },
     ]);
     return csvResponse(`mensajes-${org.name}.csv`, csv);

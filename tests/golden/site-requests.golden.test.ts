@@ -612,3 +612,24 @@ describe("008 el agente no contesta a una solicitud web", () => {
     expect(graphCalls().filter((g) => g.method === "POST")).toHaveLength(1); // la respuesta, por WhatsApp
   });
 });
+
+describe("008 export de mensajes", () => {
+  it("/api/export/messages incluye `channel` (json y csv)", async () => {
+    const { generateApiKey } = await import("@/server/api-keys");
+    const { GET } = await import("@/app/api/export/messages/route");
+    const vex = generateApiKey("export");
+    await sql()`
+      insert into bot_api_key (id, organization_id, label, scope, key_prefix, key_hash, created_by)
+      values ('bk_site_export', ${ORG_A}, 'export', 'export', ${vex.prefix}, ${vex.hash}, 'u_golden')`;
+    await postWebhook(waFixture("inbound-text-mx"));
+    await send(form({ phone: "+52 1 55 1234 5678" }));
+    const res = await GET(new Request("http://localhost:3000/api/export/messages", { headers: { "x-api-key": vex.plain } }));
+    const json = (await res.json()) as { messages: { channel: string; direction: string }[] };
+    expect(json.messages.map((m) => m.channel).sort()).toEqual(["web", "whatsapp"]);
+    const csv = await (
+      await GET(new Request("http://localhost:3000/api/export/messages?format=csv", { headers: { "x-api-key": vex.plain } }))
+    ).text();
+    expect(csv.split("\n")[0]).toContain("canal");
+    expect(csv).toContain("web");
+  });
+});
