@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Building2, ChevronDown, ChevronRight, LogIn, UserPlus } from "lucide-react";
+import { Building2, ChevronDown, ChevronRight, LogIn, Pencil, UserPlus } from "lucide-react";
 import { authClient } from "@/lib/auth/client";
 import { useT } from "@/lib/i18n/client";
 import { Badge } from "@/components/ui/badge";
@@ -72,6 +72,11 @@ export function AdminClient() {
     password: string;
   } | null>(null);
   const [savingUser, setSavingUser] = useState(false);
+
+  // 007 — Renombrar empresa
+  const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(null);
+  const [renameError, setRenameError] = useState<string | null>(null);
+  const [savingName, setSavingName] = useState(false);
 
   const refetchOrgs = useCallback(async () => {
     const res = await fetch("/api/admin/orgs").catch(() => null);
@@ -166,6 +171,28 @@ export function AdminClient() {
     await toggleExpand(orgId); // recarga miembros (expanded ya era esta org)
     setExpanded(orgId);
     void refetchOrgs();
+  }
+
+  async function rename() {
+    if (!renaming) return;
+    setSavingName(true);
+    setRenameError(null);
+    const res = await fetch(`/api/admin/orgs/${renaming.id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: renaming.name.trim() }),
+    }).catch(() => null);
+    setSavingName(false);
+    if (!res?.ok) {
+      const data = (await res?.json().catch(() => null)) as {
+        error?: { message?: string };
+      } | null;
+      setRenameError(data?.error?.message ?? t("admin.orgs.renameError"));
+      return;
+    }
+    setRenaming(null);
+    void refetchOrgs();
+    router.refresh();
   }
 
   async function enter(orgId: string) {
@@ -317,6 +344,17 @@ export function AdminClient() {
               <Badge variant="secondary">{o.slug}</Badge>
               <Button
                 size="sm"
+                variant="ghost"
+                onClick={() => {
+                  setRenameError(null);
+                  setRenaming({ id: o.id, name: o.name });
+                }}
+              >
+                <Pencil className="h-4 w-4" />
+                {t("admin.orgs.rename")}
+              </Button>
+              <Button
+                size="sm"
                 variant="outline"
                 onClick={() => void enter(o.id)}
               >
@@ -324,6 +362,43 @@ export function AdminClient() {
                 {t("admin.orgs.enter")}
               </Button>
             </div>
+
+            {renaming?.id === o.id && (
+              <div className="space-y-2 border-t px-4 py-3">
+                <Label htmlFor={`rename-${o.id}`}>{t("admin.orgs.renameLabel")}</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id={`rename-${o.id}`}
+                    value={renaming.name}
+                    maxLength={80}
+                    onChange={(e) =>
+                      setRenaming({ id: o.id, name: e.target.value })
+                    }
+                  />
+                  <Button
+                    size="sm"
+                    disabled={
+                      savingName ||
+                      !renaming.name.trim() ||
+                      renaming.name.trim().length > 80
+                    }
+                    onClick={() => void rename()}
+                  >
+                    {t("admin.orgs.renameSave")}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setRenaming(null)}
+                  >
+                    {t("admin.orgs.renameCancel")}
+                  </Button>
+                </div>
+                {renameError && (
+                  <p className="text-sm text-destructive">{renameError}</p>
+                )}
+              </div>
+            )}
 
             {expanded === o.id && (
               <div className="space-y-3 border-t px-4 py-3">

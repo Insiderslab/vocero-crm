@@ -1,8 +1,9 @@
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import type { getDb } from "@/lib/db";
 import { schema } from "@/lib/db";
 import { newId } from "@/lib/db/ids";
 import {
+  type DbExecutor,
   insertWhatsappIdentity,
   whatsappAccountIdOf,
   whatsappMessageIds,
@@ -139,31 +140,12 @@ export async function seedDemo(
   db: Db,
   organizationId: string
 ): Promise<{ contacts: number; kbEntries: number }> {
-  const demoPhones = DEMO_CONTACTS.map((c) => c.phone);
-
-  // --- Idempotencia: limpiar datos demo previos (orden inverso de FKs) ---
-  const prevContacts = await db
-    .select({ id: schema.contact.id })
-    .from(schema.contact)
-    .where(inArray(schema.contact.phone, demoPhones));
-  const prevIds = prevContacts.map((c) => c.id);
-  if (prevIds.length > 0) {
-    const prevConvs = await db
-      .select({ id: schema.conversation.id })
-      .from(schema.conversation)
-      .where(inArray(schema.conversation.contactId, prevIds));
-    const convIds = prevConvs.map((c) => c.id);
-    if (convIds.length > 0) {
-      await db
-        .delete(schema.message)
-        .where(inArray(schema.message.conversationId, convIds));
-      await db
-        .delete(schema.conversation)
-        .where(inArray(schema.conversation.id, convIds));
-    }
-    await db.delete(schema.lead).where(inArray(schema.lead.contactId, prevIds));
-    await db.delete(schema.contact).where(inArray(schema.contact.id, prevIds));
-  }
+  // --- Idempotencia: limpiar datos demo previos DE ESTA organización ---
+  // (007: antes buscaba los teléfonos demo en TODA la instancia y recargar la
+  // demo en una organización borraba la demo de las demás.)
+  await db.transaction(async (tx) => {
+    await deleteDemoContacts(tx, organizationId);
+  });
   // KB y corridas demo previas
   await db
     .delete(schema.kbEntry)
@@ -383,6 +365,149 @@ export async function seedDemo(
   }
 
   return { contacts: DEMO_CONTACTS.length, kbEntries: DEMO_KB.length };
+}
+
+type Executor = DbExecutor;
+
+const DEMO_PHONES = DEMO_CONTACTS.map((c) => c.phone);
+
+/** IDs de los contactos demo de UNA organización (por sus teléfonos demo). */
+async function demoContactIds(
+  tx: Executor,
+  organizationId: string
+): Promise<string[]> {
+  const rows = await tx
+    .select({ id: schema.contact.id })
+    .from(schema.contact)
+    .where(
+      and(
+        eq(schema.contact.organizationId, organizationId),
+        inArray(schema.contact.phone, DEMO_PHONES)
+      )
+    );
+  return rows.map((r) => r.id);
+}
+
+/**
+ * Borra los contactos demo de la organización con lo que cuelga de ellos
+ * (mensajes, conversaciones, leads) y su identidad del canal (005: la
+ * estructura nueva se borra en la MISMA transacción, así V3 sigue en 0 aunque
+ * la FK en cascada de la fase B no exista). Cada sentencia lleva además la
+ * organización: aunque un ID se colara, jamás toca otra organización.
+ */
+async function deleteDemoContacts(
+  tx: Executor,
+  organizationId: string
+): Promise<number> {
+  const ids = await demoContactIds(tx, organizationId);
+  if (ids.length === 0) return 0;
+  const convs = await tx
+    .select({ id: schema.conversation.id })
+    .from(schema.conversation)
+    .where(
+      and(
+        eq(schema.conversation.organizationId, organizationId),
+        inArray(schema.conversation.contactId, ids)
+      )
+    );
+  const convIds = convs.map((c) => c.id);
+  if (convIds.length > 0) {
+    await tx
+      .delete(schema.message)
+      .where(
+        and(
+          eq(schema.message.organizationId, organizationId),
+          inArray(schema.message.conversationId, convIds)
+        )
+      );
+    await tx
+      .delete(schema.conversation)
+      .where(
+        and(
+          eq(schema.conversation.organizationId, organizationId),
+          inArray(schema.conversation.id, convIds)
+        )
+      );
+  }
+  await tx
+    .delete(schema.lead)
+    .where(
+      and(
+        eq(schema.lead.organizationId, organizationId),
+        inArray(schema.lead.contactId, ids)
+      )
+    );
+  await tx
+    .delete(schema.contactIdentity)
+    .where(
+      and(
+        eq(schema.contactIdentity.organizationId, organizationId),
+        inArray(schema.contactIdentity.contactId, ids)
+      )
+    );
+  await tx
+    .delete(schema.contact)
+    .where(
+      and(
+        eq(schema.contact.organizationId, organizationId),
+        inArray(schema.contact.id, ids)
+      )
+    );
+  return ids.length;
+}
+
+type KbRow = typeof schema.kbEntry.$inferSelect;
+
+/** ¿Es esta entrada EXACTAMENTE una de la demo (tipo y textos)? */
+function isDemoKbEntry(e: Pick<KbRow, "kind" | "question" | "answer" | "content">): boolean {
+  return DEMO_KB.some(
+    (d) =>
+      d.kind === e.kind &&
+      (d.question ?? null) === e.question &&
+      (d.answer ?? null) === e.answer &&
+      (d.content ?? null) === e.content
+  );
+}
+
+async function demoKbIds(tx: Executor, organizationId: string): Promise<string[]> {
+  const rows = await tx
+    .select()
+    .from(schema.kbEntry)
+    .where(eq(schema.kbEntry.organizationId, organizationId));
+  return rows.filter(isDemoKbEntry).map((r) => r.id);
+}
+
+/**
+ * 007 — Quita los datos demo de UNA organización: contactos demo (con
+ * conversaciones, mensajes, leads e identidades) y las entradas de KB que
+ * coinciden exactamente con la demo. No toca contactos reales, KB editado o
+ * propio, el perfil del agente ni las corridas del Laboratorio.
+ */
+export async function removeDemo(
+  db: Db,
+  organizationId: string
+): Promise<{ contacts: number; kbEntries: number }> {
+  return db.transaction(async (tx) => {
+    const contacts = await deleteDemoContacts(tx, organizationId);
+    const kbIds = await demoKbIds(tx, organizationId);
+    if (kbIds.length > 0) {
+      await tx
+        .delete(schema.kbEntry)
+        .where(
+          and(
+            eq(schema.kbEntry.organizationId, organizationId),
+            inArray(schema.kbEntry.id, kbIds)
+          )
+        );
+    }
+    return { contacts, kbEntries: kbIds.length };
+  });
+}
+
+/** true si la organización tiene datos demo que quitar (para el botón). */
+export async function hasDemoData(db: Db, organizationId: string): Promise<boolean> {
+  if ((await demoContactIds(db, organizationId)).length > 0) return true;
+  return (await demoKbIds(db, organizationId)).length > 0;
 }
 
 /** true si la organización aún no tiene datos de dominio (para el botón). */

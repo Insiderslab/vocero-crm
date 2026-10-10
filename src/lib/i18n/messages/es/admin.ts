@@ -31,6 +31,11 @@ const messages = {
     userCreateError: "No se pudo crear la cuenta",
     userCreatedTitle: "Cuenta creada ✓",
     createAccount: "Crear cuenta",
+    rename: "Renombrar",
+    renameLabel: "Nuevo nombre de la empresa",
+    renameSave: "Guardar nombre",
+    renameCancel: "Cancelar",
+    renameError: "No se pudo renombrar la empresa",
   },
   automations: {
     title: "Automatizaciones",

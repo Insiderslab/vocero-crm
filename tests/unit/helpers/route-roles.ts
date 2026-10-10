@@ -75,7 +75,7 @@ const ROWS: Row[] = [
   // Fuera de settings, con efecto en la configuración o en Meta: owner/admin
   ["templates", ["POST"], "admin", "crea una plantilla y la envía a Meta con las credenciales de la organización"],
   ["templates/sync", ["POST"], "admin", "habla con Meta con las credenciales de la organización"],
-  ["agent/profile", ["PUT"], "admin", "cambia nombre, tono, instrucciones y activación del agente de IA"],
+  ["agent/profile", ["PUT"], "admin", "cambia nombre, tono, instrucciones, activación y acceso reservado (007) del agente de IA"],
   ["automations", ["POST"], "admin", "crea una regla de envío masivo de plantillas por Meta"],
   ["automations/[id]", ["PATCH", "DELETE"], "admin", "edita o borra una regla de envío masivo"],
   ["automations/run", ["POST"], "admin", "ejecuta ya las reglas: envía plantillas a los contactos por Meta"],
@@ -84,6 +84,7 @@ const ROWS: Row[] = [
   ["lab/runs", ["POST"], "admin", "lanza el Laboratorio: gasta el proveedor de IA y crea datos de prueba"],
   ["lab/suggestions/apply", ["POST"], "admin", "aplica una sugerencia: escribe en el conocimiento del agente"],
   ["seed/demo", ["POST"], "admin", "carga el negocio demo en la organización"],
+  ["seed/demo", ["GET", "DELETE"], "admin", "007: consulta y quita los datos demo de la organización"],
 
   // Trabajo diario con contactos, conversaciones y pipeline, y lecturas: cualquier miembro
   ["agent/profile", ["GET"], "member", "lectura del perfil del agente (sin secretos)"],
@@ -114,6 +115,7 @@ const ROWS: Row[] = [
 
   // Otras formas de autenticación
   ["admin/orgs", ["GET", "POST"], "superadmin", "panel de super-admin"],
+  ["admin/orgs/[orgId]", ["PATCH"], "superadmin", "007: renombra una organización (panel de super-admin)"],
   ["admin/orgs/[orgId]/users", ["GET", "POST"], "superadmin", "panel de super-admin"],
   ["bot/context", ["GET"], "bot-key", "clave de servicio del bot, sin sesión"],
   ["bot/ficha", ["PUT"], "bot-key", "clave de servicio del bot"],

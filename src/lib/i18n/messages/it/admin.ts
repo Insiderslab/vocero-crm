@@ -33,6 +33,11 @@ const messages: typeof base = {
     userCreateError: "Impossibile creare l'account",
     userCreatedTitle: "Account creato ✓",
     createAccount: "Crea account",
+    rename: "Rinomina",
+    renameLabel: "Nuovo nome dell'azienda",
+    renameSave: "Salva nome",
+    renameCancel: "Annulla",
+    renameError: "Impossibile rinominare l'azienda",
   },
   automations: {
     title: "Automazioni",

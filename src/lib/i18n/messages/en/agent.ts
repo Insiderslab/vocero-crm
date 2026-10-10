@@ -5,6 +5,8 @@ const messages: typeof base = {
   loading: "Loading…",
   title: "AI Agent",
   saved: "Saved ✓",
+    saveError: "Could not save; your changes are still in the form",
+    unsaved: "Unsaved changes",
   statusOn: "On",
   statusOff: "Off",
   toggleLabel: "Agent on",
@@ -28,6 +30,21 @@ const messages: typeof base = {
     greetingPlaceholder: "Greeting for new conversations",
     save: "Save behavior",
   },
+  restricted: {
+    title: "Restricted access",
+    description:
+      "Turns the agent into an internal team assistant: it only answers the numbers on the list. Everyone else gets no AI reply and never sees the knowledge base.",
+    toggle: "Only answer the numbers on the list",
+    listLabel: "Allowed numbers (one per line, with country code)",
+    listPlaceholder: "+39 347 123 4567\n+1 415 555 0100",
+    outsiderLabel: "Reply for unauthorized numbers (optional)",
+    outsiderPlaceholder: "This number is for internal team use only.",
+    outsiderHint: "Sent once per conversation. Empty = no reply at all.",
+    save: "Save restricted access",
+    invalid: "Invalid numbers: {{lines}}",
+    saveError: "Could not save restricted access",
+    count: "{{count}} allowed numbers",
+  },
   kb: {
     title: "Knowledge base",
     description:
@@ -43,6 +60,7 @@ const messages: typeof base = {
     blockPlaceholder: "Hours, addresses, policies…",
     addBlock: "Add block",
     removeEntry: "Delete entry",
+    saveError: "Could not save the entry; what you typed is still here",
     empty: "No entries yet: add what the agent needs to know.",
   },
 };

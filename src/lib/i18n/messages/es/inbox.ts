@@ -17,6 +17,11 @@ const messages = {
     body: "Cuando alguien escriba a tu número de WhatsApp, su conversación aparecerá aquí en tiempo real.",
     seed: "Cargar datos de demostración",
     seeding: "Cargando demo…",
+    removeDemo: "Quitar datos demo",
+    removingDemo: "Quitando demo…",
+    demoLoaded: "Hay datos de demostración en esta organización.",
+    removeDemoConfirm: "¿Quitar los contactos, conversaciones y conocimiento de la demo? Tus datos reales no se tocan.",
+    removeDemoError: "No se pudieron quitar los datos demo",
   },
   filters: {
     all: "Todas",

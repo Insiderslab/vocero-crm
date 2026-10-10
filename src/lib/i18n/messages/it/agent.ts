@@ -5,6 +5,8 @@ const messages: typeof base = {
   loading: "Caricamento…",
   title: "Agente IA",
   saved: "Salvato ✓",
+    saveError: "Salvataggio non riuscito; le tue modifiche sono ancora nel modulo",
+    unsaved: "Modifiche non salvate",
   statusOn: "Acceso",
   statusOff: "Spento",
   toggleLabel: "Agente attivo",
@@ -28,6 +30,21 @@ const messages: typeof base = {
     greetingPlaceholder: "Saluto per le nuove conversazioni",
     save: "Salva comportamento",
   },
+  restricted: {
+    title: "Accesso riservato",
+    description:
+      "Trasforma l'agente in un assistente interno del team: risponde solo ai numeri della lista. Agli altri non risponde l'IA e non vedono la conoscenza.",
+    toggle: "Rispondi solo ai numeri della lista",
+    listLabel: "Numeri autorizzati (uno per riga, con prefisso internazionale)",
+    listPlaceholder: "+39 347 123 4567\n+39 02 1234 5678",
+    outsiderLabel: "Risposta per i numeri non autorizzati (facoltativa)",
+    outsiderPlaceholder: "Questo numero è a uso interno del team.",
+    outsiderHint: "Inviata una sola volta per conversazione. Vuota = nessuna risposta.",
+    save: "Salva accesso riservato",
+    invalid: "Numeri non validi: {{lines}}",
+    saveError: "Impossibile salvare l'accesso riservato",
+    count: "{{count}} numeri autorizzati",
+  },
   kb: {
     title: "Knowledge base",
     description:
@@ -43,6 +60,7 @@ const messages: typeof base = {
     blockPlaceholder: "Orari, indirizzi, politiche…",
     addBlock: "Aggiungi blocco",
     removeEntry: "Elimina voce",
+    saveError: "Impossibile salvare la voce; quello che hai scritto è ancora qui",
     empty: "Nessuna voce ancora: aggiungi ciò che l'agente deve sapere.",
   },
 };

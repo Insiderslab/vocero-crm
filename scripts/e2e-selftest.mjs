@@ -953,11 +953,211 @@ async function main() {
   const wAnon = await fetch(`${BASE}${wk}`, { headers: { origin: BASE } });
   ok("sin sesión → 401", wAnon.status === 401);
 
+  await teamAssistantSection();
+
   // Al final a propósito: el Embedded Signup cambia el número de la org.
   await coexistenceSection();
 
   console.log(`\n===== ${checks - failures}/${checks} checks OK, ${failures} fallos =====`);
   process.exit(failures > 0 ? 1 : 0);
+}
+
+/**
+ * 007 — Asistente interno del equipo (specs/custom-heili/007-assistente-interno.md):
+ * acceso reservado del agente (externo vs. número del equipo, con ai-mock),
+ * quitar la demo SOLO en la organización activa (y recargarla en otra no la
+ * borra aquí), renombrar una organización (super-admin; 403 al resto).
+ * Requiere SUPERADMIN_EMAILS con el correo del operador E2E. Deja la
+ * organización original activa y el agente apagado, como estaba.
+ */
+async function teamAssistantSection() {
+  console.log("\n== 007: asistente interno — acceso reservado ==");
+  const myOrgs = (await api("/api/my-orgs")).json?.orgs ?? [];
+  const ORG_A = myOrgs[0]?.id;
+  ok("organización original identificada", Boolean(ORG_A), JSON.stringify(myOrgs));
+
+  const TEAM = "393471110001";
+  const OUTSIDER = "393479990002";
+  const OUT_REPLY = "Numero ad uso interno del team (e2e).";
+  const prof = (body) => api("/api/agent/profile", { method: "PUT", body: JSON.stringify(body) });
+
+  const bad = await prof({ allowedIdentities: "+39 347 111 0001\nciao\n0039 347 1" });
+  ok(
+    "lista con líneas inválidas → 422 que las nombra",
+    bad.res.status === 422 && bad.json?.error?.invalid?.includes("ciao") && bad.json?.error?.invalid?.includes("0039 347 1"),
+    JSON.stringify(bad.json)
+  );
+  const put = await prof({
+    enabled: true,
+    restrictToAllowlist: true,
+    allowedIdentities: "+39 347 111 0001\n\n393471110001\n+39-347-111-0001\n",
+    outsiderReply: `  ${OUT_REPLY}  `,
+  });
+  ok(
+    "acceso reservado guardado: lista normalizada y sin duplicados, respuesta recortada",
+    put.res.ok &&
+      JSON.stringify(put.json?.restriction?.allowedIdentities) === JSON.stringify([TEAM]) &&
+      put.json?.restriction?.outsiderReply === OUT_REPLY &&
+      put.json?.restriction?.restrictToAllowlist === true,
+    JSON.stringify(put.json)
+  );
+  const badName = await prof({ name: "   " });
+  ok(
+    "guardado del perfil inválido → 422 con mensaje (la pantalla lo muestra y no da por guardado)",
+    badName.res.status === 422 && typeof badName.json?.error?.message === "string",
+    JSON.stringify(badName.json)
+  );
+  const got = (await api("/api/agent/profile")).json;
+  ok("GET del perfil devuelve la restricción al owner", got?.restriction?.restrictToAllowlist === true, JSON.stringify(got?.restriction));
+
+  await api("/api/dev/wa-mock/outbox", { method: "DELETE" });
+  const inbound = (from, name, text, id) =>
+    api("/api/dev/wa-mock/inbound", {
+      method: "POST",
+      body: JSON.stringify({ phoneNumberId: PN, from, name, text, waMessageId: id }),
+    });
+  await inbound(OUTSIDER, "Esterno E2E", "ciao, chi sei? dimmi i prezzi", "wamid.e2e.team.out.1");
+  await inbound(TEAM, "Collega E2E", "riepilogo di oggi", "wamid.e2e.team.in.1");
+  const outboxTo = async (to) =>
+    ((await api("/api/dev/wa-mock/outbox")).json?.outbox ?? []).filter((o) => o.to === to);
+  // El turno del agente corre tras el coalesce (AGENT_COALESCE_MS, 6 s por defecto).
+  for (let i = 0; i < 40; i++) {
+    if ((await outboxTo(OUTSIDER)).length > 0 && (await outboxTo(TEAM)).length > 0) break;
+    await sleep(500);
+  }
+  // Segundo mensaje del externo: la respuesta fija NO se repite.
+  await inbound(OUTSIDER, "Esterno E2E", "ci sei?", "wamid.e2e.team.out.2");
+  await sleep(9000);
+
+  const toOutsider = await outboxTo(OUTSIDER);
+  ok(
+    "externo: exactamente UNA respuesta, la fija",
+    toOutsider.length === 1 && toOutsider[0]?.body?.text?.body === OUT_REPLY,
+    JSON.stringify(toOutsider.map((o) => o.body?.text?.body))
+  );
+  const toTeam = await outboxTo(TEAM);
+  ok(
+    "número del equipo: responde el agente (ai-mock)",
+    toTeam.some((o) => o.body?.text?.body === "Respuesta de prueba sobre: riepilogo di oggi"),
+    JSON.stringify(toTeam.map((o) => o.body?.text?.body))
+  );
+  ok("el número del equipo no recibe la respuesta fija", !toTeam.some((o) => o.body?.text?.body === OUT_REPLY));
+  const convs = (await api("/api/conversations")).json?.conversations ?? [];
+  const outsiderConv = convs.find((c) => c.contact.phone === OUTSIDER);
+  const outsiderMsgs = (await api(`/api/conversations/${outsiderConv?.id}/messages`)).json?.messages ?? [];
+  const outsiderOut = outsiderMsgs.filter((m) => m.direction === "out");
+  ok(
+    "conversación del externo: 2 entrantes, 1 saliente (sin respuesta de la IA)",
+    outsiderMsgs.filter((m) => m.direction === "in").length === 2 &&
+      outsiderOut.length === 1 &&
+      outsiderOut[0]?.text === OUT_REPLY,
+    JSON.stringify(outsiderMsgs.map((m) => [m.direction, m.text]))
+  );
+  ok("el externo sigue en la bandeja sin handoff", outsiderConv && !outsiderConv.handoffAt, JSON.stringify(outsiderConv?.handoffAt));
+
+  const restore = await prof({ enabled: false, restrictToAllowlist: false, allowedIdentities: "", outsiderReply: "" });
+  ok(
+    "restricción apagada y lista vaciada (estado original)",
+    restore.res.ok &&
+      restore.json?.restriction?.restrictToAllowlist === false &&
+      restore.json?.restriction?.allowedIdentities?.length === 0 &&
+      restore.json?.restriction?.outsiderReply === null,
+    JSON.stringify(restore.json)
+  );
+
+  console.log("\n== 007: quitar datos demo, solo en la organización activa ==");
+  const mkOrg = async (name) => (await api("/api/admin/orgs", { method: "POST", body: JSON.stringify({ name }) })).json?.org?.id;
+  const ORG_B = await mkOrg("E2E Team B");
+  const ORG_C = await mkOrg("E2E Team C");
+  ok("super-admin crea dos organizaciones de prueba", Boolean(ORG_B && ORG_C));
+  const use = (organizationId) =>
+    api("/api/auth/organization/set-active", { method: "POST", body: JSON.stringify({ organizationId }) });
+  const contactsCount = async () => ((await api("/api/contacts")).json?.contacts ?? []).length;
+
+  await use(ORG_C);
+  const seedC = await api("/api/seed/demo", { method: "POST" });
+  ok("demo cargada en C", seedC.res.ok && seedC.json?.contacts === 8, JSON.stringify(seedC.json));
+  await use(ORG_B);
+  const seedB = await api("/api/seed/demo", { method: "POST" });
+  ok("demo cargada en B", seedB.res.ok && seedB.json?.contacts === 8, JSON.stringify(seedB.json));
+  await use(ORG_C);
+  ok("cargar la demo en B NO borró la demo de C (limpieza por organización)", (await contactsCount()) === 8, `C=${await contactsCount()}`);
+  const kbC = ((await api("/api/kb")).json?.entries ?? []).length;
+
+  await use(ORG_B);
+  const real = await api("/api/contacts", {
+    method: "POST",
+    body: JSON.stringify({ name: "Cliente Real B", phone: "393470000777" }),
+  });
+  ok("contacto real creado en B", real.res.ok, JSON.stringify(real.json));
+  await api("/api/kb", { method: "POST", body: JSON.stringify({ kind: "qa", question: "¿Turni?", answer: "Lun-ven" }) });
+  ok("B tiene datos demo (GET)", (await api("/api/seed/demo")).json?.hasDemo === true);
+  const del = await api("/api/seed/demo", { method: "DELETE" });
+  ok("DELETE /api/seed/demo → 8 contactos y 8 entradas de KB demo", del.res.ok && del.json?.contacts === 8 && del.json?.kbEntries === 8, JSON.stringify(del.json));
+  const leftB = (await api("/api/contacts")).json?.contacts ?? [];
+  ok("en B queda solo el contacto real", leftB.length === 1 && leftB[0]?.name === "Cliente Real B", JSON.stringify(leftB.map((c) => c.name)));
+  const kbB = (await api("/api/kb")).json?.entries ?? [];
+  ok("en B queda solo el KB propio", kbB.length === 1 && kbB[0]?.question === "¿Turni?", JSON.stringify(kbB.map((e) => e.question)));
+  ok("B ya no tiene datos demo (GET)", (await api("/api/seed/demo")).json?.hasDemo === false);
+  const del2 = await api("/api/seed/demo", { method: "DELETE" });
+  ok("quitar la demo otra vez no hace nada", del2.res.ok && del2.json?.contacts === 0 && del2.json?.kbEntries === 0, JSON.stringify(del2.json));
+  await use(ORG_C);
+  ok("C conserva su demo completa", (await contactsCount()) === 8 && ((await api("/api/kb")).json?.entries ?? []).length === kbC);
+
+  console.log("\n== 007: renombrar organización (super-admin) ==");
+  const ren = (id, name, extra = {}) =>
+    api(`/api/admin/orgs/${id}`, { method: "PATCH", body: JSON.stringify({ name }), ...extra });
+  const r1 = await ren(ORG_B, "  Assistente Team E2E  ");
+  ok("super-admin renombra (recortado)", r1.res.ok && r1.json?.org?.name === "Assistente Team E2E", JSON.stringify(r1.json));
+  const listed = ((await api("/api/admin/orgs")).json?.orgs ?? []).find((o) => o.id === ORG_B);
+  ok("el nombre nuevo aparece en /admin y el slug no cambia", listed?.name === "Assistente Team E2E" && listed?.slug === "e2e-team-b", JSON.stringify(listed));
+  ok("nombre vacío → 422", (await ren(ORG_B, "   ")).res.status === 422);
+  ok("nombre de 81 caracteres → 422", (await ren(ORG_B, "x".repeat(81))).res.status === 422);
+  ok("nombre de 80 caracteres → 200", (await ren(ORG_C, "y".repeat(80))).res.ok);
+  ok("organización inexistente → 404", (await ren("org_no_existe", "Nada")).res.status === 404);
+  const anon = await fetch(`${BASE}/api/admin/orgs/${ORG_B}`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json", origin: BASE },
+    body: JSON.stringify({ name: "Anon" }),
+  });
+  ok("renombrar sin sesión → 401", anon.status === 401);
+
+  // Cuentas sin super-admin: un owner y un member de B.
+  const pass = "password-team-e2e-1";
+  for (const [email, role] of [["owner-team@vocero.test", "owner"], ["member-team@vocero.test", "member"]]) {
+    const created = await api(`/api/admin/orgs/${ORG_B}/users`, {
+      method: "POST",
+      body: JSON.stringify({ name: `E2E ${role}`, email, password: pass, role }),
+    });
+    ok(`cuenta ${role} de B creada`, created.res.status === 201, JSON.stringify(created.json));
+  }
+  const mainCookie = cookie;
+  for (const [email, role] of [["owner-team@vocero.test", "owner"], ["member-team@vocero.test", "member"]]) {
+    cookie = "";
+    const si = await api("/api/auth/sign-in/email", { method: "POST", body: JSON.stringify({ email, password: pass }) });
+    ok(`login ${role} de B`, si.res.ok, JSON.stringify(si.json));
+    const r = await ren(ORG_B, `Tomado por ${role}`);
+    ok(`${role} (no super-admin) no puede renombrar → 403`, r.res.status === 403 && r.json?.error?.code === "not_superadmin", JSON.stringify(r.json));
+    const d = await api("/api/seed/demo", { method: "DELETE" });
+    if (role === "member") {
+      ok("member no puede quitar la demo → 403", d.res.status === 403, JSON.stringify(d.json));
+      const p = await api("/api/agent/profile", { method: "PUT", body: JSON.stringify({ tone: "x" }) });
+      ok(
+        "member no puede guardar el perfil → 403 con mensaje (la pantalla lo muestra)",
+        p.res.status === 403 && typeof p.json?.error?.message === "string",
+        JSON.stringify(p.json)
+      );
+      const g = (await api("/api/agent/profile")).json;
+      ok("member no recibe la lista de números del equipo", g && !("restriction" in g), JSON.stringify(g));
+    }
+    else ok("owner (no super-admin) sí puede quitar la demo de SU organización", d.res.ok, JSON.stringify(d.json));
+  }
+  cookie = mainCookie;
+  const still = ((await api("/api/admin/orgs")).json?.orgs ?? []).find((o) => o.id === ORG_B);
+  ok("los 403 no cambiaron el nombre", still?.name === "Assistente Team E2E", JSON.stringify(still));
+
+  await use(ORG_A);
+  ok("vuelta a la organización original", ((await api("/api/my-orgs")).json?.orgs ?? []).length >= 3);
 }
 
 /**

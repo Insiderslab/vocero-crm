@@ -698,6 +698,19 @@ export const agentProfile = pgTable(
     instructions: text("instructions"),
     escalationRules: text("escalation_rules"),
     greeting: text("greeting"),
+    /**
+     * 007 — Acceso reservado (asistente interno del equipo): con el flag
+     * encendido el agente SOLO atiende a las identidades de la lista
+     * (teléfonos normalizados como `wa_identity`); al resto, como mucho,
+     * `outsider_reply` una vez por conversación. Apagado = comportamiento
+     * de siempre.
+     */
+    restrictToAllowlist: boolean("restrict_to_allowlist").notNull().default(false),
+    allowedIdentities: text("allowed_identities")
+      .array()
+      .notNull()
+      .default(sql`'{}'`),
+    outsiderReply: text("outsider_reply"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
