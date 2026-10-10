@@ -124,10 +124,20 @@ export function scanHandlers(source: string, fileName = "route.ts"): Record<stri
           out[d.name.text] = d.initializer
             ? analyze(d.initializer)
             : { kind: "unresolved", why: "sin inicializador" };
+        } else if (ts.isObjectBindingPattern(d.name)) {
+          // `export const { GET, POST } = handlers`: no se sabe qué los protege.
+          for (const el of d.name.elements) {
+            if (ts.isIdentifier(el.name) && HTTP_METHODS.includes(el.name.text)) {
+              out[el.name.text] = { kind: "unresolved", why: "desestructuración" };
+            }
+          }
         }
       }
     } else if (ts.isFunctionDeclaration(st) && st.name && hasExport(st)) {
       if (HTTP_METHODS.includes(st.name.text)) out[st.name.text] = analyze(st);
+    } else if (ts.isExportDeclaration(st) && !st.exportClause) {
+      // `export * from "./otro"`: exporta handlers sin nombrarlos, no verificable.
+      out["*"] = { kind: "unresolved", why: "export * from" };
     } else if (ts.isExportDeclaration(st) && st.exportClause && ts.isNamedExports(st.exportClause)) {
       for (const el of st.exportClause.elements) {
         const exported = el.name.text;

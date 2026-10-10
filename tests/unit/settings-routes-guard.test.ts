@@ -222,6 +222,15 @@ describe("sabotaje del escáner: los rodeos no cuentan como control", () => {
     expect(guardCumple(guardia(src) as Guard, "public", () => undefined)).toBe(false);
   });
 
+  it("`export const { GET } = x` y `export * from` no se aceptan: no se sabe qué protege", () => {
+    const desestructurado = scanHandlers(`const handlers = fabrica();\nexport const { GET, POST } = handlers;`);
+    expect(desestructurado.GET?.kind).toBe("unresolved");
+    expect(desestructurado.POST?.kind).toBe("unresolved");
+    expect(scanHandlers(`export * from "./otra";`)["*"]?.kind).toBe("unresolved");
+    // y por eso un archivo así hace fallar el inventario: "*" no figura en él.
+    expect("*" in ROUTE_ROLES).toBe(false);
+  });
+
   it("un re-export se resuelve leyendo el otro archivo, y si no se puede leer falla", () => {
     const g = scanHandlers(`export { POST } from "./otra";`).POST as Guard;
     expect(g.kind).toBe("reexport");
