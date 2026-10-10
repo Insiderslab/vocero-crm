@@ -63,9 +63,10 @@ línea) y respuesta para externos.
    null default false`, `allowed_identities text[] not null default '{}'`,
    `outsider_reply text`. Apagado por defecto → comportamiento idéntico al de
    hoy (golden sin cambios).
-2. Normalización (una sola función, `src/server/ai/allowlist.ts`): se quitan
-   espacios, `+`, `-`, `.`, `()` y un `00` inicial; debe quedar solo dígitos,
-   8–15; luego `normalizeMx` (521→52). Líneas vacías se ignoran; duplicados
+2. Normalización (una sola función, `src/server/ai/allowlist.ts`): se toleran
+   espacios, `+`, `-`, `.`, `()`; debe quedar solo dígitos, 7–15, sin 0
+   inicial (`0039…` se rechaza: ningún código de país empieza por 0); luego
+   `normalizeMx` (521→52). Líneas vacías se ignoran; duplicados
    (también tras normalizar) se quitan; una línea inválida → 422 con la línea.
    Máximo 500 números.
 3. En `runAgentTurn`, tras comprobar perfil/handoff/IA de la conversación y
@@ -99,3 +100,8 @@ línea) y respuesta para externos.
   borrado de la demo por organización, renombrar super-admin y 403.
 - Sabotajes: guardia de la lista, ámbito de organización del seed, guardia
   super-admin.
+
+## Añadidos en curso (orquestador, mismo branch)
+- Pantalla Agente IA: un guardado fallido ya no se da por bueno y un refetch
+  no pisa un formulario con cambios sin guardar (`form-sync.ts`).
+- `max_tokens` en la llamada a OpenRouter (`OPENROUTER_MAX_TOKENS`, 2048).
