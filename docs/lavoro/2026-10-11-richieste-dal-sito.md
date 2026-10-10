@@ -124,3 +124,33 @@ Metodo: script nello scratchpad (non versionato) che cambia **un** frammento, es
 - Nuovo golden: accesso riservato attivo con risposta per gli esterni + richiesta web + `runAgentTurn` forzato → nessuna chiamata IA, nessun invio Graph, nessun messaggio in uscita (la risposta fissa partirebbe solo con la finestra aperta, cioè dopo un WhatsApp vero).
 - Gate rifatti: `tsc` e `eslint` verdi; unità **1167/1167** (68 file); golden su base nuova `vocero_golden_web2` **132/132** (107 di `main` + 25 di 008), `git diff origin/main -- tests/golden/__golden__` vuoto; `next build` verde; E2E su base nuova `vocero_web_e2e2` (con `SUPERADMIN_EMAILS` per la sezione 007) **193/193**, poi V1–V6 = 0 e, al riavvio del runner, V1–V7 = 0; nessuna «doppia scrittura … fallita» e nessuna `vsk_` nel log.
 - Sabotaggi dopo il rebase: `runAgentTurn` senza `isAllowedIdentity` → golden 007: 4 rossi; `runAgentTurn` senza la guardia `web` → golden 008: 1 rosso. Ripristinati, albero pulito.
+
+## Aggiornamento — correzioni della revisione avversaria della PR #10
+
+Base: `feat/008-richieste-dal-sito` = `site-leads` @ `d3f29d2`. Un commit per correzione, niente push.
+
+| # | Rilievo | Correzione | Test nuovi | Sabotaggio (poi ripristinato) |
+|---|---|---|---|---|
+| 1 | ALTO: una IP con la chiave pubblica esauriva il limite per chiave dell'organizzazione (consumato in `authenticateApiKey` prima di origine e limite per IP) | `authenticateApiKey(..., { consumeOrgLimit: false })` per il sito; la rotta consuma il limite della chiave dopo origine (403) e limite per IP (`consumeSiteKeyLimit`) | golden: 40 richieste con origine estranea + 35 da una IP già limitata → un visitatore legittimo riceve 202 | autenticazione che consuma di nuovo: golden 2 rossi, unità 1 |
+| 2 | Un modulo registra il telefono di un altro con un nome inventato, che resta quando quella persona scrive su WhatsApp | per un contatto `source = sito` **senza alcun entrante WhatsApp**, il primo entrante in vivo (`ingestInboundMessage`, `verifiedInbound`) mette il nome verificato: rubrica → profilo → telefono, una sola volta. L'email resta; nel pannello «dal modulo web, non verificata» (es/en/it) | golden P1 (nome iniettato → «Ana Golden»; dopo, il nome dell'operatore si rispetta), rubrica che vince, contatto non `sito` invariato | `verifiedInbound: false`: golden 2 rossi; senza «una sola volta»: golden 1 rosso |
+| 3 | Nome e chiavi su più righe, caratteri invisibili | `sanitizeSingleLine` (nome, chiavi, telefono, email, URL, locale) e `sanitizeMultiLine` (messaggio, valori): via bidi U+202A–202E/U+2066–2069, larghezza zero U+200B–200D/U+FEFF, C0/C1; `\r\n`, tab, U+2028/2029 → spazio (una riga) o `\n` | unità: 7 casi | senza i separatori di riga: unità 1 rosso; senza i bidi: unità 5 rossi |
+| 4 | Visitatori rifiutati per metadati facoltativi; testo Zod al visitatore | `locale` non valido scartato (`en_US` → `en-US`); `pageUrl` senza query e poi troncata, o scartata se non http(s); lo snippet manda ogni `name` sconosciuto in `fields` (i file no); 422 con testo i18n nella lingua della richiesta (`locale`, poi `Accept-Language`) | unità 5 (lo snippet si esegue con un DOM minimo e il body catturato passa lo schema), golden 1 | locale non scartato: unità 1 rosso; testo Zod restituito: golden 1 rosso |
+| 5 | Le richieste web spingevano fuori la cronologia WhatsApp (LIMIT 20 prima del filtro) | `ne(channel, 'web')` nella query, prima del LIMIT; il filtro in memoria resta come seconda barriera | golden: 1 WhatsApp + 25 richieste web → il modello riceve il testo WhatsApp e nessun `WEB-` | senza `ne()`: golden 1 rosso |
+| 6 | Preflight: limite prima dell'origine; mappe in memoria senza tetto | cache dell'origine 30 s (tetto 1 000, svuotata quando si salvano le origini); il limite del preflight conta solo le consultazioni alla BD. `lib/rate-limit`: tetto 50 000 chiavi, espulsione O(1) della meno recente (ogni uso reinserisce la chiave) | golden: una IP che inventa origini arriva a 429 ma l'origine vera (in cache) resta 204; unità: tetto e cache | limite prima della cache: golden 1 rosso; senza tetto: unità 1; senza svuotare la cache: golden 2 |
+| 7 | `/api/export/messages` senza canale | campo `channel` nel JSON e colonna `canal` nel CSV. **Nessun golden esistente cambia** (l'export non ha istantanea) | golden: json e csv con `web` e `whatsapp` | campo tolto: golden 1 rosso |
+| 8 | Rotazioni concorrenti → due chiavi attive | indice univoco parziale `bot_api_key_site_active_uq` (`scope='site' AND revoked_at IS NULL`) nella 0015 + `pg_advisory_xact_lock` per organizzazione in rotazione/revoca. La 0015 è stata **rigenerata** con `drizzle-kit generate`: `prevId` = snapshot 0014, un secondo `generate` dice «No schema changes» | golden: 6 rotazioni in parallelo → 1 attiva e solo l'ultima funziona; un INSERT di una seconda attiva fallisce sull'indice | senza lock: golden 1 rosso; senza indice: golden 1 rosso |
+| 9 | Documentazione | spec: note di rollback (il codice vecchio manda al modello il testo web e mostra le richieste come WhatsApp; **prima del rollback revocare la chiave del sito**, con la query), riattivazione degli archiviati, avvertenza CDN/`X-Forwarded-For` | — | — |
+
+Nota di metodo: durante il sabotaggio della correzione 1 un `git checkout` ha ripristinato anche le modifiche non ancora committate di `auth.ts`; rifatte e verificate prima del commit. Da lì in poi ogni sabotaggio è partito da un albero già committato.
+
+### Gate dopo le correzioni
+- `tsc --noEmit` e `eslint .`: verdi
+- unità: **1179/1179** (68 file)
+- golden su base nuova `vocero_golden_web3`: **142/142** (107 di `main` + 35 di 008); `git diff origin/main -- tests/golden/__golden__` vuoto
+- `next build`: verde
+- E2E su base nuova `vocero_web_e2e3`: **193/193**; dopo: V1–V6 = 0; runner riavviato: V1–V7 = 0; nessuna «doppia scrittura … fallita» e nessuna `vsk_` nel log
+
+### Rischi rimasti
+- Il nome verificato sostituisce anche un nome messo dall'operatore **prima** del primo WhatsApp di un contatto `sito` (scelta voluta: il nome del modulo non è affidabile).
+- Il limite per IP vale solo dietro un proxy che riscrive `X-Forwarded-For` (spec, US3 AC4).
+- La cache del preflight è per processo: con più repliche un cambio di origini si vede negli altri processi entro 30 s.
