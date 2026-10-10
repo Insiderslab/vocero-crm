@@ -133,6 +133,8 @@ const messages = {
     send: "Enviar plantilla",
     sendFailed: "No se pudo enviar la plantilla",
   },
+  /** 008 — junto al email de un contacto creado por el formulario del sitio. */
+  emailUnverified: "del formulario web, no verificado",
   /** 008 — Etiquetas del mensaje de una solicitud del sitio web. */
   siteRequest: {
     title: "Solicitud desde el sitio web",

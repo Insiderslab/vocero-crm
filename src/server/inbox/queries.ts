@@ -5,7 +5,14 @@ import { isWindowOpen, windowRemainingMs } from "@/server/inbox/window";
 
 export type ConversationDto = {
   id: string;
-  contact: { id: string; name: string; phone: string | null; email: string | null };
+  contact: {
+    id: string;
+    name: string;
+    phone: string | null;
+    email: string | null;
+    /** 008 — el email lo escribió un visitante en el formulario del sitio. */
+    emailUnverified: boolean;
+  };
   stageName: string | null;
   aiEnabled: boolean;
   handoffAt: string | null;
@@ -119,7 +126,13 @@ export function serializeConversation(
 ): ConversationDto {
   return {
     id: c.id,
-    contact: { id: contact.id, name: contact.name, phone: contact.phone, email: contact.email },
+    contact: {
+      id: contact.id,
+      name: contact.name,
+      phone: contact.phone,
+      email: contact.email,
+      emailUnverified: Boolean(contact.email) && contact.source === "sito",
+    },
     stageName,
     aiEnabled: c.aiEnabled,
     handoffAt: c.handoffAt?.toISOString() ?? null,

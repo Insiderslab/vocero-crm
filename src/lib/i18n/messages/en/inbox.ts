@@ -135,6 +135,8 @@ const messages: typeof base = {
     send: "Send template",
     sendFailed: "The template could not be sent",
   },
+  /** 008 — junto al email de un contacto creado por el formulario del sitio. */
+  emailUnverified: "from the web form, not verified",
   /** 008 — Etiquetas del mensaje de una solicitud del sitio web. */
   siteRequest: {
     title: "Request from the website",

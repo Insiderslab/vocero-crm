@@ -298,6 +298,44 @@ describe("008 crear vs reutilizar el contacto", () => {
   });
 });
 
+describe("008 nombre verificado con el primer WhatsApp (P1)", () => {
+  it("formulario con el teléfono de otra persona y un nombre inyectado → el primer entrante de WhatsApp deja el nombre verificado", async () => {
+    await send(form({ name: "Admin Fidato (inyectado)", phone: "+52 1 55 1234 5678", email: "falso@example.com" }));
+    expect(await contactOf(ORG_A, ANA)).toMatchObject({ name: "Admin Fidato (inyectado)", source: "sito" });
+
+    await postWebhook(waFixture("inbound-text-mx")); // Meta verifica el número; perfil «Ana Golden»
+    expect(await contactOf(ORG_A, ANA)).toMatchObject({
+      name: "Ana Golden",
+      wa_identity: ANA,
+      phone: ANA,
+      email: "falso@example.com", // se conserva, marcado como no verificado en la UI
+      source: "sito",
+    });
+
+    // Una sola vez: lo que ponga después el operador se respeta.
+    await sql()`update contact set name = 'Ana (operador)' where wa_identity = ${ANA}`;
+    await postWebhook(waFixture("inbound-text-mx-again"));
+    expect((await contactOf(ORG_A, ANA))!.name).toBe("Ana (operador)");
+  });
+
+  it("si la agenda del teléfono conoce el número, gana el nombre de la agenda", async () => {
+    await send(form({ name: "Nombre inyectado", phone: "+52 1 55 1234 5678" }));
+    await sql()`
+      insert into wa_address_book_entry (id, organization_id, wa_identity, name)
+      values ('abk_site_1', ${ORG_A}, ${ANA}, 'Ana de la agenda')`;
+    await postWebhook(waFixture("inbound-text-mx"));
+    expect((await contactOf(ORG_A, ANA))!.name).toBe("Ana de la agenda");
+  });
+
+  it("un contacto que NO viene del formulario no cambia de nombre", async () => {
+    await postWebhook(waFixture("inbound-text-mx"));
+    await sql()`update contact set name = 'Ana (operador)' where wa_identity = ${ANA}`;
+    await send(form({ name: "Otro", phone: "+52 1 55 1234 5678" }));
+    await postWebhook(waFixture("inbound-text-mx-again"));
+    expect((await contactOf(ORG_A, ANA))!.name).toBe("Ana (operador)");
+  });
+});
+
 describe("008 aislamiento entre organizaciones", () => {
   it("la clave de A escribe SOLO en A, aunque el mismo teléfono exista en B", async () => {
     await postWebhook(waFixture("inbound-text-b")); // contacto en B

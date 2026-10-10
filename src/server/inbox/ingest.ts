@@ -379,7 +379,8 @@ export async function ingestInboundMessage(input: {
 
   const { contact } = await getOrCreateContactByIdentity(
     organizationId,
-    input.identity
+    input.identity,
+    { verifiedInbound: true }
   );
   const conversation = await getOrCreateConversation(
     organizationId,

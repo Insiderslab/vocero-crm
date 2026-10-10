@@ -135,6 +135,8 @@ const messages: typeof base = {
     send: "Invia modello",
     sendFailed: "Impossibile inviare il modello",
   },
+  /** 008 — junto al email de un contacto creado por el formulario del sitio. */
+  emailUnverified: "dal modulo web, non verificata",
   /** 008 — Etiquetas del mensaje de una solicitud del sitio web. */
   siteRequest: {
     title: "Richiesta dal sito web",
