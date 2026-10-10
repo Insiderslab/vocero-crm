@@ -243,4 +243,7 @@ La pagina «Sito web» mostra un modulo HTML e uno script `fetch` da copiare.
 - Inventario dei ruoli: politica nuova `site-key` (`authenticateSiteKey`),
   `OPTIONS` pubblica.
 - E2E (`scripts/e2e-selftest.mjs`, sezione «008-sito»).
-- Sabotaggi: una per guardia.
+- Sabotaggi: una per guardia (23, tutti visti; elenco nel registro).
+
+**Esito (2026-10-11):** unità 1091/1091, golden 118/118 (94 invariati + 24),
+E2E 151/151, `tsc`, `eslint`, `next build` verdi.
