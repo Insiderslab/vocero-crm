@@ -58,40 +58,71 @@ export function normalizeSitePhone(
   return { ok: true, phone: normalizeMx(digits) };
 }
 
-/** Caracteres de control fuera (salvo salto de línea y tabulador). */
-function clean(s: string): string {
-  return s.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, "");
+/**
+ * Caracteres invisibles que engañan al lector humano: controles bidi
+ * (U+202A–202E, U+2066–2069, «Trojan Source») y de ancho cero (U+200B–200D,
+ * U+FEFF). Fuera de TODO campo.
+ */
+const INVISIBLE = /[\u202A-\u202E\u2066-\u2069\u200B-\u200D\uFEFF]/g;
+/** Controles C0/C1 salvo \n (se trata aparte). */
+const CONTROLS_EXCEPT_LF = /[\u0000-\u0009\u000B-\u001F\u007F-\u009F]/g;
+/** Separadores de línea: \r, \n, tab, U+2028/2029. */
+const LINE_BREAKS = /[\r\n\t\u2028\u2029]/g;
+
+/**
+ * Una sola línea (nombre, claves de `fields`, teléfono, email, URL, locale):
+ * saltos y tabuladores → espacio, invisibles y controles fuera, espacios
+ * colapsados. Así nadie puede fingir en el mensaje una línea «Teléfono: …»
+ * dentro del nombre.
+ */
+export function sanitizeSingleLine(s: string): string {
+  return s
+    .replace(LINE_BREAKS, " ")
+    .replace(INVISIBLE, "")
+    .replace(CONTROLS_EXCEPT_LF, "")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
-const text = (min: number, max: number) =>
-  z
-    .string()
-    .transform((s) => clean(s).trim())
-    .pipe(z.string().min(min).max(max));
+/**
+ * Texto multilínea (mensaje y valores de `fields`): \r\n, \r, U+2028/2029 →
+ * \n; tabulador → espacio; invisibles y demás controles fuera.
+ */
+export function sanitizeMultiLine(s: string): string {
+  return s
+    .replace(/\r\n?|[\u2028\u2029]/g, "\n")
+    .replace(/\t/g, " ")
+    .replace(INVISIBLE, "")
+    .replace(CONTROLS_EXCEPT_LF, "")
+    .trim();
+}
+
+const singleLine = (min: number, max: number) =>
+  z.string().transform(sanitizeSingleLine).pipe(z.string().min(min).max(max));
+const multiLine = (min: number, max: number) =>
+  z.string().transform(sanitizeMultiLine).pipe(z.string().min(min).max(max));
 
 const fieldsSchema = z
-  .record(
-    z.string().transform((s) => clean(s).trim()).pipe(z.string().min(1).max(MAX_FIELD_KEY)),
-    z.string().transform((s) => clean(s).trim()).pipe(z.string().max(MAX_FIELD_VALUE))
-  )
+  .record(singleLine(1, MAX_FIELD_KEY), multiLine(0, MAX_FIELD_VALUE))
   .refine((r) => Object.keys(r).length <= MAX_FIELDS, {
     message: `máximo ${MAX_FIELDS} campos`,
   });
 
 /** Un campo vacío del formulario ("" o solo espacios) cuenta como ausente. */
 function optional<T extends z.ZodTypeAny>(schema: T) {
-  return z.preprocess(
-    (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
-    schema.optional()
-  );
+  return z.preprocess((v) => {
+    if (typeof v !== "string") return v;
+    const clean = sanitizeSingleLine(v);
+    return clean === "" ? undefined : clean;
+  }, schema.optional());
 }
 
 export const siteRequestSchema = z
   .object({
-    name: text(1, 120),
+    name: singleLine(1, 120),
     phone: optional(z.string().trim().max(40)),
     email: optional(z.string().trim().toLowerCase().max(254).email("email no válido")),
-    message: text(1, 4000),
+    message: multiLine(1, 4000),
     pageUrl: optional(
       z
         .string()
