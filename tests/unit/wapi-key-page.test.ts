@@ -14,6 +14,11 @@ vi.mock("@/lib/auth/session", () => ({
   getSessionOrNull: async () => state.session,
 }));
 
+// Fuera de una petición no hay cookies: el aviso se traduce con la clave tal cual.
+vi.mock("@/lib/i18n/server", () => ({
+  getT: async () => ({ t: (key: string) => key }),
+}));
+
 import WhatsappSettingsPage from "@/app/(app)/settings/whatsapp/page";
 
 async function html(): Promise<string> {
@@ -35,12 +40,18 @@ describe("/settings/whatsapp (tarjeta de la clave Wapi)", () => {
     expect(loadingBlocks(await html())).toBe(2);
   });
 
-  it.each(["member", "otro"])("%s: solo el asistente, sin tarjeta Wapi", async (role) => {
+  // Desde el control de rol de la página (ruoli-whatsapp), quien no es
+  // owner/admin no ve ni el asistente ni la tarjeta: solo el aviso.
+  it.each(["member", "otro"])("%s: ni asistente ni tarjeta Wapi, solo el aviso", async (role) => {
     state.session = { userId: "u_1", organizationId: "org_a", role };
-    expect(loadingBlocks(await html())).toBe(1);
+    const out = await html();
+    expect(loadingBlocks(out)).toBe(0);
+    expect(out).toContain("forbidden");
   });
 
-  it("sin sesión: sin tarjeta Wapi", async () => {
-    expect(loadingBlocks(await html())).toBe(1);
+  it("sin sesión: ni asistente ni tarjeta Wapi", async () => {
+    const out = await html();
+    expect(loadingBlocks(out)).toBe(0);
+    expect(out).toContain("forbidden");
   });
 });
