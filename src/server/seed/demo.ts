@@ -218,6 +218,43 @@ const DEMO_LAB_CASES: {
   },
 ];
 
+type ProfileRow = typeof schema.agentProfile.$inferSelect;
+type PersonaFields = Pick<ProfileRow, "name" | "tone" | "instructions" | "escalationRules" | "greeting">;
+
+/** La persona del agente de la demo (los campos que la demo escribe). */
+const DEMO_PROFILE: PersonaFields = {
+  name: "Martillito",
+  tone: "Cercano y práctico, de ferretería de confianza. Tutea al cliente.",
+  instructions:
+    "Ayuda a cotizar y cerrar ventas. Da precios en MXN solo si están en el conocimiento. Si piden mayoreo, menciona los mínimos. Nunca inventes existencias.",
+  escalationRules:
+    "Escala a un humano si piden factura con datos fiscales complejos, si hay una queja de producto dañado o si lo piden explícitamente.",
+  greeting: "¡Hola! Soy Martillito, el asistente de Ferretería El Martillo 🔨",
+};
+
+/**
+ * El perfil tal como lo deja el alta de la organización
+ * (`provisionOrganization`: solo id + organización → defaults del esquema).
+ */
+const UNTOUCHED_PROFILE: PersonaFields = {
+  name: String(schema.agentProfile.name.default),
+  tone: null,
+  instructions: null,
+  escalationRules: null,
+  greeting: null,
+};
+
+const PERSONA_KEYS = Object.keys(DEMO_PROFILE) as (keyof PersonaFields)[];
+
+function samePersona(row: PersonaFields, persona: PersonaFields): boolean {
+  return PERSONA_KEYS.every((k) => (row[k] ?? null) === persona[k]);
+}
+
+/** ¿Se puede escribir la persona demo sin pisar nada del dueño? */
+export function isUntouchedOrDemoProfile(row: PersonaFields): boolean {
+  return samePersona(row, UNTOUCHED_PROFILE) || samePersona(row, DEMO_PROFILE);
+}
+
 /** ID fijo de la corrida demo de una organización: así se reconoce al recargar. */
 export function demoRunId(organizationId: string): string {
   return `run_demo_${organizationId}`;
@@ -331,19 +368,30 @@ export async function seedDemo(
   }
 
   // --- Comportamiento del agente de la demo ---
-  await db
-    .update(schema.agentProfile)
-    .set({
-      name: "Martillito",
-      tone: "Cercano y práctico, de ferretería de confianza. Tutea al cliente.",
-      instructions:
-        "Ayuda a cotizar y cerrar ventas. Da precios en MXN solo si están en el conocimiento. Si piden mayoreo, menciona los mínimos. Nunca inventes existencias.",
-      escalationRules:
-        "Escala a un humano si piden factura con datos fiscales complejos, si hay una queja de producto dañado o si lo piden explícitamente.",
-      greeting: "¡Hola! Soy Martillito, el asistente de Ferretería El Martillo 🔨",
-      updatedAt: new Date(),
-    })
-    .where(eq(schema.agentProfile.organizationId, organizationId));
+  // Solo si el perfil no existe, sigue intacto (el de alta de la organización)
+  // o ya es exactamente el de la demo. Un perfil personalizado por el dueño
+  // NO se toca (antes, quitar → volver a cargar la demo lo pisaba).
+  await db.transaction(async (tx) => {
+    const [current] = await tx
+      .select()
+      .from(schema.agentProfile)
+      .where(eq(schema.agentProfile.organizationId, organizationId))
+      .for("update")
+      .limit(1);
+    if (!current) {
+      await tx.insert(schema.agentProfile).values({
+        id: newId("agentProfile"),
+        organizationId,
+        ...DEMO_PROFILE,
+      });
+      return;
+    }
+    if (!isUntouchedOrDemoProfile(current)) return;
+    await tx
+      .update(schema.agentProfile)
+      .set({ ...DEMO_PROFILE, updatedAt: new Date() })
+      .where(eq(schema.agentProfile.organizationId, organizationId));
+  });
 
   // --- Corrida de Laboratorio de ejemplo (guardada, con el hueco encontrado) ---
   const runId = demoRunId(organizationId);

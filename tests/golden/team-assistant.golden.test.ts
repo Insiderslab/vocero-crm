@@ -290,6 +290,41 @@ describe("007 datos demo por organización", () => {
     expect(left.map((r) => r.id)).toEqual(["ma_compartido", "ma_de_b"]);
   });
 
+  it("perfil del agente: la demo lo escribe solo si está intacto, no existe o ya es el de la demo; uno personalizado sobrevive a quitar → cargar", async () => {
+    const persona = async (org: string) =>
+      (await sql()<{ name: string; tone: string | null; instructions: string | null; greeting: string | null }[]>`
+        select name, tone, instructions, greeting from agent_profile where organization_id = ${org}
+      `)[0];
+
+    // Intacto (el del alta: solo defaults) → persona demo.
+    await seedDemo(getDb(), ORG_A);
+    expect((await persona(ORG_A))?.name).toBe("Martillito");
+    // Ya es el de la demo → recargar lo deja igual.
+    await seedDemo(getDb(), ORG_A);
+    expect((await persona(ORG_A))?.name).toBe("Martillito");
+
+    // El dueño lo personaliza (aunque sea un solo campo).
+    await sql()`
+      update agent_profile set name = 'Asistente del equipo', instructions = 'Solo uso interno.'
+      where organization_id = ${ORG_A}
+    `;
+    await removeDemo(getDb(), ORG_A);
+    await seedDemo(getDb(), ORG_A);
+    expect(await persona(ORG_A)).toMatchObject({ name: "Asistente del equipo", instructions: "Solo uso interno." });
+    // Cambiar solo el saludo de la persona demo también cuenta como personalizado.
+    await sql()`
+      update agent_profile set name = 'Martillito', instructions = null, tone = null, greeting = 'Hola, soy yo'
+      where organization_id = ${ORG_A}
+    `;
+    await seedDemo(getDb(), ORG_A);
+    expect((await persona(ORG_A))?.greeting).toBe("Hola, soy yo");
+
+    // Sin fila de perfil → se crea con la persona demo.
+    await sql()`delete from agent_profile where organization_id = ${ORG_B}`;
+    await seedDemo(getDb(), ORG_B);
+    expect((await persona(ORG_B))?.name).toBe("Martillito");
+  });
+
   it("quitar la demo sin la FK en cascada de la fase B (fase B incompleta): V3 sigue en 0", async () => {
     await seedDemo(getDb(), ORG_A);
     await sql()`alter table contact_identity drop constraint contact_identity_contact_fk`;
