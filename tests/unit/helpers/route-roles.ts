@@ -59,6 +59,7 @@ const ROWS: Row[] = [
   // Configuración de la conexión, claves, marca y equipo (settings)
   ["settings/whatsapp", ["GET", "PUT"], "admin", "credenciales y datos de la conexión de WhatsApp (Meta)"],
   ["settings/whatsapp/test", ["POST"], "admin", "prueba un token contra Meta"],
+  ["settings/whatsapp/wapi-key", ["GET", "PUT", "DELETE"], "admin", "clave Wapi cifrada de la organización (C3)"],
   ["settings/webhook", ["GET"], "admin", "muestra el segmento secreto del webhook"],
   ["settings/bot-keys", ["GET", "POST"], "admin", "claves de servicio del bot"],
   ["settings/bot-keys/[id]", ["DELETE"], "admin", "revoca una clave del bot"],

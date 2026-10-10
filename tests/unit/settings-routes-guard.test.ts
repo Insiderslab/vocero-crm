@@ -36,6 +36,15 @@ function rutas(dir: string): string[] {
   });
 }
 
+/** Todos los ficheros `route.*` bajo src/app/api (Next sirve también .tsx/.js/.jsx/.mjs). */
+function ficherosRoute(dir: string): string[] {
+  return readdirSync(dir).flatMap((entry) => {
+    const full = path.join(dir, entry);
+    if (statSync(full).isDirectory()) return ficherosRoute(full);
+    return /^route\.(ts|tsx|js|jsx|mjs|cjs)$/.test(entry) ? [full] : [];
+  });
+}
+
 const rel = (file: string) => path.relative(API, path.dirname(file)).split(path.sep).join("/");
 
 /** Handlers reales: clave "ruta:MÉTODO" → guard leído del AST. */
@@ -239,5 +248,12 @@ describe("sabotaje del escáner: los rodeos no cuentan como control", () => {
     ).POST;
     expect(guardCumple(g, "dev-mock", () => conGuard)).toBe(true);
     expect(guardCumple(g, "dev-mock", () => undefined)).toBe(false);
+  });
+});
+
+describe("ninguna ruta escapa al inventario por la extensión", () => {
+  it("todos los route handlers de /api son route.ts (el escáner solo lee esos)", () => {
+    const otros = ficherosRoute(API).filter((f) => path.basename(f) !== "route.ts");
+    expect(otros.map((f) => path.relative(API, f))).toEqual([]);
   });
 });
