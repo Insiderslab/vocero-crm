@@ -339,7 +339,9 @@ describe("canali che non esistono ancora: solo 'in arrivo'", () => {
 
   it("i canali davvero non esistono nel codice (altrimenti togliere i marcatori)", () => {
     const names = walk(path.join(ROOT, "src/server")).concat(walk(path.join(ROOT, "src/app")));
-    expect(names.filter((f) => /instagram|messenger|embedded-?signup/i.test(f))).toEqual([]);
+    // El Embedded Signup de WhatsApp (coexistence, 009) ya existe y los textos
+    // legales no lo marcan "en arrivo": la guardia vigila solo los canales.
+    expect(names.filter((f) => /instagram|messenger/i.test(f))).toEqual([]);
   });
 });
 

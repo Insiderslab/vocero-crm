@@ -20,6 +20,8 @@ export const GET = withAdminAuth(async (session) => {
       displayPhoneNumber: creds.displayPhoneNumber,
       verifiedName: creds.verifiedName,
       status: creds.status,
+      onboardingMode: creds.onboardingMode,
+      appDisconnectedAt: creds.appDisconnectedAt,
       tokenLast4: tokenLast4(creds.token),
     },
   });

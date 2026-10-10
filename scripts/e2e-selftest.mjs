@@ -953,8 +953,187 @@ async function main() {
   const wAnon = await fetch(`${BASE}${wk}`, { headers: { origin: BASE } });
   ok("sin sesión → 401", wAnon.status === 401);
 
+  // Al final a propósito: el Embedded Signup cambia el número de la org.
+  await coexistenceSection();
+
   console.log(`\n===== ${checks - failures}/${checks} checks OK, ${failures} fallos =====`);
   process.exit(failures > 0 ? 1 : 0);
+}
+
+/**
+ * 009 — Coexistence: Embedded Signup (canje del code en el servidor) +
+ * webhooks history / smb_app_state_sync / account_update.
+ * Requiere META_APP_ID, META_ES_CONFIG_ID y META_APP_SECRET en la app; si
+ * faltan, la sección se salta (el botón tampoco aparece en producción).
+ */
+async function coexistenceSection() {
+  console.log("\n== 009: coexistence — Embedded Signup + historial + agenda ==");
+  const cfg = (await api("/api/settings/whatsapp/embedded-signup")).json;
+  if (!cfg?.enabled) {
+    console.log("  SKIP Embedded Signup no configurado (META_APP_ID / META_ES_CONFIG_ID / META_APP_SECRET)");
+    return;
+  }
+  ok("config pública sin App Secret", !JSON.stringify(cfg).includes(process.env.META_APP_SECRET ?? "§"));
+
+  const WABA = "1234567890";
+  const PN2 = `${WABA}-phone`; // el wa-mock deduce el número de la WABA
+
+  // Camino infeliz: code vencido → 422 y la conexión anterior intacta.
+  const bad = await api("/api/settings/whatsapp/embedded-signup", {
+    method: "POST",
+    body: JSON.stringify({ code: "e2e-code-invalid", wabaId: WABA, phoneNumberId: null, coexistence: true }),
+  });
+  ok("code inválido → 422 code_exchange_failed", bad.res.status === 422 && bad.json?.error?.code === "code_exchange_failed", JSON.stringify(bad.json));
+  let settings = (await api("/api/settings/whatsapp")).json?.connection;
+  ok("la conexión anterior sigue intacta tras el fallo", settings?.phoneNumberId === PN, settings?.phoneNumberId);
+
+  // Input inválido (WABA no numérica) → 422 sin llamar a Meta.
+  const badInput = await api("/api/settings/whatsapp/embedded-signup", {
+    method: "POST",
+    body: JSON.stringify({ code: "x", wabaId: "../etc", coexistence: true }),
+  });
+  ok("WABA ID inválido → 422", badInput.res.status === 422);
+
+  await api("/api/dev/wa-mock/outbox", { method: "DELETE" });
+  const es = await api("/api/settings/whatsapp/embedded-signup", {
+    method: "POST",
+    body: JSON.stringify({ code: "e2e-code-1", wabaId: WABA, phoneNumberId: null, coexistence: true }),
+  });
+  ok(
+    "Embedded Signup completo (code canjeado, número deducido de la WABA)",
+    es.res.ok && es.json?.onboardingMode === "coexistence",
+    JSON.stringify(es.json)
+  );
+  ok(
+    "agenda e historial pedidos a Meta",
+    es.json?.sync?.contacts === "requested" && es.json?.sync?.history === "requested",
+    JSON.stringify(es.json?.sync)
+  );
+  const syncReqs = (await api("/api/dev/wa-mock/outbox")).json?.syncRequests ?? [];
+  ok(
+    "smb_app_data: primero agenda, luego historial, al número correcto",
+    syncReqs.map((r) => `${r.phoneNumberId}:${r.syncType}`).join(",") ===
+      `${PN2}:smb_app_state_sync,${PN2}:history`,
+    JSON.stringify(syncReqs)
+  );
+  settings = (await api("/api/settings/whatsapp")).json?.connection;
+  ok(
+    "conexión guardada en modo coexistence, token solo …last4",
+    settings?.phoneNumberId === PN2 && settings?.onboardingMode === "coexistence" &&
+      settings?.tokenLast4?.length === 4 && !JSON.stringify(settings).includes("mock-es-token"),
+    JSON.stringify(settings)
+  );
+
+  const GIULIA = "393331112222";
+  const MARCO = "393334445555";
+  const coex = (field, value) =>
+    api("/api/dev/wa-mock/coexistence", {
+      method: "POST",
+      body: JSON.stringify({ field, phoneNumberId: PN2, value }),
+    });
+
+  // Agenda primero: Giulia todavía no es contacto del CRM.
+  const sync1 = await coex("smb_app_state_sync", {
+    state_sync: [
+      { type: "contact", contact: { full_name: "Giulia Rossi", phone_number: GIULIA }, action: "add", metadata: { timestamp: "1760000000" } },
+    ],
+  });
+  ok("agenda entregada al webhook", sync1.res.ok, JSON.stringify(sync1.json));
+  await sleep(700);
+  const contactsBefore = (await api("/api/conversations")).json?.conversations ?? [];
+  ok("la agenda NO crea conversaciones", !contactsBefore.some((c) => c.contact.phone === GIULIA));
+
+  const now = Math.floor(Date.now() / 1000);
+  const history = {
+    history: [
+      {
+        metadata: { phase: 0, chunk_order: 1, progress: 100 },
+        threads: [
+          {
+            id: GIULIA,
+            messages: [
+              { from: GIULIA, id: "wamid.e2e.009.h1", timestamp: String(now - 7200), type: "text", text: { body: "ciao, avete posto sabato?" }, history_context: { status: "READ" } },
+              { from: "393470000000", to: GIULIA, id: "wamid.e2e.009.h2", timestamp: String(now - 7000), type: "text", text: { body: "sì, alle 20" }, history_context: { status: "READ" } },
+            ],
+          },
+          {
+            id: MARCO,
+            messages: [
+              { from: MARCO, id: "wamid.e2e.009.h3", timestamp: String(now - 3600), type: "text", text: { body: "grazie!" }, history_context: { status: "DELIVERED" } },
+            ],
+          },
+        ],
+      },
+    ],
+  };
+  const h1 = await coex("history", history);
+  ok("historial entregado al webhook", h1.res.ok, JSON.stringify(h1.json));
+  await sleep(1200);
+
+  const convs = (await api("/api/conversations")).json?.conversations ?? [];
+  const giulia = convs.find((c) => c.contact.phone === GIULIA);
+  const marco = convs.find((c) => c.contact.phone === MARCO);
+  ok("historial crea el hilo de Giulia con el nombre de la agenda", giulia?.contact.name === "Giulia Rossi", JSON.stringify(giulia?.contact));
+  ok("sin agenda, Marco queda con su teléfono como nombre", marco?.contact.name === MARCO, JSON.stringify(marco?.contact));
+  ok(
+    "historial NO abre la ventana de 24 h ni suma no-leídos",
+    giulia?.lastInboundAt === null && giulia?.unreadCount === 0,
+    JSON.stringify({ lastInboundAt: giulia?.lastInboundAt, unread: giulia?.unreadCount })
+  );
+  ok(
+    "el hilo se ordena por el último mensaje del historial",
+    giulia?.lastMessageAt === new Date((now - 7000) * 1000).toISOString(),
+    `${giulia?.lastMessageAt}`
+  );
+  const gMsgs = giulia ? (await api(`/api/conversations/${giulia.id}/messages`)).json?.messages ?? [] : [];
+  ok(
+    "dirección correcta: entrante del cliente, saliente manual del dueño",
+    gMsgs.find((m) => m.text === "ciao, avete posto sabato?")?.direction === "in" &&
+      gMsgs.find((m) => m.text === "sì, alle 20")?.direction === "out" &&
+      gMsgs.find((m) => m.text === "sì, alle 20")?.origin === "manual",
+    JSON.stringify(gMsgs.map((m) => [m.direction, m.origin, m.text]))
+  );
+  const gDetail = giulia ? (await api(`/api/contacts/${giulia.contact.id}`)).json : null;
+  ok("historial NO crea leads en el pipeline", gDetail && !gDetail.lead, JSON.stringify(gDetail?.lead));
+
+  // Idempotencia: Meta reenvía el bloque.
+  await coex("history", history);
+  await sleep(900);
+  const gMsgs2 = (await api(`/api/conversations/${giulia?.id}/messages`)).json?.messages ?? [];
+  ok("bloque de historial repetido no duplica", gMsgs2.length === gMsgs.length, `${gMsgs.length} → ${gMsgs2.length}`);
+
+  // Historial no compartido: entrega OK, sin efectos ni errores.
+  const declined = await coex("history", {
+    history: [{ errors: [{ code: 2593109, title: "History sync is turned off" }] }],
+  });
+  ok("historial rechazado por el negocio → webhook 200", declined.res.ok);
+
+  // La agenda nombra a un contacto que ya existe con nombre de relleno…
+  await coex("smb_app_state_sync", {
+    state_sync: [{ type: "contact", contact: { full_name: "Marco Bianchi", phone_number: MARCO }, action: "add" }],
+  });
+  // …pero respeta el nombre que tiene Giulia (no es de relleno).
+  await coex("smb_app_state_sync", {
+    state_sync: [{ type: "contact", contact: { full_name: "Giulia (vecchio)", phone_number: GIULIA }, action: "add" }],
+  });
+  await sleep(900);
+  const convs2 = (await api("/api/conversations")).json?.conversations ?? [];
+  ok("agenda renombra el contacto con nombre de relleno", convs2.find((c) => c.contact.phone === MARCO)?.contact.name === "Marco Bianchi");
+  ok("agenda respeta un nombre ya puesto", convs2.find((c) => c.contact.phone === GIULIA)?.contact.name === "Giulia Rossi");
+
+  // Corte y reconexión de la coexistence (account_update, nivel WABA).
+  await coex("account_update", { event: "ACCOUNT_OFFBOARDED" });
+  await sleep(700);
+  settings = (await api("/api/settings/whatsapp")).json?.connection;
+  ok("ACCOUNT_OFFBOARDED marca la coexistence cortada", Boolean(settings?.appDisconnectedAt), JSON.stringify(settings));
+  await coex("account_update", { event: "ACCOUNT_RECONNECTED" });
+  await sleep(700);
+  settings = (await api("/api/settings/whatsapp")).json?.connection;
+  ok("ACCOUNT_RECONNECTED la restablece", settings?.appDisconnectedAt === null, JSON.stringify(settings));
+  await coex("account_update", { event: "VERIFIED_ACCOUNT" });
+  await sleep(500);
+  settings = (await api("/api/settings/whatsapp")).json?.connection;
+  ok("otros eventos de account_update no cambian nada", settings?.appDisconnectedAt === null);
 }
 
 main().catch((err) => {

@@ -39,6 +39,7 @@ const legal: LegalMessages = {
           "Contacts and conversations: contact name, channel identifier (WhatsApp number or user identifier assigned by Meta), message content, attachments, date and delivery status.",
           "Data the business adds: notes, tags, sales pipeline stages and qualification records.",
           "Connection with Meta: identifiers of the connected business account (for example WhatsApp Business and phone number) and the access credential Meta grants to the business. The credential is stored encrypted and is never shown in full.",
+          "Only if the business connects its WhatsApp Business app number to the CRM (coexistence) and chooses so in the Meta window: the chat history of that app (up to 6 months) and the names in the app's address book. The address book is used only to name the contacts who message the business: it creates no contacts or conversations.",
         ],
       },
       {

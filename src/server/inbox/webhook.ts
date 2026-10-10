@@ -86,6 +86,28 @@ export type WebhookStatus = {
   errors?: { code: number; title?: string; message?: string }[];
 };
 
+/** 009 — Mensaje del historial de coexistence (`history`). */
+export type HistoryMessage = WebhookMessage & {
+  history_context?: { status?: string };
+};
+
+/** 009 — Un bloque del webhook `history` (fases 0–1 d, 1–90 d, 90–180 d). */
+export type HistoryChunk = {
+  metadata?: { phase?: number; chunk_order?: number; progress?: number };
+  /** Un hilo por cliente: `id` es su teléfono (wa_id). */
+  threads?: { id?: string; messages?: HistoryMessage[] }[];
+  /** Presente si el negocio NO compartió el historial (código 2593109). */
+  errors?: { code?: number; title?: string; message?: string }[];
+};
+
+/** 009 — Entrada de agenda del webhook `smb_app_state_sync`. */
+export type StateSyncItem = {
+  type?: string;
+  contact?: { full_name?: string; first_name?: string; phone_number?: string };
+  action?: string;
+  metadata?: { timestamp?: string };
+};
+
 export type WebhookValue = {
   messaging_product?: string;
   metadata?: { display_phone_number?: string; phone_number_id?: string };
@@ -94,7 +116,14 @@ export type WebhookValue = {
   /** Echoes de coexistence (008): mensajes enviados desde la app del teléfono. */
   message_echoes?: WebhookMessage[];
   statuses?: WebhookStatus[];
-  // message_template_status_update
+  /** 009 — historial de coexistence. */
+  history?: HistoryChunk[];
+  /** 009 — agenda de la app WhatsApp Business. */
+  state_sync?: StateSyncItem[];
+  /** 009 — account_update (PARTNER_REMOVED trae el número). */
+  phone_number?: string;
+  // message_template_status_update · 009: account_update (PARTNER_REMOVED,
+  // ACCOUNT_OFFBOARDED, ACCOUNT_RECONNECTED, …)
   event?: string;
   message_template_name?: string;
   message_template_language?: string;

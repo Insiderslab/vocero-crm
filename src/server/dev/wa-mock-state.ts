@@ -29,9 +29,13 @@ export type MockTemplate = {
   components?: unknown[];
 };
 
+/** 009 — Pedido de sincronización de coexistence (`POST {phone}/smb_app_data`). */
+export type SyncRequest = { phoneNumberId: string; syncType: string; at: string };
+
 type WaMockState = {
   outbox: OutboxEntry[];
   templates: MockTemplate[];
+  syncRequests: SyncRequest[];
   counter: number;
 };
 
@@ -39,13 +43,23 @@ const globalForMock = globalThis as unknown as { __waMockState?: WaMockState };
 
 export function getWaMockState(): WaMockState {
   if (!globalForMock.__waMockState) {
-    globalForMock.__waMockState = { outbox: [], templates: [], counter: 0 };
+    globalForMock.__waMockState = {
+      outbox: [],
+      templates: [],
+      syncRequests: [],
+      counter: 0,
+    };
   }
   return globalForMock.__waMockState;
 }
 
 export function resetWaMockState(): void {
-  globalForMock.__waMockState = { outbox: [], templates: [], counter: 0 };
+  globalForMock.__waMockState = {
+    outbox: [],
+    templates: [],
+    syncRequests: [],
+    counter: 0,
+  };
 }
 
 export function nextN(): number {

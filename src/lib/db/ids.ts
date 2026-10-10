@@ -26,6 +26,7 @@ const prefixes = {
   automationRun: "arun",
   botApiKey: "bk",
   wapiCredentials: "wk",
+  addressBookEntry: "abk",
 } as const;
 
 export type IdKind = keyof typeof prefixes;

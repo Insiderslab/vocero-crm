@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq, or, sql } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { newId } from "@/lib/db/ids";
 import { decryptSecret, encryptSecret } from "@/lib/crypto";
@@ -12,8 +12,14 @@ export type Credentials = {
   displayPhoneNumber: string | null;
   verifiedName: string | null;
   status: "connected" | "reconnect_required";
+  /** 009 — cómo se conectó (manual / Embedded Signup / coexistence). */
+  onboardingMode: "manual" | "embedded" | "coexistence";
+  /** 009 — la coexistence se cortó (Meta account_update); null = activa. */
+  appDisconnectedAt: Date | null;
   token: string;
 };
+
+export type OnboardingMode = Credentials["onboardingMode"];
 
 type Row = typeof schema.metaCredentials.$inferSelect;
 
@@ -26,6 +32,8 @@ function toCredentials(row: Row): Credentials {
     displayPhoneNumber: row.displayPhoneNumber,
     verifiedName: row.verifiedName,
     status: row.status,
+    onboardingMode: row.onboardingMode,
+    appDisconnectedAt: row.appDisconnectedAt,
     token: decryptSecret({
       cipher: row.tokenCipher,
       iv: row.tokenIv,
@@ -79,9 +87,17 @@ export async function saveCredentials(input: {
   token: string;
   displayPhoneNumber?: string | null;
   verifiedName?: string | null;
+  /** 009 — default `manual` (wizard). */
+  onboardingMode?: OnboardingMode;
 }): Promise<void> {
   const db = getDb();
   const enc = encryptSecret(input.token);
+  const onboardingMode = input.onboardingMode ?? "manual";
+  // Re-guardar a mano el MISMO número (ej. token nuevo) conserva el modo de
+  // conexión; cambiar de número sin modo explícito vuelve a `manual`.
+  const modeOnUpdate = input.onboardingMode
+    ? input.onboardingMode
+    : sql`case when ${schema.metaCredentials.phoneNumberId} = excluded.phone_number_id then ${schema.metaCredentials.onboardingMode} else 'manual' end`;
   await db
     .insert(schema.metaCredentials)
     .values({
@@ -95,6 +111,8 @@ export async function saveCredentials(input: {
       tokenIv: enc.iv,
       tokenTag: enc.tag,
       status: "connected",
+      onboardingMode,
+      appDisconnectedAt: null,
     })
     .onConflictDoUpdate({
       target: [schema.metaCredentials.organizationId],
@@ -107,9 +125,47 @@ export async function saveCredentials(input: {
         tokenIv: enc.iv,
         tokenTag: enc.tag,
         status: "connected",
+        onboardingMode: modeOnUpdate,
+        appDisconnectedAt: null,
         updatedAt: new Date(),
       },
     });
+}
+
+/**
+ * 009 — Meta avisó que la coexistence se cortó o se restableció
+ * (`account_update`). Se resuelve por WABA (entry.id) o por phone_number_id.
+ * Devuelve la organización afectada, o null si el evento no es de esta
+ * instancia.
+ */
+export async function setAppDisconnected(input: {
+  wabaId?: string | null;
+  phoneNumberId?: string | null;
+  disconnected: boolean;
+}): Promise<string | null> {
+  const matchers = [];
+  if (input.wabaId) matchers.push(eq(schema.metaCredentials.wabaId, input.wabaId));
+  if (input.phoneNumberId)
+    matchers.push(eq(schema.metaCredentials.phoneNumberId, input.phoneNumberId));
+  if (matchers.length === 0) return null;
+  const db = getDb();
+  const rows = await db
+    .update(schema.metaCredentials)
+    .set({
+      appDisconnectedAt: input.disconnected ? new Date() : null,
+      updatedAt: new Date(),
+    })
+    // Solo números en coexistence: un PARTNER_REMOVED de OTRO partner en una
+    // WABA compartida (ej. un CRM externo) no debe pintar un falso corte en
+    // una conexión manual.
+    .where(
+      and(
+        or(...matchers),
+        eq(schema.metaCredentials.onboardingMode, "coexistence")
+      )
+    )
+    .returning({ organizationId: schema.metaCredentials.organizationId });
+  return rows[0]?.organizationId ?? null;
 }
 
 /** Marca la conexión como vencida (token inválido detectado en runtime). */
