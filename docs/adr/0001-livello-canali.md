@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Stato** | **Proposto** — in attesa di approvazione dell'owner (requisito di M1.1 in `docs/piani/PIANO-CRM-MULTICANALE.md`) |
+| **Stato** | **Approvato** dall'owner il 10/10/2026 (Stefano: «procedi con l'ADR dei canali»). M1.2 può partire |
 | **Data** | 2026-10-10 |
 | **Autore** | Claude (orchestratore, Opus 5.5) — pacchetto M1.1, branch locale `notte/adr-canali` |
 | **Guida** | M1.2 (migrazione in due tempi), M1.3 (adattatore WhatsApp), M1.6 (adattatore Instagram in modalità sviluppo) e l'ordine dei passi con Meta (K7, K3, K4) |
