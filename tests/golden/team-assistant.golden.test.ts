@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getDb, getSql } from "@/lib/db";
-import { removeDemo, seedDemo } from "@/server/seed/demo";
+import { demoRunId, removeDemo, seedDemo } from "@/server/seed/demo";
 import { waFixture } from "./fixtures/whatsapp";
 import { aiWillReply, conversationIdOf, postWebhook, recordedRequests } from "./harness";
 import { ORG_A, ORG_B } from "./setup";
@@ -193,6 +193,49 @@ describe("007 datos demo por organización", () => {
     expect(await legacyCheck()).toMatchObject({ V3: 0, V4: 0, V5: 0 });
     // Idempotente.
     expect(await removeDemo(getDb(), ORG_A)).toEqual({ contacts: 0, kbEntries: 0 });
+  });
+
+  it("quitar → volver a cargar la demo conserva el KB propio y las corridas propias del Laboratorio", async () => {
+    await seedDemo(getDb(), ORG_A);
+    // Lo del dueño: una entrada de KB y una corrida del Laboratorio con su caso.
+    await sql()`
+      insert into kb_entry (id, organization_id, kind, question, answer)
+      values ('kb_team_propio', ${ORG_A}, 'qa', '¿Turnos?', 'Lunes a viernes')
+    `;
+    await sql()`
+      insert into agent_test_run (id, organization_id, status, score)
+      values ('run_team_propia', ${ORG_A}, 'done', 91)
+    `;
+    await sql()`
+      insert into agent_test_case (id, organization_id, run_id, persona, status, transcript)
+      values ('case_team_propio', ${ORG_A}, 'run_team_propia', 'comprador_decidido', 'done',
+              ${JSON.stringify([{ role: "cliente", text: "¿Abren el domingo?" }])}::jsonb)
+    `;
+    // Una corrida demo de antes del ID fijo (ID al azar, mismos casos).
+    await sql()`
+      insert into agent_test_run (id, organization_id, status, score)
+      values ('run_demo_vieja', ${ORG_A}, 'done', 83)
+    `;
+    await sql()`
+      insert into agent_test_case (id, organization_id, run_id, persona, status, veredicto, hallazgos, transcript)
+      select 'case_vieja_' || id, organization_id, 'run_demo_vieja', persona, status, veredicto, hallazgos, transcript
+      from agent_test_case where run_id = ${demoRunId(ORG_A)}
+    `;
+
+    await removeDemo(getDb(), ORG_A);
+    await seedDemo(getDb(), ORG_A); // la bandeja quedó vacía: el botón vuelve a cargarla
+
+    const kb = await sql()<{ id: string }[]>`select id from kb_entry where organization_id = ${ORG_A}`;
+    expect(kb.map((r) => r.id)).toContain("kb_team_propio");
+    expect(kb).toHaveLength(8 + 1); // demo (una sola vez) + el propio
+    const runs = await sql()<{ id: string }[]>`
+      select id from agent_test_run where organization_id = ${ORG_A} order by id
+    `;
+    expect(runs.map((r) => r.id).sort()).toEqual([demoRunId(ORG_A), "run_team_propia"].sort());
+    expect(await sql()`select 1 from agent_test_case where id = 'case_team_propio'`).toHaveLength(1);
+    expect(await count("agent_test_case", ORG_A)).toBe(6 + 1);
+    // Otra organización: su Laboratorio no se toca.
+    expect(await count("agent_test_run", ORG_B)).toBe(0);
   });
 
   it("quitar la demo sin la FK en cascada de la fase B (fase B incompleta): V3 sigue en 0", async () => {
