@@ -1,0 +1,35 @@
+{
+  "object": "whatsapp_business_account",
+  "entry": [
+    {
+      "id": "200000000000001",
+      "changes": [
+        {
+          "field": "messages",
+          "value": {
+            "messaging_product": "whatsapp",
+            "metadata": {
+              "display_phone_number": "525510000001",
+              "phone_number_id": "100000000000001"
+            },
+            "statuses": [
+              {
+                "id": "wamid.golden.out.1",
+                "status": "failed",
+                "timestamp": "1893499202",
+                "recipient_id": "525512345678",
+                "errors": [
+                  {
+                    "code": 131049,
+                    "title": "This message was not delivered to maintain healthy ecosystem engagement.",
+                    "message": "This message was not delivered to maintain healthy ecosystem engagement."
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "object": "whatsapp_business_account",
+  "entry": [
+    {
+      "id": "200000000000001",
+      "changes": [
+        {
+          "field": "security",
+          "value": {
+            "messaging_product": "whatsapp",
+            "metadata": {
+              "display_phone_number": "525510000001",
+              "phone_number_id": "100000000000001"
+            },
+            "event": "whatever"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,103 @@
+{
+  "object": "whatsapp_business_account",
+  "entry": [
+    {
+      "id": "200000000000001",
+      "changes": [
+        {
+          "field": "history",
+          "value": {
+            "messaging_product": "whatsapp",
+            "metadata": {
+              "display_phone_number": "525510000001",
+              "phone_number_id": "100000000000001"
+            },
+            "history": [
+              {
+                "metadata": {
+                  "phase": 1,
+                  "chunk_order": 1,
+                  "progress": 60
+                },
+                "threads": [
+                  {
+                    "id": "5215512345678",
+                    "messages": [
+                      {
+                        "from": "5215512345678",
+                        "id": "wamid.golden.hist.1",
+                        "timestamp": "1890907200",
+                        "type": "text",
+                        "text": {
+                          "body": "Hola, ¿siguen abiertos?"
+                        },
+                        "history_context": {
+                          "status": "READ"
+                        }
+                      },
+                      {
+                        "from": "525510000001",
+                        "to": "5215512345678",
+                        "id": "wamid.golden.hist.2",
+                        "timestamp": "1890907260",
+                        "type": "text",
+                        "text": {
+                          "body": "Sí, hasta las 7"
+                        },
+                        "history_context": {
+                          "status": "DELIVERED"
+                        }
+                      },
+                      {
+                        "from": "5215512345678",
+                        "id": "wamid.golden.hist.3",
+                        "timestamp": "1890993600",
+                        "type": "image",
+                        "image": {
+                          "id": "media.golden.hist.img",
+                          "mime_type": "image/jpeg",
+                          "caption": "esta foto"
+                        },
+                        "history_context": {
+                          "status": "READ"
+                        }
+                      },
+                      {
+                        "from": "5215512345678",
+                        "id": "wamid.golden.hist.reaction",
+                        "timestamp": "1890993605",
+                        "type": "reaction",
+                        "reaction": {
+                          "message_id": "wamid.golden.hist.2",
+                          "emoji": "🙏"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "id": "5215511112222",
+                    "messages": [
+                      {
+                        "from": "525510000001",
+                        "to": "5215511112222",
+                        "id": "wamid.golden.hist.4",
+                        "timestamp": "1892635200",
+                        "type": "text",
+                        "text": {
+                          "body": "Su pedido salió"
+                        },
+                        "history_context": {
+                          "status": "ERROR"
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

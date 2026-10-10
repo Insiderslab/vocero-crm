@@ -1,0 +1,66 @@
+{
+  "object": "whatsapp_business_account",
+  "entry": [
+    {
+      "id": "200000000000001",
+      "changes": [
+        {
+          "field": "smb_app_state_sync",
+          "value": {
+            "messaging_product": "whatsapp",
+            "metadata": {
+              "display_phone_number": "525510000001",
+              "phone_number_id": "100000000000001"
+            },
+            "state_sync": [
+              {
+                "type": "contact",
+                "contact": {
+                  "full_name": "Ana de la Agenda",
+                  "first_name": "Ana",
+                  "phone_number": "+52 1 55 1234 5678"
+                },
+                "action": "add",
+                "metadata": {
+                  "timestamp": "1893499100"
+                }
+              },
+              {
+                "type": "contact",
+                "contact": {
+                  "full_name": "Primo Juan",
+                  "phone_number": "+52 1 55 3333 4444"
+                },
+                "action": "add",
+                "metadata": {
+                  "timestamp": "1893499100"
+                }
+              },
+              {
+                "type": "contact",
+                "contact": {
+                  "phone_number": "+52 1 55 3333 4444"
+                },
+                "action": "remove",
+                "metadata": {
+                  "timestamp": "1893499150"
+                }
+              },
+              {
+                "type": "contact",
+                "contact": {
+                  "full_name": "Caro de la Agenda",
+                  "phone_number": "+52 1 55 1111 2222"
+                },
+                "action": "add",
+                "metadata": {
+                  "timestamp": "1893499160"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

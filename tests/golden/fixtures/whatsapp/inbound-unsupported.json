@@ -1,0 +1,52 @@
+{
+  "object": "whatsapp_business_account",
+  "entry": [
+    {
+      "id": "200000000000001",
+      "changes": [
+        {
+          "field": "messages",
+          "value": {
+            "messaging_product": "whatsapp",
+            "metadata": {
+              "display_phone_number": "525510000001",
+              "phone_number_id": "100000000000001"
+            },
+            "contacts": [
+              {
+                "profile": {
+                  "name": "Ana Golden"
+                },
+                "wa_id": "5215512345678"
+              }
+            ],
+            "messages": [
+              {
+                "from": "5215512345678",
+                "id": "wamid.golden.in.reaction.1",
+                "timestamp": "1893499140",
+                "type": "reaction",
+                "reaction": {
+                  "message_id": "wamid.golden.out.1",
+                  "emoji": "👍"
+                }
+              },
+              {
+                "from": "5215512345678",
+                "id": "wamid.golden.in.unknown.1",
+                "timestamp": "1893499150",
+                "type": "unsupported",
+                "errors": [
+                  {
+                    "code": 131051,
+                    "title": "Message type unknown"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

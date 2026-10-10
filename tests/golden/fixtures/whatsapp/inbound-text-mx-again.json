@@ -1,0 +1,39 @@
+{
+  "object": "whatsapp_business_account",
+  "entry": [
+    {
+      "id": "200000000000001",
+      "changes": [
+        {
+          "field": "messages",
+          "value": {
+            "messaging_product": "whatsapp",
+            "metadata": {
+              "display_phone_number": "525510000001",
+              "phone_number_id": "100000000000001"
+            },
+            "contacts": [
+              {
+                "profile": {
+                  "name": "Ana Golden"
+                },
+                "wa_id": "5215512345678"
+              }
+            ],
+            "messages": [
+              {
+                "from": "5215512345678",
+                "id": "wamid.golden.in.text.2",
+                "timestamp": "1893499170",
+                "type": "text",
+                "text": {
+                  "body": "Sigo aquí"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

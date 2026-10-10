@@ -1,0 +1,39 @@
+{
+  "object": "whatsapp_business_account",
+  "entry": [
+    {
+      "id": "200000000000001",
+      "changes": [
+        {
+          "field": "messages",
+          "value": {
+            "messaging_product": "whatsapp",
+            "metadata": {
+              "display_phone_number": "525510000001",
+              "phone_number_id": "100000000000001"
+            },
+            "contacts": [
+              {
+                "profile": {
+                  "name": "Beto BSUID"
+                },
+                "user_id": "MX.1000000000000000001"
+              }
+            ],
+            "messages": [
+              {
+                "from_user_id": "MX.1000000000000000001",
+                "id": "wamid.golden.in.bsuid.1",
+                "timestamp": "1893499080",
+                "type": "text",
+                "text": {
+                  "body": "Hola desde BSUID"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
