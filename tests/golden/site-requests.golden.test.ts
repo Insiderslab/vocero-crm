@@ -579,4 +579,24 @@ describe("008 el agente no contesta a una solicitud web", () => {
     const out = await sql()`select id from message where conversation_id = ${cv} and direction = 'out'`;
     expect(out).toEqual([]);
   });
+
+  it("25 solicitudes web después de un WhatsApp no empujan fuera el historial: el modelo recibe el texto de WhatsApp", async () => {
+    await enableAgent(ORG_A);
+    aiWillReply('{"action":"none"}');
+    await postWebhook(waFixture("inbound-text-mx"));
+    for (let i = 0; i < 25; i++) {
+      expect(
+        (await send(form({ phone: "+52 1 55 1234 5678", message: `WEB-${i}` }), { ip: `192.0.2.${100 + i}` })).status
+      ).toBe(202);
+    }
+    aiWillReply('{"action":"reply","text":"Hola Ana"}');
+    await runAgentTurn(await conversationIdOf(ORG_A, ANA));
+    await settle();
+    const calls = aiCalls();
+    expect(calls).toHaveLength(2);
+    const body = JSON.stringify(calls[1]!.body);
+    expect(body).toContain("Hola, quiero información");
+    expect(body).not.toContain("WEB-");
+    expect(graphCalls().filter((g) => g.method === "POST")).toHaveLength(1); // la respuesta, por WhatsApp
+  });
 });
