@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { requireSession, UnauthorizedError, type SessionContext } from "@/lib/auth/session";
+import { isOrgAdmin } from "@/lib/roles";
 
 /** Respuesta de error estándar de la API interna (contrato api.md). */
 export function apiError(
@@ -34,6 +35,24 @@ export function withAuth<Args extends unknown[]>(
       return apiError(500, "internal", "Error interno");
     }
   };
+}
+
+/**
+ * Como `withAuth`, pero solo para owner/admin de la organización de la
+ * sesión (403 al resto, antes de tocar el body o la base de datos). Para
+ * rutas que leen o cambian configuración sensible: credenciales, secretos.
+ */
+export function withAdminAuth<Args extends unknown[]>(
+  handler: (session: SessionContext, ...args: Args) => Promise<Response>
+): (...args: Args) => Promise<Response> {
+  return withAuth(async (session, ...args: Args) => {
+    if (!isOrgAdmin(session.role)) return apiError(
+        403,
+        "forbidden",
+        "Solo owner o admin pueden gestionar esta configuración"
+      );
+    return handler(session, ...args);
+  });
 }
 
 /** Parsea el body JSON con un esquema Zod; inválido → Response 422. */

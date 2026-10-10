@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { apiError, parseBody, withAuth } from "@/lib/api";
+import { apiError, parseBody, withAdminAuth } from "@/lib/api";
 import {
   getCredentialsByOrg,
   saveCredentials,
@@ -9,7 +9,8 @@ import { subscribeAppToWaba, testConnection } from "@/server/whatsapp/connect";
 
 export const dynamic = "force-dynamic";
 
-export const GET = withAuth(async (session) => {
+/** Conexión de WhatsApp: solo owner/admin, tanto para leerla como para cambiarla. */
+export const GET = withAdminAuth(async (session) => {
   const creds = await getCredentialsByOrg(session.organizationId);
   if (!creds) return Response.json({ connection: null });
   return Response.json({
@@ -31,7 +32,7 @@ const putSchema = z.object({
 });
 
 /** Guarda la conexión: re-valida contra Meta, cifra y suscribe (FR-040). */
-export const PUT = withAuth(async (session, req: Request) => {
+export const PUT = withAdminAuth(async (session, req: Request) => {
   const body = await parseBody(req, putSchema);
   if (!body.ok) return body.response;
 

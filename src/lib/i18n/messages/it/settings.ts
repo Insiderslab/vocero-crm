@@ -130,6 +130,8 @@ const messages: typeof base = {
     submit: "Crea e invia per l'approvazione",
   },
   whatsapp: {
+    forbidden:
+      "Solo il proprietario o un amministratore dell'organizzazione gestisce la connessione WhatsApp.",
     reconnectTitle: "Il token di WhatsApp è scaduto o è stato revocato.",
     reconnectBody:
       "Gli invii sono in pausa. Incolla un nuovo token qui sotto e prova la connessione per riconnetterti.",

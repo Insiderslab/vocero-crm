@@ -129,6 +129,8 @@ const messages: typeof base = {
     submit: "Create and send for approval",
   },
   whatsapp: {
+    forbidden:
+      "Only the organization owner or an administrator can manage the WhatsApp connection.",
     reconnectTitle: "The WhatsApp token expired or was revoked.",
     reconnectBody:
       "Sending is paused. Paste a new token below and test the connection to reconnect.",

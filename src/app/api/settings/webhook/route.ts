@@ -1,10 +1,14 @@
-import { withAuth } from "@/lib/api";
+import { withAdminAuth } from "@/lib/api";
 import { getEnv } from "@/lib/env";
 
 export const dynamic = "force-dynamic";
 
-/** Datos del webhook para pegar en Meta o en el backend de la agencia (FR-043). */
-export const GET = withAuth(async () => {
+/**
+ * Datos del webhook para pegar en Meta o en el backend de la agencia (FR-043).
+ * Incluyen el token de verificación (secreto del segmento de la URL): solo
+ * owner/admin.
+ */
+export const GET = withAdminAuth(async () => {
   const env = getEnv();
   const url = `${env.APP_BASE_URL.replace(/\/$/, "")}/api/webhooks/wa/${env.META_WEBHOOK_VERIFY_TOKEN}`;
   return Response.json({

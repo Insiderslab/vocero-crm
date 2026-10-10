@@ -128,6 +128,8 @@ const messages = {
     submit: "Crear y enviar a aprobación",
   },
   whatsapp: {
+    forbidden:
+      "Solo el propietario o un administrador de la organización gestiona la conexión de WhatsApp.",
     reconnectTitle: "El token de WhatsApp expiró o fue revocado.",
     reconnectBody:
       "Los envíos están pausados. Pega un token nuevo abajo y prueba la conexión para reconectar.",
