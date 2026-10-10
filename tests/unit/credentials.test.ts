@@ -6,22 +6,39 @@ import { beforeAll, describe, expect, it, vi } from "vitest";
  */
 
 const insertedRows: Record<string, unknown>[] = [];
+/** 005 (R1): sentencias de la doble escritura, y si corrieron DENTRO de la transacción. */
+const mirrorCalls: { inTransaction: boolean }[] = [];
 
-vi.mock("@/lib/db", () => ({
-  getDb: () => ({
+vi.mock("@/lib/db", () => {
+  // La escritura vieja y la doble escritura (channel_account) van en la
+  // misma transacción; la doble escritura, además, en un SAVEPOINT
+  // (`tx.transaction`) para que un fallo suyo no cancele la vieja.
+  const tx: Record<string, unknown> = {
     insert: () => ({
       values: (v: Record<string, unknown>) => {
         insertedRows.push(v);
         return {
-          onConflictDoUpdate: () => Promise.resolve(),
+          onConflictDoUpdate: () => ({
+            returning: () => Promise.resolve([{ id: "cred_test_1" }]),
+          }),
         };
       },
     }),
-  }),
-  schema: {
-    metaCredentials: { organizationId: "organization_id" },
-  },
-}));
+    execute: () => {
+      mirrorCalls.push({ inTransaction: true });
+      return Promise.resolve([]);
+    },
+  };
+  tx.transaction = (fn: (t: typeof tx) => Promise<unknown>) => fn(tx);
+  return {
+    getDb: () => ({
+      transaction: (fn: (t: typeof tx) => Promise<unknown>) => fn(tx),
+    }),
+    schema: {
+      metaCredentials: { organizationId: "organization_id", id: "id" },
+    },
+  };
+});
 
 beforeAll(() => {
   process.env.APP_BASE_URL = "http://localhost:3000";
@@ -57,6 +74,9 @@ describe("credenciales de WhatsApp", () => {
         tag: row.tokenTag as string,
       })
     ).toBe(token);
+
+    // 005 (R1): la copia a channel_account corre en la misma transacción.
+    expect(mirrorCalls).toEqual([{ inTransaction: true }]);
   });
 
   it("tokenLast4 expone solo los últimos 4 caracteres", async () => {

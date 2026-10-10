@@ -2,6 +2,7 @@ import { and, eq, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { newId } from "@/lib/db/ids";
 import { normalizeMx } from "@/lib/meta/client";
+import { whatsappMessageIds } from "@/server/channels/dual-write";
 import { publish } from "@/server/events/bus";
 import {
   getCredentialsByPhoneNumberId,
@@ -195,7 +196,7 @@ export async function processHistoryValue(value: WebhookValue): Promise<void> {
               id: newId("message"),
               organizationId,
               conversationId: conversation.id,
-              waMessageId: m.waMessageId,
+              ...whatsappMessageIds(m.waMessageId),
               direction: m.direction,
               type: m.type,
               text: m.text,

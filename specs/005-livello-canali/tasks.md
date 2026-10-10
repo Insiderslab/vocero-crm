@@ -52,10 +52,10 @@ description: "Compiti del livello canali comune (M1.2–M1.6)"
 
 ### Test prima del codice
 
-- [ ] T008 [P] [US2] `tests/golden/migration.golden.test.ts`: riconciliazione su A e B. Ogni conversazione punta a un account della **sua** organizzazione; contatto e identità uno a uno
-- [ ] T009 [P] [US2] Test della FK composta: un'identità di A con contatto di B → errore del DB; una conversazione di A con account di B → errore del DB
-- [ ] T010 [P] [US2] Test di `UNIQUE (channel, external_account_id)`: lo stesso `phone_number_id` in B → rifiutato. Test di `UNIQUE (organization_id, channel, external_id)`: una seconda identità con lo stesso ID esterno nella stessa organizzazione → rifiutata; in un'altra organizzazione → ammessa
-- [ ] T011 [P] [US3] Test della riconciliazione all'avvio (ADR §3.3), con il runner vero:
+- [x] T008 [P] [US2] `tests/golden/migration.golden.test.ts`: riconciliazione su A e B. Ogni conversazione punta a un account della **sua** organizzazione; contatto e identità uno a uno
+- [x] T009 [P] [US2] Test della FK composta: un'identità di A con contatto di B → errore del DB; una conversazione di A con account di B → errore del DB
+- [x] T010 [P] [US2] Test di `UNIQUE (channel, external_account_id)`: lo stesso `phone_number_id` in B → rifiutato. Test di `UNIQUE (organization_id, channel, external_id)`: una seconda identità con lo stesso ID esterno nella stessa organizzazione → rifiutata; in un'altra organizzazione → ammessa
+- [x] T011 [P] [US3] Test della riconciliazione all'avvio (ADR §3.3), con il runner vero:
   - idempotenza: due esecuzioni, nessun duplicato e nessuna riga modificata la seconda volta;
   - **inserimenti e aggiornamenti** del codice vecchio fatti con le sue funzioni (`saveCredentials` con numero e token nuovi, `markReconnectRequired`, numeri scambiati tra A e B, collegamento di un'organizzazione senza numero, ingesta di contatti e messaggi): dopo l'avvio di R1 e di R2, `channel_account` uguale a `meta_credentials` campo per campo e V1–V7 a 0; prima della riconciliazione V2 > 0;
   - ritorno a R2 senza migrazioni pendenti (R2 → R0 → R2): riallineato all'avvio;
@@ -63,17 +63,17 @@ description: "Compiti del livello canali comune (M1.2–M1.6)"
 
 ### Implementazione
 
-- [ ] T012 [US2] `src/lib/db/schema.ts`: `channelAccount`, `contactIdentity`, `conversation.channelAccountId`, `message.channel` e `message.externalMessageId`, `UNIQUE (organization_id, id)` su `contact` e `channel_account`; prefissi `cha`/`ci` in `src/lib/db/ids.ts`
-- [ ] T013 [US3] `pnpm db:generate`, poi completa a mano `drizzle/0012_*.sql` come **fase A** di ADR §3.3: solo catalogo, `SET LOCAL lock_timeout = '5s'`, `CHECK` e FK di `conversation` `NOT VALID`, funzioni `channels_legacy_*`; nessun indice su tabelle esistenti, nessun backfill. Gli indici e i vincoli restano dichiarati in `schema.ts` e quindi nello snapshot di Drizzle (così un `db:generate` successivo non li rigenera); solo il loro `CREATE`/`VALIDATE` passa dal file SQL al runner (T013b), con un commento nel file che lo dice. `wapi_credentials` non si tocca (FR-015)
-- [ ] T013b [US3] `scripts/migrate.mjs` e `scripts/migrate-channels.mjs`: passi 1–5 di ADR §3.3 (fase B fuori transazione con indici `CONCURRENTLY` e `VALIDATE`, gestione degli indici `INVALID`, fase C con lotti, V7), modalità `avvisa` come costante di R1. Il bundle di `Dockerfile:26` include il modulo nuovo
-- [ ] T014 [US1] Doppia scrittura in `src/server/whatsapp/credentials.ts:86`, `:121` (stessa transazione)
-- [ ] T015 [US1] Doppia scrittura delle identità: `src/server/inbox/identity.ts:116`, `src/app/api/contacts/route.ts:160`, `src/server/lab/runner.ts:241`, `src/server/seed/demo.ts:187`
-- [ ] T016 [US1] Doppia scrittura delle conversazioni: `src/server/inbox/ingest.ts:169`, `src/server/seed/demo.ts:205` (Laboratorio escluso)
-- [ ] T017 [US1] Doppia scrittura dei messaggi: `src/server/inbox/ingest.ts:294`, `:383`, `src/server/inbox/send.ts:129`, `src/server/whatsapp/templates.ts:379`, `src/server/seed/demo.ts:216`
-- [ ] T018 [US1] Aggiorna i mock della tabella nei test unitari toccati (es. `tests/unit/credentials.test.ts:22`) **senza** indebolire le asserzioni
-- [ ] T019 [US3] Scrivi `docs/ops/rilascio-canali.md`: passi di R1, R2 e R3, come leggere V1–V7 (chiamando `channels_legacy_check()`, senza ricopiarne le query), il rollback per rilascio con lo **stop-first** dei passaggi che coinvolgono R0 (D18) e il comportamento di Coolify verificato, le misure
-- [ ] T020 [US3] Prove su PostgreSQL usa e getta (`plan.md` §6, punti 1–9): da zero ×2; dati simulati; **immagine precedente su DB a `0012`**; aggiornamenti del codice vecchio; ritorno a R2 senza migrazioni pendenti; fail-closed; **sonda di lock** per fase e fase A dietro una transazione lunga; indice `INVALID`; durata di ogni fase e dell'avvio (soglia 60 s), `EXPLAIN`. Esiti e misure nel registro
-- [ ] T021 [US2] Sabotaggi, ognuno deve far fallire un test (esito nel registro):
+- [x] T012 [US2] `src/lib/db/schema.ts`: `channelAccount`, `contactIdentity`, `conversation.channelAccountId`, `message.channel` e `message.externalMessageId`, `UNIQUE (organization_id, id)` su `contact` e `channel_account`; prefissi `cha`/`ci` in `src/lib/db/ids.ts`
+- [x] T013 [US3] `pnpm db:generate`, poi completa a mano `drizzle/0012_*.sql` (in realtà `0013`: la `0012` è la coexistence; registro `docs/lavoro/2026-10-10-m1-fase2-espandi.md`) come **fase A** di ADR §3.3: solo catalogo, `SET LOCAL lock_timeout = '5s'`, `CHECK` e FK di `conversation` `NOT VALID`, funzioni `channels_legacy_*`; nessun indice su tabelle esistenti, nessun backfill. Gli indici e i vincoli restano dichiarati in `schema.ts` e quindi nello snapshot di Drizzle (così un `db:generate` successivo non li rigenera); solo il loro `CREATE`/`VALIDATE` passa dal file SQL al runner (T013b), con un commento nel file che lo dice. `wapi_credentials` non si tocca (FR-015)
+- [x] T013b [US3] `scripts/migrate.mjs` e `scripts/migrate-channels.mjs`: passi 1–5 di ADR §3.3 (fase B fuori transazione con indici `CONCURRENTLY` e `VALIDATE`, gestione degli indici `INVALID`, fase C con lotti, V7), modalità `avvisa` come costante di R1. Il bundle di `Dockerfile:26` include il modulo nuovo
+- [x] T014 [US1] Doppia scrittura in `src/server/whatsapp/credentials.ts:86`, `:121` (stessa transazione)
+- [x] T015 [US1] Doppia scrittura delle identità: `src/server/inbox/identity.ts:116`, `src/app/api/contacts/route.ts:160`, `src/server/lab/runner.ts:241`, `src/server/seed/demo.ts:187`
+- [x] T016 [US1] Doppia scrittura delle conversazioni: `src/server/inbox/ingest.ts:169`, `src/server/seed/demo.ts:205` (Laboratorio escluso)
+- [x] T017 [US1] Doppia scrittura dei messaggi: `src/server/inbox/ingest.ts:294`, `:383`, `src/server/inbox/send.ts:129`, `src/server/whatsapp/templates.ts:379`, `src/server/seed/demo.ts:216`
+- [x] T018 [US1] Aggiorna i mock della tabella nei test unitari toccati (es. `tests/unit/credentials.test.ts:22`) **senza** indebolire le asserzioni
+- [x] T019 [US3] Scrivi `docs/ops/rilascio-canali.md`: passi di R1, R2 e R3, come leggere V1–V7 (chiamando `channels_legacy_check()`, senza ricopiarne le query), il rollback per rilascio con lo **stop-first** dei passaggi che coinvolgono R0 (D18) e il comportamento di Coolify verificato, le misure
+- [x] T020 [US3] Prove su PostgreSQL usa e getta (`plan.md` §6, punti 1–9): da zero ×2; dati simulati; **immagine precedente su DB a `0012`**; aggiornamenti del codice vecchio; ritorno a R2 senza migrazioni pendenti; fail-closed; **sonda di lock** per fase e fase A dietro una transazione lunga; indice `INVALID`; durata di ogni fase e dell'avvio (soglia 60 s), `EXPLAIN`. Esiti e misure nel registro
+- [x] T021 [US2] Sabotaggi, ognuno deve far fallire un test (esito nel registro):
   - togli `organization_id` dalla FK composta;
   - togli la condizione `ca.organization_id = cv.organization_id` dalla riconciliazione;
   - togli una doppia scrittura;

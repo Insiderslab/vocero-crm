@@ -3,6 +3,7 @@ import { getDb, schema } from "@/lib/db";
 import { newId } from "@/lib/db/ids";
 import { decryptSecret, encryptSecret } from "@/lib/crypto";
 import { scoped } from "@/lib/db/tenant";
+import { mirrorWhatsappAccounts } from "@/server/channels/dual-write";
 
 export type Credentials = {
   id: string;
@@ -98,25 +99,13 @@ export async function saveCredentials(input: {
   const modeOnUpdate = input.onboardingMode
     ? input.onboardingMode
     : sql`case when ${schema.metaCredentials.phoneNumberId} = excluded.phone_number_id then ${schema.metaCredentials.onboardingMode} else 'manual' end`;
-  await db
-    .insert(schema.metaCredentials)
-    .values({
-      id: newId("credentials"),
-      organizationId: input.organizationId,
-      wabaId: input.wabaId,
-      phoneNumberId: input.phoneNumberId,
-      displayPhoneNumber: input.displayPhoneNumber ?? null,
-      verifiedName: input.verifiedName ?? null,
-      tokenCipher: enc.cipher,
-      tokenIv: enc.iv,
-      tokenTag: enc.tag,
-      status: "connected",
-      onboardingMode,
-      appDisconnectedAt: null,
-    })
-    .onConflictDoUpdate({
-      target: [schema.metaCredentials.organizationId],
-      set: {
+  // 005 (R1): doble escritura en channel_account, misma transacción.
+  await db.transaction(async (tx) => {
+    const saved = await tx
+      .insert(schema.metaCredentials)
+      .values({
+        id: newId("credentials"),
+        organizationId: input.organizationId,
         wabaId: input.wabaId,
         phoneNumberId: input.phoneNumberId,
         displayPhoneNumber: input.displayPhoneNumber ?? null,
@@ -125,11 +114,31 @@ export async function saveCredentials(input: {
         tokenIv: enc.iv,
         tokenTag: enc.tag,
         status: "connected",
-        onboardingMode: modeOnUpdate,
+        onboardingMode,
         appDisconnectedAt: null,
-        updatedAt: new Date(),
-      },
-    });
+      })
+      .onConflictDoUpdate({
+        target: [schema.metaCredentials.organizationId],
+        set: {
+          wabaId: input.wabaId,
+          phoneNumberId: input.phoneNumberId,
+          displayPhoneNumber: input.displayPhoneNumber ?? null,
+          verifiedName: input.verifiedName ?? null,
+          tokenCipher: enc.cipher,
+          tokenIv: enc.iv,
+          tokenTag: enc.tag,
+          status: "connected",
+          onboardingMode: modeOnUpdate,
+          appDisconnectedAt: null,
+          updatedAt: new Date(),
+        },
+      })
+      .returning({ id: schema.metaCredentials.id });
+    await mirrorWhatsappAccounts(
+      tx,
+      saved.map((r) => r.id)
+    );
+  });
 }
 
 /**
@@ -145,27 +154,39 @@ export async function setAppDisconnected(input: {
   phoneNumber?: string | null;
   disconnected: boolean;
 }): Promise<string[]> {
-  if (!input.wabaId) return [];
+  const wabaId = input.wabaId;
+  if (!wabaId) return [];
   const digits = (input.phoneNumber ?? "").replace(/\D/g, "");
   const db = getDb();
-  const rows = await db
-    .update(schema.metaCredentials)
-    .set({
-      appDisconnectedAt: input.disconnected ? new Date() : null,
-      updatedAt: new Date(),
-    })
-    // Un PARTNER_REMOVED de OTRO partner en una WABA compartida (ej. un CRM
-    // externo) no debe pintar un falso corte en una conexión manual.
-    .where(
-      and(
-        eq(schema.metaCredentials.wabaId, input.wabaId),
-        eq(schema.metaCredentials.onboardingMode, "coexistence"),
-        digits
-          ? sql`regexp_replace(coalesce(${schema.metaCredentials.displayPhoneNumber}, ''), '[^0-9]', '', 'g') = ${digits}`
-          : undefined
+  // 005 (R1): doble escritura en channel_account.config, misma transacción.
+  const rows = await db.transaction(async (tx) => {
+    const updated = await tx
+      .update(schema.metaCredentials)
+      .set({
+        appDisconnectedAt: input.disconnected ? new Date() : null,
+        updatedAt: new Date(),
+      })
+      // Un PARTNER_REMOVED de OTRO partner en una WABA compartida (ej. un CRM
+      // externo) no debe pintar un falso corte en una conexión manual.
+      .where(
+        and(
+          eq(schema.metaCredentials.wabaId, wabaId),
+          eq(schema.metaCredentials.onboardingMode, "coexistence"),
+          digits
+            ? sql`regexp_replace(coalesce(${schema.metaCredentials.displayPhoneNumber}, ''), '[^0-9]', '', 'g') = ${digits}`
+            : undefined
+        )
       )
-    )
-    .returning({ organizationId: schema.metaCredentials.organizationId });
+      .returning({
+        id: schema.metaCredentials.id,
+        organizationId: schema.metaCredentials.organizationId,
+      });
+    await mirrorWhatsappAccounts(
+      tx,
+      updated.map((r) => r.id)
+    );
+    return updated;
+  });
   return rows.map((r) => r.organizationId);
 }
 
@@ -174,10 +195,18 @@ export async function markReconnectRequired(
   organizationId: string
 ): Promise<void> {
   const db = getDb();
-  await db
-    .update(schema.metaCredentials)
-    .set({ status: "reconnect_required", updatedAt: new Date() })
-    .where(scoped(schema.metaCredentials.organizationId, organizationId));
+  // 005 (R1): doble escritura del estado en channel_account, misma transacción.
+  await db.transaction(async (tx) => {
+    const updated = await tx
+      .update(schema.metaCredentials)
+      .set({ status: "reconnect_required", updatedAt: new Date() })
+      .where(scoped(schema.metaCredentials.organizationId, organizationId))
+      .returning({ id: schema.metaCredentials.id });
+    await mirrorWhatsappAccounts(
+      tx,
+      updated.map((r) => r.id)
+    );
+  });
 }
 
 /** Últimos 4 caracteres del token para mostrar en UI (jamás el token). */
