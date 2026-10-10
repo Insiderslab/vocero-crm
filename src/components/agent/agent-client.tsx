@@ -66,6 +66,8 @@ export function AgentClient() {
   const [kbSize, setKbSize] = useState<{ chars: number; warnAt: number; warning: boolean } | null>(null);
   const [saved, setSaved] = useState(false);
   const [toggleError, setToggleError] = useState<string | null>(null);
+  // Un segundo clic con el primer PUT en vuelo mandaría el mismo valor viejo.
+  const [toggling, setToggling] = useState(false);
 
   const refetch = useCallback(async () => {
     const [p, kb, size] = await Promise.all([
@@ -115,7 +117,9 @@ export function AgentClient() {
 
   async function toggleEnabled() {
     setToggleError(null);
+    setToggling(true);
     const result = await saveProfile({ enabled: !profile!.enabled });
+    setToggling(false);
     if (!result.ok) setToggleError(saveErrorText(t("agent.saveError"), result.message));
   }
 
@@ -133,7 +137,7 @@ export function AgentClient() {
             role="switch"
             aria-checked={profile.enabled}
             aria-label={t("agent.toggleLabel")}
-            disabled={!aiConfigured}
+            disabled={!aiConfigured || toggling}
             onClick={() => void toggleEnabled()}
             className={`relative h-6 w-11 rounded-full transition-colors disabled:opacity-40 ${
               profile.enabled ? "bg-primary" : "bg-secondary"
@@ -220,6 +224,7 @@ export function ProfileSection({
           <Input
             id="agent-name"
             value={form.name}
+            disabled={saving}
             onChange={(e) => edit({ name: e.target.value })}
           />
         </div>
@@ -229,6 +234,7 @@ export function ProfileSection({
             id="agent-tone"
             placeholder={t("agent.behavior.tonePlaceholder")}
             value={form.tone ?? ""}
+            disabled={saving}
             onChange={(e) => edit({ tone: e.target.value })}
           />
         </div>
@@ -239,6 +245,7 @@ export function ProfileSection({
             rows={5}
             placeholder={t("agent.behavior.instructionsPlaceholder")}
             value={form.instructions ?? ""}
+            disabled={saving}
             onChange={(e) => edit({ instructions: e.target.value })}
           />
         </div>
@@ -249,6 +256,7 @@ export function ProfileSection({
             rows={3}
             placeholder={t("agent.behavior.escalationPlaceholder")}
             value={form.escalationRules ?? ""}
+            disabled={saving}
             onChange={(e) => edit({ escalationRules: e.target.value })}
           />
         </div>
@@ -258,6 +266,7 @@ export function ProfileSection({
             id="agent-greeting"
             placeholder={t("agent.behavior.greetingPlaceholder")}
             value={form.greeting ?? ""}
+            disabled={saving}
             onChange={(e) => edit({ greeting: e.target.value })}
           />
         </div>
@@ -357,6 +366,7 @@ function RestrictedSection({
           <input
             type="checkbox"
             checked={form.enabled}
+            disabled={saving}
             onChange={(e) => edit({ enabled: e.target.checked })}
           />
           {t("agent.restricted.toggle")}
@@ -368,6 +378,7 @@ function RestrictedSection({
             rows={5}
             placeholder={t("agent.restricted.listPlaceholder")}
             value={form.list}
+            disabled={saving}
             onChange={(e) => edit({ list: e.target.value })}
           />
         </div>
@@ -378,6 +389,7 @@ function RestrictedSection({
             rows={2}
             placeholder={t("agent.restricted.outsiderPlaceholder")}
             value={form.reply}
+            disabled={saving}
             onChange={(e) => edit({ reply: e.target.value })}
           />
           <p className="text-xs text-muted-foreground">{t("agent.restricted.outsiderHint")}</p>
@@ -408,6 +420,9 @@ function KbSection({
   const [answer, setAnswer] = useState("");
   const [block, setBlock] = useState("");
   const [error, setError] = useState<string | null>(null);
+  // Mientras una escritura está en vuelo los campos se bloquean: lo tecleado
+  // en ese momento lo borraría el «limpiar» del éxito.
+  const [busy, setBusy] = useState(false);
 
   /**
    * POST/DELETE del KB. Solo limpia el formulario y recarga si el servidor
@@ -415,8 +430,10 @@ function KbSection({
    */
   async function submit(url: string, init: RequestInit): Promise<boolean> {
     setError(null);
+    setBusy(true);
     const res = await fetch(url, init).catch(() => null);
     const result = await readSaveResult(res);
+    setBusy(false);
     if (!result.ok) {
       setError(saveErrorText(t("agent.kb.saveError"), result.message));
       return false;
@@ -480,18 +497,20 @@ function KbSection({
           <Input
             placeholder={t("agent.kb.questionPlaceholder")}
             value={question}
+            disabled={busy}
             onChange={(e) => setQuestion(e.target.value)}
           />
           <Textarea
             placeholder={t("agent.kb.answerPlaceholder")}
             rows={2}
             value={answer}
+            disabled={busy}
             onChange={(e) => setAnswer(e.target.value)}
           />
           <Button
             size="sm"
             onClick={() => void addQa()}
-            disabled={!question.trim() || !answer.trim()}
+            disabled={busy || !question.trim() || !answer.trim()}
           >
             <Plus className="h-4 w-4" /> {t("agent.kb.addQa")}
           </Button>
@@ -503,9 +522,10 @@ function KbSection({
             placeholder={t("agent.kb.blockPlaceholder")}
             rows={3}
             value={block}
+            disabled={busy}
             onChange={(e) => setBlock(e.target.value)}
           />
-          <Button size="sm" onClick={() => void addBlock()} disabled={!block.trim()}>
+          <Button size="sm" onClick={() => void addBlock()} disabled={busy || !block.trim()}>
             <Plus className="h-4 w-4" /> {t("agent.kb.addBlock")}
           </Button>
         </div>
@@ -527,6 +547,7 @@ function KbSection({
                 variant="ghost"
                 size="icon"
                 aria-label={t("agent.kb.removeEntry")}
+                disabled={busy}
                 onClick={() => void remove(e.id)}
               >
                 <Trash2 className="h-4 w-4" />

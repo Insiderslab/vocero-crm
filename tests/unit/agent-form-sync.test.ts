@@ -113,6 +113,22 @@ describe("agent-client usa estas reglas (vigilancia)", () => {
     expect(src).not.toMatch(/await fetch\([^)]*\{\s*method:\s*"(PUT|POST|DELETE)"[\s\S]{0,200}?\}\)\.catch\(\(\) => null\);\s*\n\s*(setSaved|onChanged|setQuestion|setBlock)/);
   });
 
+  it("con un guardado en vuelo, todo campo editable está bloqueado (lo tecleado no se pierde)", () => {
+    const lines = src.split("\n");
+    const sinBloqueo = lines
+      .map((l, i) => ({ l, i }))
+      .filter(({ l }) => /^\s*onChange=\{/.test(l))
+      .filter(({ i }) => !/^\s*disabled=\{(saving|busy)\}$/.test(lines[i - 1] ?? ""))
+      .map(({ i }) => i + 1);
+    expect(sinBloqueo).toEqual([]);
+    expect(src.match(/^\s*onChange=\{/gm)?.length).toBeGreaterThanOrEqual(11);
+  });
+
+  it("el interruptor del agente se bloquea mientras su PUT está en vuelo", () => {
+    expect(src).toMatch(/disabled=\{!aiConfigured \|\| toggling\}/);
+    expect(src).toMatch(/setToggling\(true\);\s*\n\s*const result = await saveProfile/);
+  });
+
   it("el formulario de comportamiento no reenvía `enabled` (no revierte el interruptor)", () => {
     expect(src).toMatch(/type BehaviorForm = Omit<Profile, "enabled">/);
   });
