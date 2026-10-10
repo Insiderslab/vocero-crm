@@ -64,6 +64,9 @@ const messages = {
     aiBadge: "IA",
     manualTitle: "Enviado a mano desde la app de WhatsApp Business",
     manualBadge: "Celular",
+    webTitle:
+      "Llegó por el formulario del sitio web: responde con una plantilla, por teléfono o por email",
+    webBadge: "Sitio web",
     notDelivered: "No se entregó.",
     noReason: "Meta no informó el motivo.",
   },
@@ -170,6 +173,14 @@ const messages = {
     sending: "Enviando…",
     send: "Enviar plantilla",
     sendFailed: "No se pudo enviar la plantilla",
+  },
+  /** 008 — Etiquetas del mensaje de una solicitud del sitio web. */
+  siteRequest: {
+    title: "Solicitud desde el sitio web",
+    name: "Nombre",
+    phone: "Teléfono",
+    email: "Email",
+    page: "Página",
   },
 };
 export default messages;

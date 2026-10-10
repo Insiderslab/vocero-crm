@@ -118,7 +118,7 @@ describe("claves inválidas: contador por IP del cliente", () => {
 
   const ATTACKER = "203.0.113.7";
   const OTHER = "198.51.100.20";
-  const VALID: Record<ApiKeyScope, string> = { export: keyB.plain, bot: botA.plain };
+  const VALID: Record<Exclude<ApiKeyScope, "site">, string> = { export: keyB.plain, bot: botA.plain };
 
   async function callFrom(key: string, scope: ApiKeyScope, d: ApiKeyAuthDeps, xff: string) {
     const r = await authenticateApiKey(

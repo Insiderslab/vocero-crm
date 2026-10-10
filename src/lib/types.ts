@@ -2,7 +2,7 @@
 
 export type ConversationDto = {
   id: string;
-  contact: { id: string; name: string; phone: string | null };
+  contact: { id: string; name: string; phone: string | null; email?: string | null };
   stageName: string | null;
   aiEnabled: boolean;
   handoffAt: string | null;
@@ -49,6 +49,11 @@ export type MessageDto = {
   aiGenerated: boolean;
   /** 008 — Origen del saliente (en entrantes viene 'operator' y se ignora). */
   origin: "ai" | "operator" | "manual" | "template" | "system";
+  /**
+   * 008 — Solo viaja cuando NO es WhatsApp (hoy: `web`, solicitud del sitio):
+   * así el contrato de los mensajes de WhatsApp no cambia.
+   */
+  channel?: "web";
   media: MessageMediaDto | null;
   createdAt: string;
 };
@@ -85,6 +90,8 @@ export type ContactDto = {
   name: string;
   /** null en contactos que llegaron solo con BSUID (003). */
   phone: string | null;
+  /** 008 — email (atributo, no identidad); lo trae el formulario del sitio. */
+  email?: string | null;
   notes: string | null;
   /** Etapa del embudo del lead asociado; null si el contacto no tiene lead. */
   stageName: string | null;
@@ -141,7 +148,9 @@ export type SourceValue =
   | "organico"
   | "referido"
   | "conocido"
-  | "otro";
+  | "otro"
+  /** 008 — llegó por el formulario del sitio web (lo pone la solicitud, no el dueño). */
+  | "sito";
 
 export type SourceDto = {
   /** "desconocida" cuando nadie la capturó y no se pudo deducir. */

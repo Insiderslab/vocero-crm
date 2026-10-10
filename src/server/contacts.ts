@@ -13,6 +13,7 @@ export function serializeContact(
     id: c.id,
     name: c.name,
     phone: c.phone,
+    email: c.email,
     notes: c.notes,
     stageName,
     archivedAt: c.archivedAt?.toISOString() ?? null,
