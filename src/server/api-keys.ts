@@ -213,5 +213,31 @@ export async function authenticateApiKey(
       "Con varias organizaciones la clave de instancia no es válida: usa una clave de la organización"
     );
   }
+  warnInstanceKeyInUse(scope);
   return { organizationId: orgIds[0]!, keyId: null };
+}
+
+const instanceKeyWarned = new Set<ApiKeyScope>();
+
+/**
+ * Transición de la clave de instancia heredada a las claves por organización:
+ * un aviso por ámbito y proceso (nunca el valor de la clave). La clave de
+ * instancia sigue valiendo con UNA organización, pero deja de valer en cuanto
+ * se crea la segunda: quien la usa debe migrar antes de que eso pase.
+ */
+function warnInstanceKeyInUse(scope: ApiKeyScope): void {
+  if (instanceKeyWarned.has(scope)) return;
+  instanceKeyWarned.add(scope);
+  const { instanceEnv, prefix } = API_KEY_SCOPES[scope];
+  console.warn(
+    `[api-keys] Se usó la clave de instancia heredada ${instanceEnv}: solo vale ` +
+      `mientras la instancia tenga UNA organización y dejará de valer al crear la ` +
+      `segunda. Crea una clave por organización (${prefix}…) en Configuración → ` +
+      `Claves de API, cámbiala en tus scripts y retira ${instanceEnv} del entorno.`
+  );
+}
+
+/** Solo tests: vuelve a permitir el aviso de la clave de instancia. */
+export function resetInstanceKeyWarnings(): void {
+  instanceKeyWarned.clear();
 }
