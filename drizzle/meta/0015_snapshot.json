@@ -1,5 +1,5 @@
 {
-  "id": "90cdee6c-0f92-4b29-bac9-be63883dd976",
+  "id": "fb516fa4-8d9a-4990-a9d6-1a1563e160a2",
   "prevId": "e73cd8c5-a0df-4ff9-bc85-a36fb252fbd4",
   "version": "7",
   "dialect": "postgresql",
@@ -849,6 +849,22 @@
             }
           ],
           "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "bot_api_key_site_active_uq": {
+          "name": "bot_api_key_site_active_uq",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"bot_api_key\".\"scope\" = 'site' and \"bot_api_key\".\"revoked_at\" is null",
           "concurrently": false,
           "method": "btree",
           "with": {}

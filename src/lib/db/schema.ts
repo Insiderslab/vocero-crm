@@ -705,6 +705,11 @@ export const botApiKey = pgTable(
   (t) => [
     uniqueIndex("bot_api_key_hash_uq").on(t.keyHash),
     index("bot_api_key_org_idx").on(t.organizationId, t.createdAt),
+    // 008 — Una sola clave del sitio ACTIVA por organización, garantizado por
+    // la base de datos (además del lock de la rotación).
+    uniqueIndex("bot_api_key_site_active_uq")
+      .on(t.organizationId)
+      .where(sql`${t.scope} = 'site' and ${t.revokedAt} is null`),
   ]
 );
 
