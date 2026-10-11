@@ -4,10 +4,12 @@ import agent from "./en/agent";
 import auth from "./en/auth";
 import common from "./en/common";
 import contacts from "./en/contacts";
+import dashboard from "./en/dashboard";
 import inbox from "./en/inbox";
 import lab from "./en/lab";
 import legal from "./en/legal";
 import nav from "./en/nav";
+import onboarding from "./en/onboarding";
 import pipeline from "./en/pipeline";
 import settings from "./en/settings";
 
@@ -18,10 +20,12 @@ const en: typeof es = {
   auth,
   common,
   contacts,
+  dashboard,
   inbox,
   lab,
   legal,
   nav,
+  onboarding,
   pipeline,
   settings,
 };

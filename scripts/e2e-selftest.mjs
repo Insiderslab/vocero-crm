@@ -953,6 +953,8 @@ async function main() {
   const wAnon = await fetch(`${BASE}${wk}`, { headers: { origin: BASE } });
   ok("sin sesión → 401", wAnon.status === 401);
 
+  await sintesiSection();
+
   await teamAssistantSection();
 
   // Al final a propósito: el Embedded Signup cambia el número de la org.
@@ -960,6 +962,45 @@ async function main() {
 
   console.log(`\n===== ${checks - failures}/${checks} checks OK, ${failures} fallos =====`);
   process.exit(failures > 0 ? 1 : 0);
+}
+
+/**
+ * 010 — Sintesi (specs/custom-heili/010-sintesi-e-primo-avvio.md): la rotta de
+ * agregados con la sesión del operador (organización A, que a esta altura ya
+ * tiene mensajes de las secciones anteriores), el período en lista blanca y sin
+ * sesión 401. El rol member y «Primi passi» se prueban en la sección 007, con
+ * las cuentas de B.
+ */
+async function sintesiSection() {
+  console.log("\n== 010: Sintesi ==");
+  const s30 = await api("/api/dashboard/summary?days=30");
+  const j = s30.json;
+  ok(
+    "010: GET summary 30 días → 200 con todos los bloques",
+    s30.res.ok &&
+      j?.days === 30 &&
+      Array.isArray(j?.stages) &&
+      Array.isArray(j?.handoffs) &&
+      Array.isArray(j?.daily) &&
+      typeof j?.outgoing?.ai === "number" &&
+      typeof j?.conversions?.won === "number" &&
+      "medianMinutes" in (j?.firstResponse ?? {}),
+    JSON.stringify(j)
+  );
+  const inbound = (j?.daily ?? []).reduce((n, p) => n + p.inbound, 0);
+  ok("010: el andamento ve los entrantes de esta corrida (> 0)", inbound > 0, JSON.stringify(j?.daily));
+  ok(
+    "010: los días vienen como YYYY-MM-DD (UTC) y en orden",
+    (j?.daily ?? []).every((p, i, a) => /^\d{4}-\d{2}-\d{2}$/.test(p.date) && (i === 0 || a[i - 1].date < p.date)),
+    JSON.stringify(j?.daily)
+  );
+  ok("010: sin days → 30 por defecto", (await api("/api/dashboard/summary")).json?.days === 30);
+  for (const bad of ["8", "0", "abc", "30%3B%20drop%20table%20message", "-30", "1e9"]) {
+    const r = await api(`/api/dashboard/summary?days=${bad}`);
+    ok(`010: days=${decodeURIComponent(bad)} → 422`, r.res.status === 422 && r.json?.error?.code === "invalid_days", JSON.stringify(r.json));
+  }
+  const anon = await fetch(`${BASE}/api/dashboard/summary?days=30`, { headers: { origin: BASE } });
+  ok("010: summary sin sesión → 401", anon.status === 401);
 }
 
 /**
@@ -1140,6 +1181,16 @@ async function teamAssistantSection() {
     const r = await ren(ORG_B, `Tomado por ${role}`);
     ok(`${role} (no super-admin) no puede renombrar → 403`, r.res.status === 403 && r.json?.error?.code === "not_superadmin", JSON.stringify(r.json));
     const d = await api("/api/seed/demo", { method: "DELETE" });
+    // 010 — la Sintesi es de cualquier miembro; «Primi passi» solo de owner/admin.
+    const sum = await api("/api/dashboard/summary?days=7");
+    ok(`010: ${role} de B lee la Sintesi → 200`, sum.res.ok && sum.json?.days === 7, JSON.stringify(sum.json));
+    const page = await api("/dashboard?primi-passi=1");
+    const html = await page.res.text();
+    ok(
+      `010: /dashboard?primi-passi=1 para ${role} → ${role === "member" ? "sin" : "con"} «Primi passi»`,
+      page.res.ok && html.includes('id="primi-passi-title"') === (role !== "member"),
+      String(page.res.status)
+    );
     if (role === "member") {
       ok("member no puede quitar la demo → 403", d.res.status === 403, JSON.stringify(d.json));
       const p = await api("/api/agent/profile", { method: "PUT", body: JSON.stringify({ tone: "x" }) });

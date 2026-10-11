@@ -32,6 +32,23 @@ vi.mock("@/components/settings/templates-client", () => ({
   TemplatesClient: () => "CLIENTE-PLANTILLAS",
 }));
 
+// 010: la checklist de «Primi passi» consulta la BD; aquí solo importa que la
+// página decida por rol (la visibilidad y el cálculo tienen sus propios tests).
+vi.mock("@/server/onboarding/checklist", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/server/onboarding/checklist")>();
+  return {
+    ...actual,
+    getOnboardingChecklist: async () => ({
+      whatsappConnected: true,
+      templateApproved: true,
+      agentConfigured: false,
+      labRunDone: false,
+      agentEnabled: false,
+      allDone: false,
+    }),
+  };
+});
+
 import AgentPage from "@/app/(app)/agent/page";
 import AutomationsPage from "@/app/(app)/automations/page";
 import LabPage from "@/app/(app)/lab/page";

@@ -1,6 +1,7 @@
 /** Diccionario ES — barra lateral y navegación. Fuente de la forma. */
 const messages = {
   subtitle: "WhatsApp",
+  dashboard: "Síntesis",
   inbox: "Bandeja",
   pipeline: "Pipeline",
   contacts: "Contactos",

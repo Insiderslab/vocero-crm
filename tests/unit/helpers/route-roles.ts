@@ -87,6 +87,7 @@ const ROWS: Row[] = [
   ["seed/demo", ["GET", "DELETE"], "admin", "007: consulta y quita los datos demo de la organización"],
 
   // Trabajo diario con contactos, conversaciones y pipeline, y lecturas: cualquier miembro
+  ["dashboard/summary", ["GET"], "member", "lectura de la Sintesi: agregados de la propia organización (cualquier miembro)"],
   ["agent/profile", ["GET"], "member", "lectura del perfil del agente (sin secretos)"],
   ["templates", ["GET"], "member", "lista de plantillas: el miembro la necesita para enviar una en una conversación"],
   ["automations", ["GET"], "member", "lectura de las reglas"],

@@ -55,6 +55,7 @@ const messages: typeof base = {
     createError: "Impossibile creare la regola",
     creating: "Creazione…",
     createSubmit: "Crea regola",
+    missing: "Manca: {{items}}.",
     rulesTitle: "Regole",
     runNow: "Esegui ora",
     running: "Esecuzione…",
