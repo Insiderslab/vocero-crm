@@ -143,3 +143,78 @@ conversazioni `is_test`, connessioni staccate).
 - **`pnpm test` default su questa macchina**: vedi nota sopra (flakiness da
   carico e artefatto CRLF), non un problema del codice.
 - CI GitHub non eseguita prima del push.
+
+## Verifica su PostgreSQL vero (Claude, worktree `crm-p2`, branch `p2-fix`)
+
+Base: testa PR `fcadbae` + `0196222` (date come testo ISO con `::timestamp`
+nelle query della Sintesi). PostgreSQL 16 usa e getta su `127.0.0.1:5433`.
+
+### Cosa falliva e perché
+
+- **7 golden rossi** (6 Sintesi, 1 checklist), tutti con «Received an instance
+  of Date». **Bug dei TEST**: le fixture SQL passavano un `Date` come parametro
+  grezzo a postgres-js, che con i serializzatori installati da Drizzle non lo
+  accetta. Corretto passando testo ISO con `::timestamp` (come scrive Drizzle:
+  colonne `timestamp` senza zona, ora UTC). Nessun numero atteso cambiato:
+  ricalcolati a mano (mediana 20 e p90 28 su 10/20/30 min con
+  `percentile_cont` lineare: 20 + 0,8·10; IA 3 / persona 1; handoff cliente 2,
+  ventana 1; won = 2 lead distinti in A, 1 in B; giorni UTC). Dopo la
+  correzione nessuna asserzione era sbagliata e il codice dava gli stessi numeri.
+- **Bug di PRODOTTO** trovati in revisione:
+  1. **Prestazioni/scoping**: le quattro query su `message` filtravano solo
+     `conversation.organization_id`; `EXPLAIN` (400k messaggi, 20 org) mostrava
+     un **Seq Scan su tutti i messaggi di tutte le organizzazioni**. Ora anche
+     `message.organization_id` via `scoped(...)`: piano su `message_org_conv_idx`.
+  2. **Andamento**: i giorni senza messaggi sparivano e due barre di giorni
+     lontani uscivano attaccate → serie continua con zeri (`fillDailyGaps`).
+  3. **Accessibilità**: la lista `sr-only` del grafico giornaliero stava dentro
+     `role="img"` (figli presentazionali, quindi muta) → il ruolo avvolge solo
+     le barre.
+  4. **Fuso**: il raggruppamento per giorno è UTC (scelta documentata nel
+     codice); ora il titolo dice «(UTC)». Il testo vuoto delle fasi non parla più
+     di «periodo» (sono lo stato attuale, non filtrato per periodo).
+  5. **Ruoli**: `/dashboard` interrogava la checklist anche per un member (poi
+     scartata). Ora come in Automazioni; test della pagina nuovo.
+- Test aggiunti: golden IA/handoff con conversazione `is_test`; unità
+  `dashboard-charts` (+5), `dashboard-page-primi-passi` (7); E2E sezione 010 (15).
+- Rivisti senza difetti: `days` in lista bianca (7/30/90) e mai interpolato
+  (solo la data ISO come parametro) — niente iniezione; ogni query con
+  `scoped(...)`; `is_test` in ogni blocco su conversazioni (le conversioni non
+  ne hanno bisogno: i contatti del Laboratorio non generano lead).
+
+### Gate (binari diretti, niente `pnpm`)
+
+- `tsc --noEmit` verde · `eslint .` verde
+- `vitest run`: **71 file, 1093 test** verdi
+- golden su base nuova (`vocero_golden_p2fix_all`): **13 file, 121/121**;
+  `git diff origin/main -- tests/golden/__golden__` vuoto
+- `next build` verde (`/dashboard`, `/api/dashboard/summary`)
+- E2E `scripts/e2e-selftest.mjs` su base nuova (`vocero_p2fix_e2e`, migrata con
+  `MIGRATIONS_DIR=./drizzle node scripts/migrate.mjs`) contro `next dev` con mock
+  (porta 3310, `SUPERADMIN_EMAILS` = operatore E2E, Embedded Signup sintetico):
+  **182/182**; dopo la corsa `channels_legacy_check()` V1–V6 = 0, nessun errore
+  nel log del server.
+
+### Sabotaggi (uno alla volta, file ripristinato)
+
+| Sabotaggio | Esito |
+|---|---|
+| Sintesi: `conversationScope` senza organizzazione (e `messageScope` neutro) | golden «aislamiento»: rosso |
+| Sintesi: conversioni senza `scoped(...)` | golden «conversiones»: rosso |
+| Sintesi: `is_test` tolto da `conversationScope` | golden prima risposta, IA/handoff, andamento: 3 rossi |
+| `showOnboardingChecklist` senza `isOrgAdmin` | unità `onboarding-visibility`: rosso (la pagina regge comunque: non calcola la checklist per un member) |
+| pagina `/dashboard` calcola la checklist per tutti | unità `dashboard-page-primi-passi`: 4 rossi |
+
+### Aperto
+
+- **Prima risposta**: conta come risposta anche una saliente `failed` e un
+  modello inviato da un'automazione; e un template di automazione conta come
+  «persona» in IA contro persona (la spec dice solo `ai_generated`). Da decidere.
+- Il controllo `messageScope` è di prestazioni: l'isolamento lo garantisce già
+  `conversationScope`, quindi nessun golden lo vede se sparisce (lo vede solo
+  `EXPLAIN`).
+- Il giorno UTC non è il giorno locale dell'organizzazione (Messico/Italia): un
+  fuso per organizzazione è il passo successivo.
+- In Automazioni l'avviso «Manca: …» compare anche quando il pulsante è
+  abilitato (WhatsApp non connesso ma modulo completo): informativo, non bloccante.
+- Interfaccia ancora non provata con clic reali nel browser.
