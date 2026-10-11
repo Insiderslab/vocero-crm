@@ -20,7 +20,7 @@ async function setCredentials(
 ) {
   await sql()`
     update meta_credentials
-    set status = ${status}, app_disconnected_at = ${appDisconnectedAt}
+    set status = ${status}, app_disconnected_at = ${appDisconnectedAt?.toISOString() ?? null}::timestamp
     where organization_id = ${org}
   `;
 }

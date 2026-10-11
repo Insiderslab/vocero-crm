@@ -20,6 +20,12 @@ const nowDate = () => new Date(Date.now());
 const minutesAgo = (m: number) => new Date(Date.now() - m * 60_000);
 const daysAgo = (d: number) => new Date(Date.now() - d * 86_400_000);
 const isoDay = (d: Date) => d.toISOString().slice(0, 10);
+/**
+ * postgres-js (con los serializadores que Drizzle le instala) no acepta un
+ * `Date` como parámetro crudo: va como texto ISO y `::timestamp`, igual que lo
+ * guarda Drizzle (columnas sin zona, hora UTC).
+ */
+const ts = (d: Date | null | undefined) => (d ? d.toISOString() : null);
 
 const stageNuevo = (org: "a" | "b") => `stg_golden_${org}_nuevo`;
 const stageGanado = (org: "a" | "b") => `stg_golden_${org}_ganado`;
@@ -39,7 +45,7 @@ async function addConversation(
 ) {
   await sql()`
     insert into conversation (id, organization_id, contact_id, is_test, handoff_at, handoff_reason)
-    values (${id}, ${org}, ${contactId}, ${opts.isTest ?? false}, ${opts.handoffAt ?? null}, ${opts.handoffReason ?? null})
+    values (${id}, ${org}, ${contactId}, ${opts.isTest ?? false}, ${ts(opts.handoffAt)}::timestamp, ${opts.handoffReason ?? null})
   `;
 }
 
@@ -53,7 +59,7 @@ async function addMessage(
 ) {
   await sql()`
     insert into message (id, organization_id, conversation_id, direction, created_at, ai_generated)
-    values (${id}, ${org}, ${conversationId}, ${direction}, ${createdAt}, ${aiGenerated})
+    values (${id}, ${org}, ${conversationId}, ${direction}, ${ts(createdAt)}::timestamp, ${aiGenerated})
   `;
 }
 
@@ -78,7 +84,7 @@ async function addStageEvent(
   await sql()`
     insert into lead_stage_event
       (id, organization_id, lead_id, contact_id, to_stage_id, to_stage_name, to_stage_kind, occurred_at, loss_reason)
-    values (${id}, ${org}, ${leadId}, ${contactId}, ${toStageId}, ${toStageName}, ${kind}, ${occurredAt}, ${lossReason})
+    values (${id}, ${org}, ${leadId}, ${contactId}, ${toStageId}, ${toStageName}, ${kind}, ${ts(occurredAt)}::timestamp, ${lossReason})
   `;
 }
 
