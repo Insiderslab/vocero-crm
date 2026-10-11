@@ -131,6 +131,7 @@ export async function getDashboardSummary(
           join message
             on message.conversation_id = first_in.id
            and message.direction = 'out'
+           and message.status <> 'failed'
            and message.created_at > first_in.first_in
           where ${messageScope}
           group by first_in.id, first_in.first_in

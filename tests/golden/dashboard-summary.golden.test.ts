@@ -137,6 +137,13 @@ describe("010 Sintesi — primera respuesta", () => {
       );
     }
 
+    // Un saliente FALLIDO no es una respuesta: en cv_r1 (respuesta real a 20 min)
+    // un envío fallido a los 5 min no debe contar (si contara, la mediana bajaría a 10).
+    await sql()`
+      insert into message (id, organization_id, conversation_id, direction, created_at, status)
+      values ('m_r1_failed', ${ORG_A}, 'cv_r1', 'out', ${ts(new Date(minutesAgo(240).getTime() + 5 * 60_000))}::timestamp, 'failed')
+    `;
+
     // Conversación de TEST: no entra aunque esté respondida.
     await addContact("c_rt", ORG_A, "525500001099");
     await addConversation("cv_rt", ORG_A, "c_rt", { isTest: true });
