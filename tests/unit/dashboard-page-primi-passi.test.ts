@@ -69,7 +69,7 @@ describe("010 Sintesi — «Primi passi» por rol", () => {
     "rol %j: ve la Sintesi pero no la tarjeta, ni reabierta, y no consulta la checklist",
     async (role) => {
       state.session = { userId: "u_m", organizationId: "org_a", role };
-      for (const params of [{}, { "primi-passi": "1" }]) {
+      for (const params of [{}, { "primi-passi": "1" }] as Record<string, string>[]) {
         const out = await render(params);
         expect(out).toContain("CLIENTE-SINTESI");
         expect(out).not.toContain(TARJETA);
