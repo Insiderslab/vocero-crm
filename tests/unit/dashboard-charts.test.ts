@@ -3,6 +3,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import {
   DailyChart,
+  fillDailyGaps,
   QuotaBar,
   StageChart,
 } from "@/components/dashboard/charts";
@@ -80,6 +81,82 @@ describe("010 DailyChart", () => {
       })
     );
     expect(out).toContain("VACIO");
+  });
+});
+
+describe("010 DailyChart — accesibilidad y días vacíos", () => {
+  const base = {
+    empty: "VACIO",
+    aria: "TOTALES",
+    inboundLabel: "Entrantes",
+    outboundLabel: "Salientes",
+    formatDay: (iso: string) => iso,
+    formatNumber: (n: number) => String(n),
+  };
+
+  it("la lista sr-only queda FUERA del role=img (dentro sería presentacional)", () => {
+    const out = renderToStaticMarkup(
+      createElement(DailyChart, {
+        ...base,
+        points: [
+          { date: "2030-01-01", inbound: 2, outbound: 1 },
+          { date: "2030-01-02", inbound: 0, outbound: 0 },
+        ],
+      })
+    );
+    const img = out.indexOf('role="img"');
+    const srOnly = out.indexOf('class="sr-only"');
+    expect(img).toBeGreaterThanOrEqual(0);
+    // El div del img se cierra antes de que empiece la lista sr-only.
+    expect(out.slice(img, srOnly)).toMatch(/<\/ul><\/div><ul $/);
+    expect(out).toContain("2030-01-01: Entrantes 2, Salientes 1");
+    // Los días en cero no se leen uno por uno: solo los que tienen mensajes.
+    expect(out).not.toContain("2030-01-02: Entrantes");
+  });
+
+  it("una serie toda en cero → estado vacío", () => {
+    const out = renderToStaticMarkup(
+      createElement(DailyChart, {
+        ...base,
+        points: [{ date: "2030-01-01", inbound: 0, outbound: 0 }],
+      })
+    );
+    expect(out).toContain("VACIO");
+  });
+});
+
+describe("010 fillDailyGaps", () => {
+  it("rellena con ceros los días sin mensajes, de from a to (UTC)", () => {
+    expect(
+      fillDailyGaps(
+        [
+          { date: "2029-12-30", inbound: 1, outbound: 0 },
+          { date: "2030-01-01", inbound: 2, outbound: 1 },
+        ],
+        "2029-12-29",
+        "2030-01-02"
+      )
+    ).toEqual([
+      { date: "2029-12-29", inbound: 0, outbound: 0 },
+      { date: "2029-12-30", inbound: 1, outbound: 0 },
+      { date: "2029-12-31", inbound: 0, outbound: 0 },
+      { date: "2030-01-01", inbound: 2, outbound: 1 },
+      { date: "2030-01-02", inbound: 0, outbound: 0 },
+    ]);
+  });
+
+  it("un punto fuera del rango lo amplía en vez de perderse", () => {
+    expect(
+      fillDailyGaps([{ date: "2030-01-03", inbound: 1, outbound: 0 }], "2030-01-01", "2030-01-02")
+    ).toEqual([
+      { date: "2030-01-01", inbound: 0, outbound: 0 },
+      { date: "2030-01-02", inbound: 0, outbound: 0 },
+      { date: "2030-01-03", inbound: 1, outbound: 0 },
+    ]);
+  });
+
+  it("sin datos: todos los días del período en cero", () => {
+    expect(fillDailyGaps([], "2030-01-01", "2030-01-03")).toHaveLength(3);
   });
 });
 

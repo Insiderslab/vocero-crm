@@ -7,6 +7,7 @@ import type { DashboardSummary, SummaryDays } from "@/server/dashboard/summary";
 import {
   DailyChart,
   EmptyNote,
+  fillDailyGaps,
   HandoffList,
   QuotaBar,
   Section,
@@ -58,6 +59,16 @@ export function DashboardClient() {
     timeZone: "UTC",
   });
   const formatDay = (iso: string) => dayFormat.format(new Date(`${iso}T00:00:00Z`));
+
+  // Andamento continuo: del primer día UTC del período a hoy (UTC), con ceros.
+  const today = new Date();
+  const daily = data
+    ? fillDailyGaps(
+        data.daily,
+        new Date(today.getTime() - days * 86_400_000).toISOString().slice(0, 10),
+        today.toISOString().slice(0, 10)
+      )
+    : [];
 
   const totalInbound = data?.daily.reduce((sum, p) => sum + p.inbound, 0) ?? 0;
   const totalOutbound = data?.daily.reduce((sum, p) => sum + p.outbound, 0) ?? 0;
@@ -197,7 +208,7 @@ export function DashboardClient() {
 
           <Section title={t("dashboard.trend.title")} className="lg:col-span-2">
             <DailyChart
-              points={data.daily}
+              points={daily}
               empty={t("dashboard.trend.empty")}
               aria={t("dashboard.trend.aria", {
                 inbound: formatNumber(totalInbound),

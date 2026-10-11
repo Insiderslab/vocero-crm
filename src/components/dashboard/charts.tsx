@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
  *
  * Accesibilidad: cada gráfico lleva `aria-label` con los números (texto
  * alternativo), las barras van `aria-hidden` y el gráfico de días repite cada
- * punto en una lista `sr-only`. Colores del tema (claro/oscuro) y a 390 px las
+ * punto en una lista `sr-only` (fuera del `role="img"`, que la silenciaría). Colores del tema (claro/oscuro) y a 390 px las
  * barras usan todo el ancho disponible.
  */
 
@@ -98,6 +98,31 @@ export function StageChart({
   );
 }
 
+type DailyPoint = { date: string; inbound: number; outbound: number };
+
+/**
+ * Serie CONTINUA de días (UTC, `YYYY-MM-DD`) entre `from` y `to`: la consulta
+ * solo devuelve los días con mensajes y, sin rellenar, dos barras de días
+ * lejanos saldrían pegadas. Los días sin datos van en 0; un punto fuera del
+ * rango (reloj del navegador desfasado) amplía el rango en vez de perderse.
+ */
+export function fillDailyGaps(
+  points: DailyPoint[],
+  from: string,
+  to: string
+): DailyPoint[] {
+  const byDate = new Map(points.map((p) => [p.date, p]));
+  const dates = [from, to, ...points.map((p) => p.date)].sort();
+  const start = Date.parse(`${dates[0]}T00:00:00Z`);
+  const end = Date.parse(`${dates[dates.length - 1]}T00:00:00Z`);
+  const out: DailyPoint[] = [];
+  for (let t = start; t <= end; t += 86_400_000) {
+    const date = new Date(t).toISOString().slice(0, 10);
+    out.push(byDate.get(date) ?? { date, inbound: 0, outbound: 0 });
+  }
+  return out;
+}
+
 /** Barras verticales: entrantes y salientes por día. */
 export function DailyChart({
   points,
@@ -108,7 +133,7 @@ export function DailyChart({
   formatDay,
   formatNumber,
 }: {
-  points: { date: string; inbound: number; outbound: number }[];
+  points: DailyPoint[];
   empty: string;
   aria: string;
   inboundLabel: string;
@@ -116,35 +141,43 @@ export function DailyChart({
   formatDay: (iso: string) => string;
   formatNumber: (n: number) => string;
 }) {
-  if (points.length === 0) return <EmptyNote text={empty} />;
+  if (points.every((p) => p.inbound === 0 && p.outbound === 0)) {
+    return <EmptyNote text={empty} />;
+  }
   const max = Math.max(...points.flatMap((p) => [p.inbound, p.outbound]), 1);
   const height = (value: number) =>
     value === 0 ? "0%" : `${Math.max(Math.round((value / max) * 100), 4)}%`;
   const first = points[0]!;
   const last = points[points.length - 1]!;
   return (
-    <div role="img" aria-label={aria}>
-      <ul aria-hidden="true" className="flex h-24 items-end gap-[2px]">
-        {points.map((p) => (
-          <li
-            key={p.date}
-            className="flex h-full min-w-0 flex-1 items-end justify-center gap-[1px]"
-          >
-            <span className="block w-1/2 rounded-t-[2px] bg-brand" style={{ height: height(p.inbound) }} />
-            <span
-              className="block w-1/2 rounded-t-[2px] bg-border-strong"
-              style={{ height: height(p.outbound) }}
-            />
-          </li>
-        ))}
-      </ul>
+    <div>
+      {/* El `role="img"` envuelve SOLO las barras: dentro de un img los hijos
+          son presentacionales y la lista sr-only de abajo quedaría muda. */}
+      <div role="img" aria-label={aria}>
+        <ul aria-hidden="true" className="flex h-24 items-end gap-[2px]">
+          {points.map((p) => (
+            <li
+              key={p.date}
+              className="flex h-full min-w-0 flex-1 items-end justify-center gap-[1px]"
+            >
+              <span className="block w-1/2 rounded-t-[2px] bg-brand" style={{ height: height(p.inbound) }} />
+              <span
+                className="block w-1/2 rounded-t-[2px] bg-border-strong"
+                style={{ height: height(p.outbound) }}
+              />
+            </li>
+          ))}
+        </ul>
+      </div>
       <ul className="sr-only">
-        {points.map((p) => (
-          <li key={p.date}>
-            {formatDay(p.date)}: {inboundLabel} {formatNumber(p.inbound)}, {outboundLabel}{" "}
-            {formatNumber(p.outbound)}
-          </li>
-        ))}
+        {points
+          .filter((p) => p.inbound > 0 || p.outbound > 0)
+          .map((p) => (
+            <li key={p.date}>
+              {formatDay(p.date)}: {inboundLabel} {formatNumber(p.inbound)}, {outboundLabel}{" "}
+              {formatNumber(p.outbound)}
+            </li>
+          ))}
       </ul>
       <div className="mt-1.5 flex items-center justify-between gap-3 text-[11px] text-text-3">
         <span>{formatDay(first.date)}</span>
