@@ -7,6 +7,7 @@ import {
   FlaskConical,
   Inbox,
   Kanban,
+  LayoutDashboard,
   LogOut,
   Settings,
   ShieldCheck,
@@ -29,6 +30,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { APP_VERSION, BUILD_COMMIT, versionLabel } from "@/lib/version";
 
 const NAV = [
+  { href: "/dashboard", key: "dashboard", icon: LayoutDashboard },
   { href: "/inbox", key: "inbox", icon: Inbox, badge: true },
   { href: "/pipeline", key: "pipeline", icon: Kanban },
   { href: "/contacts", key: "contacts", icon: Users },

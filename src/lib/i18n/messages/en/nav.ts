@@ -3,6 +3,7 @@ import type base from "../es/nav";
 /** EN dictionary — sidebar and navigation. */
 const messages: typeof base = {
   subtitle: "WhatsApp",
+  dashboard: "Summary",
   inbox: "Inbox",
   pipeline: "Pipeline",
   contacts: "Contacts",

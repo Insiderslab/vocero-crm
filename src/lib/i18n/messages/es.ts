@@ -3,6 +3,7 @@ import agent from "./es/agent";
 import auth from "./es/auth";
 import common from "./es/common";
 import contacts from "./es/contacts";
+import dashboard from "./es/dashboard";
 import inbox from "./es/inbox";
 import lab from "./es/lab";
 import legal from "./es/legal";
@@ -17,6 +18,7 @@ const es = {
   auth,
   common,
   contacts,
+  dashboard,
   inbox,
   lab,
   legal,

@@ -4,6 +4,7 @@ import agent from "./it/agent";
 import auth from "./it/auth";
 import common from "./it/common";
 import contacts from "./it/contacts";
+import dashboard from "./it/dashboard";
 import inbox from "./it/inbox";
 import lab from "./it/lab";
 import legal from "./it/legal";
@@ -18,6 +19,7 @@ const it: typeof es = {
   auth,
   common,
   contacts,
+  dashboard,
   inbox,
   lab,
   legal,
