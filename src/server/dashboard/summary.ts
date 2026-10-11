@@ -9,12 +9,18 @@ import { scoped } from "@/lib/db/tenant";
  * condiciones con `scoped(...)`. Las cinco corren en paralelo y agregan en SQL
  * (GROUP BY / percentile_cont): jamás se cargan mensajes en memoria.
  *
- * Índices: los existentes cubren el JOIN de `message` por
- * (organization_id, conversation_id, created_at), el embudo por
- * (organization_id, occurred_at) de `lead_stage_event` y las etapas por
- * (organization_id, position). Los rangos de tiempo por `message.created_at` y
- * `conversation.handoff_at` no tienen índice org-first: quedan anotados como
- * candidatos en el registro de trabajo; aquí no se crea ninguna migración.
+ * Índices: `message` se filtra SIEMPRE también por su propia
+ * `organization_id` (`messageScope`), así el plan usa
+ * `message_org_conv_idx` (organization_id, conversation_id, created_at) en vez
+ * de recorrer los mensajes de todas las organizaciones; el embudo usa
+ * (organization_id, to_stage_kind, occurred_at) de `lead_stage_event` y las
+ * etapas (organization_id, ...). Los rangos de tiempo por `message.created_at`
+ * y `conversation.handoff_at` no tienen índice org-first con la fecha en
+ * segunda posición: quedan anotados como candidatos en el registro de trabajo;
+ * aquí no se crea ninguna migración.
+ *
+ * Zona horaria: las columnas son `timestamp` sin zona y Drizzle guarda la hora
+ * UTC; el período se compara en UTC y el andamento se agrupa por día UTC.
  */
 
 export const SUMMARY_DAYS = [7, 30, 90] as const;
@@ -80,6 +86,8 @@ export async function getDashboardSummary(
     organizationId,
     sql`conversation.is_test = false`
   );
+  // `message` también por su organización: sin esto el JOIN recorre la tabla entera.
+  const messageScope = scoped(schema.message.organizationId, organizationId);
 
   const [stageRows, responseRows, aiRows, handoffRows, conversionRows, dailyRows] =
     await Promise.all([
@@ -113,6 +121,7 @@ export async function getDashboardSummary(
             on message.conversation_id = conversation.id
            and message.direction = 'in'
           where ${conversationScope}
+            and ${messageScope}
             and message.created_at >= ${sinceSql}::timestamp
           group by conversation.id
         ),
@@ -123,6 +132,7 @@ export async function getDashboardSummary(
             on message.conversation_id = first_in.id
            and message.direction = 'out'
            and message.created_at > first_in.first_in
+          where ${messageScope}
           group by first_in.id, first_in.first_in
         )
         select
@@ -148,6 +158,7 @@ export async function getDashboardSummary(
         from message
         join conversation on conversation.id = message.conversation_id
         where ${conversationScope}
+          and ${messageScope}
           and message.direction = 'out'
           and message.created_at >= ${sinceSql}::timestamp
         group by message.ai_generated
@@ -181,6 +192,7 @@ export async function getDashboardSummary(
         from message
         join conversation on conversation.id = message.conversation_id
         where ${conversationScope}
+          and ${messageScope}
           and message.created_at >= ${sinceSql}::timestamp
         group by 1
         order by 1
