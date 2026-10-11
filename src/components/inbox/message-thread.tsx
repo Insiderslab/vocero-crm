@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { Fragment, useEffect, useRef } from "react";
 import {
   AlertTriangle,
   Check,
@@ -20,15 +20,19 @@ import type { Locale } from "@/lib/i18n";
 import { formatBubbleTime, formatBytes, formatDay, mediaLabel } from "./helpers";
 import { LoadingRegion, Skeleton } from "@/components/ui/skeleton";
 
+/**
+ * Palomitas de un saliente. Van SIEMPRE dentro de la burbuja verde: con el
+ * gris de antes (y el azul de WhatsApp) casi no se veían (009 E7).
+ */
 function StatusTicks({ status }: { status: MessageDto["status"] }) {
   const cls = "h-[13px] w-[13px]";
-  if (status === "pending") return <Clock3 className={cn(cls, "text-text-4")} strokeWidth={1.7} />;
-  if (status === "sent") return <Check className={cn(cls, "text-text-4")} strokeWidth={1.7} />;
+  if (status === "pending") return <Clock3 className={cn(cls, "text-bubble-out-meta")} strokeWidth={1.7} />;
+  if (status === "sent") return <Check className={cn(cls, "text-bubble-out-meta")} strokeWidth={1.7} />;
   if (status === "delivered")
-    return <CheckCheck className={cn(cls, "text-text-4")} strokeWidth={1.7} />;
+    return <CheckCheck className={cn(cls, "text-bubble-out-meta")} strokeWidth={1.7} />;
   if (status === "read")
-    return <CheckCheck className={cn(cls, "text-[#53bdeb]")} strokeWidth={1.7} />;
-  return <AlertTriangle className={cn(cls, "text-destructive")} strokeWidth={1.7} />;
+    return <CheckCheck className={cn(cls, "text-bubble-out-tick")} strokeWidth={2} />;
+  return <AlertTriangle className={cn(cls, "text-bubble-out-meta")} strokeWidth={1.7} />;
 }
 
 type LocationPayload = {
@@ -45,8 +49,12 @@ type ContactPayload = {
 };
 
 /** 008 — Previsualización del adjunto de un mensaje, por tipo. */
-function MediaBlock({ media }: { media: MessageMediaDto }) {
+function MediaBlock({ media, out = false }: { media: MessageMediaDto; out?: boolean }) {
   const { t } = useT();
+  // 009 (E7): dentro de la burbuja saliente (verde) el gris y el acento no se
+  // leían; ahí los textos secundarios usan el color de la burbuja.
+  const muted = out ? "text-bubble-out-meta" : "text-text-3";
+  const accent = out ? "text-bubble-out-meta" : "text-brand";
   const src = `/api/media/${media.assetId}`;
 
   if (media.kind === "location") {
@@ -57,17 +65,17 @@ function MediaBlock({ media }: { media: MessageMediaDto }) {
         : null;
     return (
       <span className="flex items-start gap-1.5">
-        <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-brand" strokeWidth={1.7} />
+        <MapPin className={cn("mt-0.5 h-4 w-4 shrink-0", accent)} strokeWidth={1.7} />
         <span className="min-w-0">
           <span className="block font-medium">
             {loc.name ?? t("inbox.media.location")}
           </span>
           {loc.address && (
-            <span className="block text-[12.5px] text-text-3">{loc.address}</span>
+            <span className={cn("block text-[12.5px]", muted)}>{loc.address}</span>
           )}
           {coords && (
             <a
-              className="text-[12.5px] text-brand underline-offset-2 hover:underline"
+              className={cn("text-[12.5px] underline-offset-2 hover:underline", accent)}
               href={`https://maps.google.com/?q=${loc.latitude},${loc.longitude}`}
               target="_blank"
               rel="noreferrer noopener"
@@ -97,18 +105,18 @@ function MediaBlock({ media }: { media: MessageMediaDto }) {
             const phone = c.phones?.[0]?.phone ?? c.phone ?? null;
             return (
               <span key={i} className="flex items-center gap-1.5">
-                <UserRound className="h-4 w-4 shrink-0 text-brand" strokeWidth={1.7} />
+                <UserRound className={cn("h-4 w-4 shrink-0", accent)} strokeWidth={1.7} />
                 <span>
                   <span className="block font-medium">{name}</span>
                   {phone && (
-                    <span className="block text-[12.5px] text-text-3">{phone}</span>
+                    <span className={cn("block text-[12.5px]", muted)}>{phone}</span>
                   )}
                 </span>
               </span>
             );
           })
         ) : (
-          <span className="text-text-3">{t("inbox.media.contacts")}</span>
+          <span className={cn("", muted)}>{t("inbox.media.contacts")}</span>
         )}
       </span>
     );
@@ -116,7 +124,7 @@ function MediaBlock({ media }: { media: MessageMediaDto }) {
 
   if (media.fetchStatus !== "available") {
     return (
-      <span className="inline-flex items-center gap-1.5 text-text-3">
+      <span className={cn("inline-flex items-center gap-1.5", muted)}>
         <Paperclip className="h-3.5 w-3.5" strokeWidth={1.7} />
         {media.fetchStatus === "failed"
           ? t("inbox.media.unavailable", { label: mediaLabel(media.kind, t) })
@@ -156,12 +164,13 @@ function MediaBlock({ media }: { media: MessageMediaDto }) {
   // document
   return (
     <a
-      className="flex items-center gap-2 rounded-md border bg-background/60 px-2.5 py-2 hover:bg-background"
+      className="flex items-center gap-2 rounded-md border bg-background px-2.5 py-2 text-foreground hover:bg-subtle"
       href={src}
       download={media.fileName ?? undefined}
       target="_blank"
       rel="noreferrer noopener"
     >
+      {/* La tarjeta del documento tiene fondo propio (claro): colores normales. */}
       <FileText className="h-6 w-6 shrink-0 text-brand" strokeWidth={1.5} />
       <span className="min-w-0">
         <span className="block truncate font-medium">
@@ -231,9 +240,15 @@ export function MessageThread({
         const out = m.direction === "out";
 
         return (
-          <div key={m.id}>
+          <Fragment key={m.id}>
             {newDay && (
-              <div className="my-3 flex justify-center">
+              // 009 (E7): el separador es hijo DIRECTO del contenedor con
+              // scroll y es `sticky`: al bajar queda fijo arriba (como en
+              // WhatsApp) en vez de verse cortado a medias por el borde.
+              <div
+                data-day-separator=""
+                className="pointer-events-none sticky top-0 z-10 flex justify-center py-1.5"
+              >
                 <span className="rounded-full border bg-background px-3 py-1 text-[11.5px] font-semibold text-text-2 shadow-sm">
                   {dayLabel(m.createdAt, t, locale)}
                 </span>
@@ -259,7 +274,7 @@ export function MessageThread({
               >
                 {m.media ? (
                   <span className="block">
-                    <MediaBlock media={m.media} />
+                    <MediaBlock media={m.media} out={out} />
                     {m.media.caption && (
                       <span className="mt-1 block whitespace-pre-wrap break-words">
                         {m.media.caption}
@@ -271,7 +286,12 @@ export function MessageThread({
                     {m.text}
                   </span>
                 ) : (
-                  <span className="inline-flex items-center gap-1.5 text-text-3">
+                  <span
+                    className={cn(
+                      "inline-flex items-center gap-1.5",
+                      out ? "text-bubble-out-meta" : "text-text-3"
+                    )}
+                  >
                     <Paperclip className="h-3.5 w-3.5" strokeWidth={1.7} />
                     {mediaLabel(m.type, t)}
                     {m.text ? ` — ${m.text}` : ""}
@@ -280,7 +300,10 @@ export function MessageThread({
                 <span className="float-right ml-2 mt-1 flex items-center gap-1">
                   {m.aiGenerated && (
                     <span
-                      className="inline-flex items-center gap-0.5 text-[10px] font-medium text-brand"
+                      className={cn(
+                        "inline-flex items-center gap-0.5 text-[10px] font-medium",
+                        out ? "text-bubble-out-meta" : "text-brand"
+                      )}
                       title={t("inbox.thread.aiTitle")}
                     >
                       <Sparkles className="h-3 w-3" strokeWidth={1.7} />{" "}
@@ -289,14 +312,25 @@ export function MessageThread({
                   )}
                   {m.origin === "manual" && (
                     <span
-                      className="inline-flex items-center gap-0.5 text-[10px] font-medium text-text-3"
+                      className={cn(
+                        "inline-flex items-center gap-0.5 text-[10px] font-medium",
+                        out ? "text-bubble-out-meta" : "text-text-3"
+                      )}
                       title={t("inbox.thread.manualTitle")}
                     >
                       <Smartphone className="h-3 w-3" strokeWidth={1.7} />{" "}
                       {t("inbox.thread.manualBadge")}
                     </span>
                   )}
-                  <span className="text-[10.5px] text-text-4">
+                  {/* 009 (E7): la hora se lee — en la burbuja saliente con
+                      el color de su texto; en la entrante, gris secundario. */}
+                  <span
+                    data-bubble-time=""
+                    className={cn(
+                      "text-[10.5px] tabular-nums",
+                      out ? "text-bubble-out-meta" : "text-text-2"
+                    )}
+                  >
                     {formatBubbleTime(m.createdAt, locale)}
                   </span>
                   {out && <StatusTicks status={m.status} />}
@@ -319,7 +353,7 @@ export function MessageThread({
                 )}
               </div>
             </div>
-          </div>
+          </Fragment>
         );
       })}
     </div>

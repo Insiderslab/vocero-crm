@@ -29,7 +29,6 @@ const messages: typeof base = {
     addAmount: "+ amount",
   },
   footer: {
-    empty: "No amounts captured",
     total: "Total",
     withoutAmount: "{{count}} without an amount",
     otherCurrency: "{{count}} in another currency, excluded from the total",

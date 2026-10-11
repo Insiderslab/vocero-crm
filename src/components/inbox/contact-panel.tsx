@@ -17,6 +17,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { FichaPanel } from "@/components/ficha-panel";
 import { handoffLabel } from "./helpers";
 import { stageLabel } from "@/lib/stages";
+import { Switch } from "@/components/ui/switch";
 
 /** Resultado de «Riprova risposta IA»: `null` = lanzado; si no, el código. */
 export type RetryAiResult = null | "ai_not_configured" | "agent_disabled" | "failed";
@@ -292,27 +293,16 @@ export function ContactPanel({
                         : t("inbox.panel.stateEnabled")}
                 </p>
               </div>
-              <button
-                role="switch"
-                aria-checked={aiActive}
-                aria-label={t("inbox.panel.aiTitle")}
-                onClick={() => {
+              <Switch
+                size="sm"
+                checked={aiActive}
+                label={t("inbox.panel.aiTitle")}
+                onCheckedChange={() => {
                   void onPatchConversation({
                     aiEnabled: !conversation.aiEnabled,
                   });
                 }}
-                className={cn(
-                  "relative inline-flex h-5 w-9 shrink-0 items-center rounded-full px-0.5 transition-colors",
-                  aiActive ? "bg-brand" : "bg-border-strong"
-                )}
-              >
-                <span
-                  className={cn(
-                    "h-4 w-4 rounded-full bg-knob shadow-sm transition-transform",
-                    aiActive ? "translate-x-4" : "translate-x-0"
-                  )}
-                />
-              </button>
+              />
             </div>
 
             {!agentReady && (

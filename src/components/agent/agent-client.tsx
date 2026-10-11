@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useT } from "@/lib/i18n/client";
 import { CardsSkeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
 import {
   createLatestGate,
   initServerForm,
@@ -155,25 +156,25 @@ export function AgentClient() {
         <div className="flex items-center gap-3">
           {saved && <span className="text-xs text-primary">{t("agent.saved")}</span>}
           {toggleError && <span className="text-xs text-destructive">{toggleError}</span>}
-          <span className="text-sm text-muted-foreground">
+          {/* 009 (E10): interruptor de verdad (manopola visible, estado en
+              texto y en aria-checked), en vez de una píldora sin manopola. */}
+          <span
+            id="agent-enabled-state"
+            className={
+              profile.enabled
+                ? "text-sm font-medium text-brand-text"
+                : "text-sm text-muted-foreground"
+            }
+          >
             {profile.enabled ? t("agent.statusOn") : t("agent.statusOff")}
           </span>
-          <button
-            role="switch"
-            aria-checked={profile.enabled}
-            aria-label={t("agent.toggleLabel")}
+          <Switch
+            checked={profile.enabled}
+            label={t("agent.toggleLabel")}
+            describedBy="agent-enabled-state"
             disabled={!aiConfigured || toggling}
-            onClick={() => void toggleEnabled()}
-            className={`relative h-6 w-11 rounded-full transition-colors disabled:opacity-40 ${
-              profile.enabled ? "bg-primary" : "bg-secondary"
-            }`}
-          >
-            <span
-              className={`absolute top-0.5 h-5 w-5 rounded-full bg-knob transition-transform ${
-                profile.enabled ? "translate-x-5" : "translate-x-0.5"
-              }`}
-            />
-          </button>
+            onCheckedChange={() => void toggleEnabled()}
+          />
         </div>
       </header>
 

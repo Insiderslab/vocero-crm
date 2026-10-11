@@ -18,6 +18,7 @@ const messages = {
   themeDark: "Oscuro",
   owner: "Propietario",
   member: "Equipo",
+  roleAdmin: "Administrador",
   online: "En línea",
   signOut: "Cerrar sesión",
   language: "Idioma",

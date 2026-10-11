@@ -367,18 +367,22 @@ function StageColumn({
   );
 }
 
-/** Cuánto dinero hay en esta etapa, y qué quedó fuera de la cuenta. */
-function StageFooter({ leads, currency }: { leads: BoardLead[]; currency: string }) {
+/**
+ * Cuánto dinero hay en esta etapa, y qué quedó fuera de la cuenta.
+ *
+ * 009 (E7/E8/E10): sin ningún importo en la columna, el pie NO se pinta. Antes
+ * cada columna repetía «Nessun importo inserito»: cinco veces la misma frase
+ * que no dice nada que la tarjeta («+ importo») no diga ya.
+ */
+export function StageFooter({ leads, currency }: { leads: BoardLead[]; currency: string }) {
   const { t, locale } = useT();
   const { totalCents, sinMonto, otraMoneda } = totalesDeEtapa(leads, currency);
   const conMonto = leads.length - sinMonto - otraMoneda;
+  if (conMonto === 0 && otraMoneda === 0) return null;
 
   return (
     <div className="border-t px-3 py-2 text-[11px]">
-      {conMonto === 0 ? (
-        // Un "$0.00" aquí se lee como un error del sistema, no como un dato.
-        <p className="text-muted-foreground">{t("pipeline.footer.empty")}</p>
-      ) : (
+      {conMonto === 0 ? null : (
         <div className="flex items-baseline justify-between gap-2">
           <span className="text-muted-foreground">
             {t("pipeline.footer.total")}

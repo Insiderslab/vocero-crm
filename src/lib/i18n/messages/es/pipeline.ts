@@ -27,7 +27,6 @@ const messages = {
     addAmount: "+ monto",
   },
   footer: {
-    empty: "Sin montos capturados",
     total: "Total",
     withoutAmount: "{{count}} sin monto",
     otherCurrency: "{{count}} en otra moneda, fuera del total",

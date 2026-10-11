@@ -20,6 +20,7 @@ const messages: typeof base = {
   themeDark: "Dark",
   owner: "Owner",
   member: "Team",
+  roleAdmin: "Admin",
   online: "Online",
   signOut: "Sign out",
   language: "Language",

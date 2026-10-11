@@ -29,7 +29,6 @@ const messages: typeof base = {
     addAmount: "+ importo",
   },
   footer: {
-    empty: "Nessun importo inserito",
     total: "Totale",
     withoutAmount: "{{count}} senza importo",
     otherCurrency: "{{count}} in un'altra valuta, fuori dal totale",
