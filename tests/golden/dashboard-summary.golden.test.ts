@@ -160,7 +160,7 @@ describe("010 Sintesi — primera respuesta", () => {
 });
 
 describe("010 Sintesi — IA contra persona y pasos a persona", () => {
-  it("salientes IA/persona del período, y handoffs por motivo", async () => {
+  it("salientes IA/persona del período, y handoffs por motivo (sin los de test)", async () => {
     await addContact("c_o1", ORG_A, "525500002001");
     await addConversation("cv_o1", ORG_A, "c_o1", { handoffAt: daysAgo(1), handoffReason: "cliente" });
     await addContact("c_o2", ORG_A, "525500002002");
@@ -176,6 +176,16 @@ describe("010 Sintesi — IA contra persona y pasos a persona", () => {
     await addMessage("m_o4_p", ORG_A, "cv_o4", "out", minutesAgo(60), false);
     await addMessage("m_o5_old", ORG_A, "cv_o1", "out", daysAgo(40), true);
     await addMessage("m_o6_in", ORG_A, "cv_o1", "in", minutesAgo(50));
+
+    // Conversación de TEST (Laboratorio): ni sus salientes ni su handoff cuentan.
+    await addContact("c_ot", ORG_A, "525500002099");
+    await addConversation("cv_ot", ORG_A, "c_ot", {
+      isTest: true,
+      handoffAt: daysAgo(1),
+      handoffReason: "cliente",
+    });
+    await addMessage("m_ot_ai", ORG_A, "cv_ot", "out", minutesAgo(40), true);
+    await addMessage("m_ot_p", ORG_A, "cv_ot", "out", minutesAgo(39), false);
 
     const a = await getDashboardSummary(ORG_A, 30);
     expect(a.outgoing).toEqual({ ai: 3, human: 1 });
