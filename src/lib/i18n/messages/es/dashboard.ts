@@ -7,7 +7,7 @@ const messages = {
   retry: "Reintentar",
   stages: {
     title: "Conversaciones por etapa del pipeline",
-    empty: "Aún no hay datos en este período.",
+    empty: "Aún no hay conversaciones en el pipeline.",
     aria: "Conversaciones por etapa: {{items}}.",
   },
   firstResponse: {
@@ -43,7 +43,7 @@ const messages = {
     empty: "Aún no hay conversiones en este período.",
   },
   trend: {
-    title: "Entrantes y salientes por día",
+    title: "Entrantes y salientes por día (UTC)",
     inbound: "Entrantes",
     outbound: "Salientes",
     empty: "Aún no hay mensajes en este período.",

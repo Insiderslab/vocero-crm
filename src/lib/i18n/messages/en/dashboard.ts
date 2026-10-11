@@ -9,7 +9,7 @@ const messages: typeof base = {
   retry: "Retry",
   stages: {
     title: "Conversations by pipeline stage",
-    empty: "No data in this period yet.",
+    empty: "No conversations in the pipeline yet.",
     aria: "Conversations by stage: {{items}}.",
   },
   firstResponse: {
@@ -45,7 +45,7 @@ const messages: typeof base = {
     empty: "No conversions in this period yet.",
   },
   trend: {
-    title: "Inbound and outbound per day",
+    title: "Inbound and outbound per day (UTC)",
     inbound: "Inbound",
     outbound: "Outbound",
     empty: "No messages in this period yet.",

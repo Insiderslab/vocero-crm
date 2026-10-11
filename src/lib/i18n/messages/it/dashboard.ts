@@ -9,7 +9,7 @@ const messages: typeof base = {
   retry: "Riprova",
   stages: {
     title: "Conversazioni per fase della pipeline",
-    empty: "Ancora nessun dato in questo periodo.",
+    empty: "Ancora nessuna conversazione nella pipeline.",
     aria: "Conversazioni per fase: {{items}}.",
   },
   firstResponse: {
@@ -45,7 +45,7 @@ const messages: typeof base = {
     empty: "Ancora nessuna conversione in questo periodo.",
   },
   trend: {
-    title: "Entranti e uscenti per giorno",
+    title: "Entranti e uscenti per giorno (UTC)",
     inbound: "Entranti",
     outbound: "Uscenti",
     empty: "Ancora nessun messaggio in questo periodo.",
