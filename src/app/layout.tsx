@@ -32,9 +32,11 @@ export const dynamic = "force-dynamic";
 export async function generateMetadata(): Promise<Metadata> {
   const branding = await getBranding().catch(() => DEFAULT_BRANDING);
   const { t } = await getT();
+  // Las llaves viven en el módulo `common` del diccionario: sin el prefijo,
+  // `t()` no las encontraba y la pestaña enseñaba la llave cruda (E9).
   return {
-    title: `${branding.name} — ${t("meta.titleSuffix")}`,
-    description: t("meta.description"),
+    title: `${branding.name} — ${t("common.meta.titleSuffix")}`,
+    description: t("common.meta.description"),
     // El `?v=` cambia con la marca: los navegadores guardan el favicon con una
     // insistencia notable y, sin eso, el logo nuevo tarda días en aparecer.
     icons: { icon: faviconHref(branding) },
