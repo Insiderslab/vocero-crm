@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getSessionOrNull } from "@/lib/auth/session";
 import { getT } from "@/lib/i18n/server";
+import { isOrgAdmin } from "@/lib/roles";
 import {
   getOnboardingChecklist,
   showOnboardingChecklist,
@@ -24,7 +25,10 @@ export default async function DashboardPage({
   const session = await getSessionOrNull();
   if (!session) redirect("/login");
   const { t } = await getT();
-  const checklist = await getOnboardingChecklist(session.organizationId);
+  // Como en Automazioni: un member no la ve, así que tampoco toca la BD por ella.
+  const checklist = isOrgAdmin(session.role)
+    ? await getOnboardingChecklist(session.organizationId)
+    : null;
   const params = await searchParams;
   const reopened = params["primi-passi"] === "1";
 
@@ -34,7 +38,7 @@ export default async function DashboardPage({
         <h2 className="font-semibold">{t("dashboard.title")}</h2>
       </header>
       <div className="min-h-0 flex-1 space-y-6 overflow-y-auto p-4 sm:p-6">
-        {showOnboardingChecklist(session.role, checklist, reopened) && (
+        {checklist && showOnboardingChecklist(session.role, checklist, reopened) && (
           <PrimiPassi checklist={checklist} t={t} />
         )}
         <DashboardClient />
