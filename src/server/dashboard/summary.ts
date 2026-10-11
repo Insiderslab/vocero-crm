@@ -72,6 +72,8 @@ export async function getDashboardSummary(
 ): Promise<DashboardSummary> {
   const db = getDb();
   const since = new Date(Date.now() - days * 86_400_000);
+  // postgres-js no serializa un Date dentro de `sql`...`: va como texto ISO (UTC, como lo guarda Drizzle).
+  const sinceSql = since.toISOString();
 
   const conversationScope = scoped(
     schema.conversation.organizationId,
@@ -111,7 +113,7 @@ export async function getDashboardSummary(
             on message.conversation_id = conversation.id
            and message.direction = 'in'
           where ${conversationScope}
-            and message.created_at >= ${since}
+            and message.created_at >= ${sinceSql}::timestamp
           group by conversation.id
         ),
         answered as (
@@ -147,7 +149,7 @@ export async function getDashboardSummary(
         join conversation on conversation.id = message.conversation_id
         where ${conversationScope}
           and message.direction = 'out'
-          and message.created_at >= ${since}
+          and message.created_at >= ${sinceSql}::timestamp
         group by message.ai_generated
       `),
 
@@ -156,7 +158,7 @@ export async function getDashboardSummary(
         select conversation.handoff_reason, count(*)::int as n
         from conversation
         where ${conversationScope}
-          and conversation.handoff_at >= ${since}
+          and conversation.handoff_at >= ${sinceSql}::timestamp
         group by conversation.handoff_reason
         order by count(*) desc, conversation.handoff_reason
       `),
@@ -167,7 +169,7 @@ export async function getDashboardSummary(
         from lead_stage_event
         where ${scoped(schema.leadStageEvent.organizationId, organizationId)}
           and lead_stage_event.to_stage_kind = 'won'
-          and lead_stage_event.occurred_at >= ${since}
+          and lead_stage_event.occurred_at >= ${sinceSql}::timestamp
       `),
 
       // 5. Andamento: entrantes y salientes por día (UTC).
@@ -179,7 +181,7 @@ export async function getDashboardSummary(
         from message
         join conversation on conversation.id = message.conversation_id
         where ${conversationScope}
-          and message.created_at >= ${since}
+          and message.created_at >= ${sinceSql}::timestamp
         group by 1
         order by 1
       `),
