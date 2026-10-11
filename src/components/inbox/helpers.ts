@@ -2,19 +2,38 @@
 
 import type { TFunction } from "@/lib/i18n/client";
 import type { ConversationDto } from "@/lib/types";
+import { DEFAULT_LOCALE, intlLocale, type Locale } from "@/lib/i18n";
 
-export function formatTime(iso: string | null): string {
+/** Hora (hoy) o día corto, en el idioma de la interfaz (009 E2). */
+export function formatTime(iso: string | null, locale: Locale = DEFAULT_LOCALE): string {
   if (!iso) return "";
   const d = new Date(iso);
   const now = new Date();
   const sameDay = d.toDateString() === now.toDateString();
   if (sameDay) {
-    return d.toLocaleTimeString("es-MX", {
+    return d.toLocaleTimeString(intlLocale(locale), {
       hour: "2-digit",
       minute: "2-digit",
     });
   }
-  return d.toLocaleDateString("es-MX", { day: "numeric", month: "short" });
+  return d.toLocaleDateString(intlLocale(locale), { day: "numeric", month: "short" });
+}
+
+/** Separador de día del hilo: «9 ottobre» / «October 9» / «9 de octubre». */
+export function formatDay(iso: string, locale: Locale = DEFAULT_LOCALE): string {
+  return new Date(iso).toLocaleDateString(intlLocale(locale), {
+    day: "numeric",
+    month: "long",
+  });
+}
+
+/** Hora de una burbuja (24 h). */
+export function formatBubbleTime(iso: string, locale: Locale = DEFAULT_LOCALE): string {
+  return new Date(iso).toLocaleTimeString(intlLocale(locale), {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
 }
 
 export function formatRemaining(ms: number): string {

@@ -20,6 +20,15 @@ const messages = {
   report: "Reporte",
   failed: "La corrida falló: {{error}}. Vuelve a intentarlo.",
   unknownError: "error desconocido",
+  /** 009 (E2): nombre de cada persona en el idioma de la interfaz. */
+  personas: {
+    comprador_decidido: "Comprador decidido",
+    pregunton_precios: "Preguntón de precios",
+    cliente_enojado: "Cliente enojado",
+    fuera_de_kb: "Pregunta fuera del conocimiento",
+    pide_humano: "Pide un humano",
+    errores_modismos: "Errores y modismos",
+  },
   verdicts: {
     verde: "Verdes",
     amarillo: "Amarillos",

@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { ContactAvatar } from "@/components/avatar";
 import { useRole } from "@/components/role-context";
 import { Button } from "@/components/ui/button";
+import { defaultStageKeyOf, stageLabel, type DefaultStageKey } from "@/lib/stages";
 import {
   formatTime,
   handoffLabel,
@@ -20,13 +21,19 @@ import {
   type InboxFilter,
 } from "./helpers";
 
-const STAGE_DOT: Record<string, string> = {
-  Nuevo: "#9ca3af",
-  "En conversación": "#7b93b3",
-  Interesado: "#b08b5e",
-  Cliente: "#5f8f74",
-  Perdido: "#a2504c",
+/** Color del punto de cada etapa de fábrica (por clave: vale en los tres idiomas). */
+const STAGE_DOT: Record<DefaultStageKey, string> = {
+  new: "#9ca3af",
+  talking: "#7b93b3",
+  interested: "#b08b5e",
+  won: "#5f8f74",
+  lost: "#a2504c",
 };
+
+function stageDot(name: string): string {
+  const key = defaultStageKeyOf(name);
+  return key ? STAGE_DOT[key] : "#9ca3af";
+}
 
 function EmptyState({ onSeeded }: { onSeeded: () => void }) {
   const { t } = useT();
@@ -144,7 +151,7 @@ export function ConversationList({
   onSelect: (id: string) => void;
   onSeeded: () => void;
 }) {
-  const { t } = useT();
+  const { t, locale } = useT();
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<InboxFilter>("all");
   const [stage, setStage] = useState<string>("all");
@@ -268,7 +275,7 @@ export function ConversationList({
             <option value="all">{t("inbox.filters.allStages")}</option>
             {stages.map((s) => (
               <option key={s} value={s}>
-                {s}
+                {stageLabel(s, locale)}
               </option>
             ))}
           </select>
@@ -325,7 +332,7 @@ export function ConversationList({
                             unread ? "font-semibold text-brand" : "text-text-3"
                           )}
                         >
-                          {formatTime(c.lastMessageAt)}
+                          {formatTime(c.lastMessageAt, locale)}
                         </span>
                       </span>
                       <span className="mt-0.5 flex items-center justify-between gap-2">
@@ -349,10 +356,10 @@ export function ConversationList({
                             <span
                               className="h-[7px] w-[7px] rounded-full"
                               style={{
-                                background: STAGE_DOT[c.stageName] ?? "#9ca3af",
+                                background: stageDot(c.stageName),
                               }}
                             />
-                            {c.stageName}
+                            {stageLabel(c.stageName, locale)}
                           </span>
                         )}
                         {c.handoffAt && (

@@ -117,6 +117,23 @@ const messages = {
     saving: "Guardando…",
     saveNotes: "Guardar notas",
   },
+  /** 009 (E2): ficha del lead (antes cableada en español). */
+  ficha: {
+    title: "Ficha",
+    add: "Agregar",
+    empty: "Todavía vacía. Aquí aparece lo que tu agente va averiguando del lead mientras conversa — y puedes escribirlo tú.",
+    save: "Guardar",
+    cancel: "Cancelar",
+    valueOf: "Valor de {{label}}",
+    edit: "Editar {{label}}",
+    remove: "Quitar {{label}}",
+    keyPlaceholder: "Qué dato (ej. presupuesto)",
+    keyAria: "Nombre del dato",
+    valuePlaceholder: "Valor",
+    valueAria: "Valor del dato",
+    yes: "Sí",
+    no: "No",
+  },
   alert: {
     title: "{{name}} necesita a una persona",
     someone: "Un contacto",

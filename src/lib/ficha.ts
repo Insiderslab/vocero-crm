@@ -20,14 +20,21 @@ export function fichaLabel(key: string): string {
   return palabras.charAt(0).toUpperCase() + palabras.slice(1);
 }
 
-/** Cómo se muestra un valor. Los booleanos en Sí/No: nadie califica en `true`. */
-export function fichaValueText(value: FichaValue): string {
-  if (typeof value === "boolean") return value ? "Sí" : "No";
+/**
+ * Cómo se muestra un valor. Los booleanos en Sí/No: nadie califica en `true`.
+ * 009 (E2): las palabras llegan en el idioma de la interfaz (default: español).
+ */
+export function fichaValueText(
+  value: FichaValue,
+  words: { yes: string; no: string } = { yes: "Sí", no: "No" }
+): string {
+  if (typeof value === "boolean") return value ? words.yes : words.no;
   if (typeof value === "number") return String(value);
   return value ?? "";
 }
 
-const SI = new Set(["si", "sí", "true", "1"]);
+// Sí/No en los tres idiomas de la interfaz (009 E2): "sì"/"yes" también valen.
+const SI = new Set(["si", "sí", "sì", "yes", "true", "1"]);
 const NO = new Set(["no", "false", "0"]);
 
 /**

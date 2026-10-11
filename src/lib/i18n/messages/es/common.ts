@@ -17,6 +17,11 @@ const messages = {
   password: "Contraseña",
   tempPassword: "Contraseña temporal",
   minChars: "mínimo 8 caracteres",
+  /** 009 (E2): nombre inicial de la organización del primer registro. */
+  defaultOrg: {
+    named: "Negocio de {{name}}",
+    unnamed: "Mi negocio",
+  },
   meta: {
     titleSuffix: "WhatsApp",
     description:

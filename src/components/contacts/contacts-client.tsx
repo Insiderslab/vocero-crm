@@ -25,9 +25,10 @@ import { PriorityBadge } from "@/components/pipeline/priority-picker";
 import { NewContactDialog } from "./new-contact-dialog";
 import { StartConversation } from "./start-conversation";
 import { TagEditor } from "./tag-editor";
+import { stageLabel } from "@/lib/stages";
 
 export function ContactsClient() {
-  const { t } = useT();
+  const { t, locale } = useT();
   const router = useRouter();
   const [contacts, setContacts] = useState<ContactDto[]>([]);
   const [query, setQuery] = useState("");
@@ -132,7 +133,7 @@ export function ContactsClient() {
               <option value="all">{t("contacts.allStages")}</option>
               {stages.map((s) => (
                 <option key={s} value={s}>
-                  {s}
+                  {stageLabel(s, locale)}
                 </option>
               ))}
             </select>
@@ -178,13 +179,13 @@ export function ContactsClient() {
                   {query.trim() && stage !== "all"
                     ? t("contacts.empty.filteredBoth", {
                         query: query.trim(),
-                        stage,
+                        stage: stageLabel(stage, locale),
                       })
                     : query.trim()
                       ? t("contacts.empty.filteredQuery", {
                           query: query.trim(),
                         })
-                      : t("contacts.empty.filteredStage", { stage })}
+                      : t("contacts.empty.filteredStage", { stage: stageLabel(stage, locale) })}
                 </p>
               </>
             ) : (
@@ -213,7 +214,7 @@ export function ContactsClient() {
                     </span>
                     {c.priority && <PriorityBadge value={c.priority} />}
                     {c.stageName && (
-                      <Badge variant="outline">{c.stageName}</Badge>
+                      <Badge variant="outline">{stageLabel(c.stageName, locale)}</Badge>
                     )}
                     {c.archivedAt && (
                       <Badge variant="secondary">{t("contacts.archived")}</Badge>

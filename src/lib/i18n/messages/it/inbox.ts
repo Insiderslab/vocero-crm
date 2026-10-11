@@ -119,6 +119,23 @@ const messages: typeof base = {
     saving: "Salvataggio…",
     saveNotes: "Salva note",
   },
+  /** 009 (E2): ficha del lead (antes cableada en español). */
+  ficha: {
+    title: "Scheda",
+    add: "Aggiungi",
+    empty: "Ancora vuota. Qui compare ciò che il tuo agente scopre del lead mentre conversa — e puoi scriverlo anche tu.",
+    save: "Salva",
+    cancel: "Annulla",
+    valueOf: "Valore di {{label}}",
+    edit: "Modifica {{label}}",
+    remove: "Rimuovi {{label}}",
+    keyPlaceholder: "Quale dato (es. budget)",
+    keyAria: "Nome del dato",
+    valuePlaceholder: "Valore",
+    valueAria: "Valore del dato",
+    yes: "Sì",
+    no: "No",
+  },
   alert: {
     title: "{{name}} ha bisogno di una persona",
     someone: "Un contatto",

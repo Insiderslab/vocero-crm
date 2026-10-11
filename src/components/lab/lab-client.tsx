@@ -21,6 +21,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useT } from "@/lib/i18n/client";
+import { intlLocale } from "@/lib/i18n";
 
 type Run = {
   id: string;
@@ -47,6 +48,23 @@ type Case = {
   hallazgos: Hallazgo[];
   transcript: { role: "cliente" | "agente"; text: string }[];
 };
+
+/** Personas con nombre traducido (`lab.personas.*`); otra, la etiqueta del servidor. */
+const PERSONA_KEYS = new Set([
+  "comprador_decidido",
+  "pregunton_precios",
+  "cliente_enojado",
+  "fuera_de_kb",
+  "pide_humano",
+  "errores_modismos",
+]);
+
+export function personaName(
+  c: Pick<Case, "persona" | "personaLabel">,
+  t: (key: string) => string
+): string {
+  return PERSONA_KEYS.has(c.persona) ? t(`lab.personas.${c.persona}`) : c.personaLabel;
+}
 
 const TIPO_KEYS: Record<Hallazgo["tipo"], string> = {
   alucinacion: "lab.findings.alucinacion",
@@ -261,7 +279,7 @@ function HistoryList({
             )}
           </div>
           <p className="mt-1 text-[11px] text-muted-foreground">
-            {new Date(run.startedAt).toLocaleString(locale, {
+            {new Date(run.startedAt).toLocaleString(intlLocale(locale), {
               day: "numeric",
               month: "short",
               hour: "2-digit",
@@ -362,7 +380,7 @@ function CaseCard({ testCase, onApplied }: { testCase: Case; onApplied: () => vo
         >
           <span className="flex items-center gap-2 text-sm font-semibold">
             {icon}
-            {c.personaLabel}
+            {personaName(c, t)}
             {c.status === "judge_failed" && (
               <Badge variant="secondary">{t("lab.noVerdict")}</Badge>
             )}

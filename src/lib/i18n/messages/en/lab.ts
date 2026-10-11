@@ -22,6 +22,15 @@ const messages: typeof base = {
   report: "Report",
   failed: "The run failed: {{error}}. Please try again.",
   unknownError: "unknown error",
+  /** 009 (E2): nombre de cada persona en el idioma de la interfaz. */
+  personas: {
+    comprador_decidido: "Decisive buyer",
+    pregunton_precios: "Price shopper",
+    cliente_enojado: "Angry customer",
+    fuera_de_kb: "Question outside the knowledge base",
+    pide_humano: "Asks for a human",
+    errores_modismos: "Typos and slang",
+  },
   verdicts: {
     verde: "Green",
     amarillo: "Yellow",

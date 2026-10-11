@@ -7,6 +7,7 @@ import type { StageDto } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { isStageRename, stageLabel } from "@/lib/stages";
 
 /** Gestión de etapas: renombrar, reordenar, agregar, eliminar (con reasignación). */
 export function StageManager({
@@ -18,14 +19,16 @@ export function StageManager({
   onClose: () => void;
   onChanged: () => void;
 }) {
-  const { t } = useT();
+  const { t, locale } = useT();
   const [newName, setNewName] = useState("");
   const [deleting, setDeleting] = useState<StageDto | null>(null);
   const [moveTo, setMoveTo] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   async function rename(stage: StageDto, name: string) {
-    if (!name.trim() || name === stage.name) return;
+    // 009 (E2): el campo enseña la etiqueta traducida de una etapa de
+    // fábrica; dejarlo como está NO la renombra (ni la "traduce" en la BD).
+    if (!isStageRename(name, stage.name, locale)) return;
     await fetch(`/api/pipeline/stages/${stage.id}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
@@ -104,7 +107,8 @@ export function StageManager({
           {sorted.map((s, i) => (
             <li key={s.id} className="flex items-center gap-2">
               <Input
-                defaultValue={s.name}
+                defaultValue={stageLabel(s.name, locale)}
+                aria-label={t("pipeline.stages.nameAria", { name: stageLabel(s.name, locale) })}
                 onBlur={(e) => void rename(s, e.target.value)}
                 className="flex-1"
               />
@@ -149,7 +153,7 @@ export function StageManager({
         {deleting && (
           <div className="mt-4 rounded-md border border-warning-soft bg-warning-tint p-3">
             <p className="text-sm text-warning-text">
-              {t("pipeline.stages.hasCards", { name: deleting.name })}
+              {t("pipeline.stages.hasCards", { name: stageLabel(deleting.name, locale) })}
             </p>
             <div className="mt-2 flex gap-2">
               <select
@@ -162,7 +166,7 @@ export function StageManager({
                   .filter((s) => s.id !== deleting.id)
                   .map((s) => (
                     <option key={s.id} value={s.id}>
-                      {s.name}
+                      {stageLabel(s.name, locale)}
                     </option>
                   ))}
               </select>

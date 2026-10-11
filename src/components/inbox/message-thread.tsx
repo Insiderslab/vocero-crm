@@ -16,7 +16,8 @@ import {
 import type { MessageDto, MessageMediaDto } from "@/lib/types";
 import { useT, type TFunction } from "@/lib/i18n/client";
 import { cn } from "@/lib/utils";
-import { formatBytes, mediaLabel } from "./helpers";
+import type { Locale } from "@/lib/i18n";
+import { formatBubbleTime, formatBytes, formatDay, mediaLabel } from "./helpers";
 
 function StatusTicks({ status }: { status: MessageDto["status"] }) {
   const cls = "h-[13px] w-[13px]";
@@ -175,26 +176,18 @@ function MediaBlock({ media }: { media: MessageMediaDto }) {
   );
 }
 
-function dayLabel(iso: string, t: TFunction): string {
+function dayLabel(iso: string, t: TFunction, locale: Locale): string {
   const d = new Date(iso);
   const today = new Date();
   const yesterday = new Date(today.getTime() - 86400000);
   if (d.toDateString() === today.toDateString()) return t("inbox.days.today");
   if (d.toDateString() === yesterday.toDateString())
     return t("inbox.days.yesterday");
-  return d.toLocaleDateString("es-MX", { day: "numeric", month: "long" });
-}
-
-function bubbleTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString("es-MX", {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
+  return formatDay(iso, locale);
 }
 
 export function MessageThread({ messages }: { messages: MessageDto[] }) {
-  const { t } = useT();
+  const { t, locale } = useT();
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -222,7 +215,7 @@ export function MessageThread({ messages }: { messages: MessageDto[] }) {
             {newDay && (
               <div className="my-3 flex justify-center">
                 <span className="rounded-full border bg-background px-3 py-1 text-[11.5px] font-semibold text-text-2 shadow-sm">
-                  {dayLabel(m.createdAt, t)}
+                  {dayLabel(m.createdAt, t, locale)}
                 </span>
               </div>
             )}
@@ -284,7 +277,7 @@ export function MessageThread({ messages }: { messages: MessageDto[] }) {
                     </span>
                   )}
                   <span className="text-[10.5px] text-text-4">
-                    {bubbleTime(m.createdAt)}
+                    {formatBubbleTime(m.createdAt, locale)}
                   </span>
                   {out && <StatusTicks status={m.status} />}
                 </span>

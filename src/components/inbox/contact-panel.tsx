@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { FichaPanel } from "@/components/ficha-panel";
 import { handoffLabel } from "./helpers";
+import { stageLabel } from "@/lib/stages";
 
 /** Resultado de «Riprova risposta IA»: `null` = lanzado; si no, el código. */
 export type RetryAiResult = null | "ai_not_configured" | "agent_disabled" | "failed";
@@ -38,7 +39,7 @@ export function ContactPanel({
   onRetryAi?: () => Promise<RetryAiResult>;
   onClose: () => void;
 }) {
-  const { t } = useT();
+  const { t, locale } = useT();
   const [notes, setNotes] = useState("");
   const [ficha, setFicha] = useState<FichaDto>({});
   const [notesLoaded, setNotesLoaded] = useState(false);
@@ -360,7 +361,7 @@ export function ContactPanel({
                     )}
                     <button
                       onClick={() => void moveToStage(s.id)}
-                      aria-label={t("inbox.panel.moveTo", { name: s.name })}
+                      aria-label={t("inbox.panel.moveTo", { name: stageLabel(s.name, locale) })}
                       className={cn(
                         "relative z-10 mt-0.5 flex h-[15px] w-[15px] shrink-0 items-center justify-center rounded-full transition-colors",
                         done && "bg-brand text-brand-fg",
@@ -377,7 +378,7 @@ export function ContactPanel({
                         current ? "font-[650] text-brand-text" : "text-text-2 hover:text-foreground"
                       )}
                     >
-                      {s.name}
+                      {stageLabel(s.name, locale)}
                     </button>
                   </li>
                 );

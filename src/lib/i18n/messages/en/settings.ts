@@ -122,6 +122,7 @@ const messages: typeof base = {
     utilityOption: "UTILITY (follow-up)",
     bodyLabel: "Body",
     bodyPlaceholder: "Hi {{1}}, I'm confirming your session on {{2}} at {{3}}.",
+    namePlaceholder: "appointment_reminder",
     variableOne: "1 variable: sending will ask for its value.",
     variableMany: "{{count}} variables: sending will ask for all {{count}} values.",
     createError: "Could not create the template",

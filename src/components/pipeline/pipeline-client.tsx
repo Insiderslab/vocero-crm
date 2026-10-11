@@ -26,6 +26,8 @@ import { LossReasonDialog } from "./loss-reason-dialog";
 import { AmountDialog } from "./amount-dialog";
 import { PriorityBadge } from "./priority-picker";
 import { LeadDrawer } from "./lead-drawer";
+import { stageLabel } from "@/lib/stages";
+import { intlLocale } from "@/lib/i18n";
 
 export type BoardLead = {
   id: string;
@@ -304,6 +306,7 @@ function StageColumn({
   onEditAmount: (lead: BoardLead) => void;
   onOpen: (lead: BoardLead) => void;
 }) {
+  const { locale } = useT();
   const { setNodeRef, isOver } = useDroppable({ id: stage.id });
   return (
     <div
@@ -319,7 +322,7 @@ function StageColumn({
           {stage.kind === "lost" && (
             <XCircle className="h-3.5 w-3.5 text-muted-foreground" />
           )}
-          {stage.name}
+          {stageLabel(stage.name, locale)}
         </span>
         <span className="rounded-full bg-secondary px-2 py-0.5 text-xs text-muted-foreground">
           {leads.length}
@@ -343,7 +346,7 @@ function StageColumn({
 
 /** Cuánto dinero hay en esta etapa, y qué quedó fuera de la cuenta. */
 function StageFooter({ leads, currency }: { leads: BoardLead[]; currency: string }) {
-  const { t } = useT();
+  const { t, locale } = useT();
   const { totalCents, sinMonto, otraMoneda } = totalesDeEtapa(leads, currency);
   const conMonto = leads.length - sinMonto - otraMoneda;
 
@@ -361,7 +364,7 @@ function StageFooter({ leads, currency }: { leads: BoardLead[]; currency: string
               : ""}
           </span>
           <span className="font-semibold tabular-nums">
-            {formatMoneyCents(totalCents, currency)}
+            {formatMoneyCents(totalCents, currency, intlLocale(locale))}
           </span>
         </div>
       )}
@@ -429,7 +432,7 @@ function LeadCard({
   overlay?: boolean;
   onEditAmount?: (lead: BoardLead) => void;
 }) {
-  const { t } = useT();
+  const { t, locale } = useT();
   return (
     <div
       className={cn(
@@ -447,7 +450,7 @@ function LeadCard({
           <p className="text-[11px] text-muted-foreground">
             {lead.lastActivityAt
               ? t("pipeline.card.activity", {
-                  time: formatTime(lead.lastActivityAt),
+                  time: formatTime(lead.lastActivityAt, locale),
                 })
               : t("pipeline.card.noActivity")}
           </p>
@@ -484,12 +487,12 @@ function LeadCard({
         >
           {lead.amountCents === null
             ? t("pipeline.card.addAmount")
-            : formatMoneyCents(lead.amountCents, lead.currency ?? currency)}
+            : formatMoneyCents(lead.amountCents, lead.currency ?? currency, intlLocale(locale))}
         </button>
       )}
       {overlay && lead.amountCents !== null && (
         <p className="mt-1.5 text-right text-xs font-semibold tabular-nums">
-          {formatMoneyCents(lead.amountCents, lead.currency ?? currency)}
+          {formatMoneyCents(lead.amountCents, lead.currency ?? currency, intlLocale(locale))}
         </p>
       )}
     </div>

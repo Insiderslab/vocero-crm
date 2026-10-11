@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { intlLocale } from "@/lib/i18n";
 
 type TemplateDto = {
   id: string;
@@ -62,7 +63,7 @@ export function AutomationsClient({
    */
   onboarding?: { whatsappConnected: boolean; templateApproved: boolean };
 } = {}) {
-  const { t } = useT();
+  const { t, locale } = useT();
   const [rules, setRules] = useState<Rule[]>([]);
   const [tags, setTags] = useState<TagDto[]>([]);
   const [templates, setTemplates] = useState<TemplateDto[]>([]);
@@ -415,7 +416,7 @@ export function AutomationsClient({
                           </Badge>
                           <span className="font-medium">{run.contactName}</span>
                           <span className="text-xs text-muted-foreground">
-                            {new Date(run.createdAt).toLocaleString()}
+                            {new Date(run.createdAt).toLocaleString(intlLocale(locale))}
                             {run.detail ? ` · ${run.detail}` : ""}
                           </span>
                         </li>

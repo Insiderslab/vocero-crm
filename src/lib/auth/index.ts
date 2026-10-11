@@ -5,6 +5,7 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { organization } from "better-auth/plugins";
 import { getDb, schema } from "@/lib/db";
 import { getEnv } from "@/lib/env";
+import { localeFromHeaders } from "@/lib/i18n";
 import { authRateLimitAllowed } from "@/lib/rate-limit";
 import {
   onUserCreated,
@@ -83,8 +84,12 @@ function createAuth() {
     databaseHooks: {
       user: {
         create: {
-          after: async (user) => {
-            await onUserCreated(user.id, user.name);
+          after: async (user, context) => {
+            // 009 (E2): la organización del primer registro nace en el idioma
+            // de quien se registra (cookie de idioma, luego Accept-Language).
+            const headers =
+              context?.headers ?? context?.request?.headers ?? null;
+            await onUserCreated(user.id, user.name, localeFromHeaders(headers));
           },
         },
       },

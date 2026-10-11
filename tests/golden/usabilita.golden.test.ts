@@ -1,6 +1,9 @@
 import { setTimeout as sleep } from "node:timers/promises";
 import { describe, expect, it, vi } from "vitest";
-import { getSql } from "@/lib/db";
+import { getDb, getSql } from "@/lib/db";
+import { provisionOrganization } from "@/server/auth/on-signup";
+import { getBranding } from "@/server/branding";
+import { seedDemo } from "@/server/seed/demo";
 import {
   applyHandoff,
   pendingAgentRetries,
@@ -325,5 +328,68 @@ describe("E1d — el handoff se aplica y se avisa solo en la transición", () =>
         data: { conversationId: cv, reason: "cliente", contactName: "Contacto transicion" },
       },
     ]);
+  });
+});
+
+/* ------------------------------------------------------------------------ */
+/* E2 — organización nueva en el idioma de quien la crea                    */
+/* ------------------------------------------------------------------------ */
+
+describe("E2 — siembra de una organización nueva", () => {
+  async function newOrg(id: string, metadata: string | null = null) {
+    await sql()`insert into organization (id, name, slug, metadata) values (${id}, ${id}, ${id}, ${metadata})`;
+  }
+  async function stagesOf(orgId: string) {
+    return sql()<{ name: string; kind: string }[]>`
+      select name, kind from pipeline_stage where organization_id = ${orgId} order by position
+    `;
+  }
+
+  it("italiano: etapas en italiano y moneda EUR en la marca", async () => {
+    await newOrg("org_e2_it");
+    await getDb().transaction((tx) => provisionOrganization(tx, "org_e2_it", "it"));
+    expect(await stagesOf("org_e2_it")).toEqual([
+      { name: "Nuovo", kind: "open" },
+      { name: "In conversazione", kind: "open" },
+      { name: "Interessato", kind: "open" },
+      { name: "Cliente", kind: "won" },
+      { name: "Perso", kind: "lost" },
+    ]);
+    expect((await getBranding("org_e2_it")).currency).toBe("EUR");
+  });
+
+  it("español: como siempre (etapas en español, MXN)", async () => {
+    await newOrg("org_e2_es");
+    await getDb().transaction((tx) => provisionOrganization(tx, "org_e2_es", "es"));
+    expect((await stagesOf("org_e2_es")).map((s) => s.name)).toEqual([
+      "Nuevo",
+      "En conversación",
+      "Interesado",
+      "Cliente",
+      "Perdido",
+    ]);
+    expect((await getBranding("org_e2_es")).currency).toBe("MXN");
+  });
+
+  it("una marca ya guardada no se pisa", async () => {
+    await newOrg("org_e2_meta", JSON.stringify({ branding: { currency: "USD", name: "Mía" } }));
+    await getDb().transaction((tx) => provisionOrganization(tx, "org_e2_meta", "it"));
+    const branding = await getBranding("org_e2_meta");
+    expect(branding.currency).toBe("USD");
+    expect(branding.name).toBe("Mía");
+  });
+
+  it("la demo (escrita en español) encuentra las etapas italianas por su clave", async () => {
+    await newOrg("org_e2_demo");
+    await getDb().transaction((tx) => provisionOrganization(tx, "org_e2_demo", "it"));
+    await seedDemo(getDb(), "org_e2_demo");
+    const rows = await sql()<{ name: string; n: number }[]>`
+      select s.name, count(l.id)::int as n
+      from pipeline_stage s left join lead l on l.stage_id = s.id
+      where s.organization_id = ${"org_e2_demo"}
+      group by s.name, s.position order by s.position
+    `;
+    // Ninguna etapa queda vacía por no encontrar "Interesado" o "Perdido".
+    expect(rows.every((r) => r.n > 0)).toBe(true);
   });
 });
