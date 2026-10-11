@@ -11,6 +11,7 @@ import { ContactAvatar } from "@/components/avatar";
 import { useRole } from "@/components/role-context";
 import { Button } from "@/components/ui/button";
 import { defaultStageKeyOf, stageLabel, type DefaultStageKey } from "@/lib/stages";
+import { ListSkeleton } from "@/components/ui/skeleton";
 import {
   formatTime,
   handoffLabel,
@@ -145,11 +146,14 @@ export function ConversationList({
   selectedId,
   onSelect,
   onSeeded,
+  loadFailed = false,
 }: {
   conversations: ConversationDto[] | null;
   selectedId: string | null;
   onSelect: (id: string) => void;
   onSeeded: () => void;
+  /** 009 (E3): la primera carga falló (la lista sigue en `null`). */
+  loadFailed?: boolean;
 }) {
   const { t, locale } = useT();
   const [query, setQuery] = useState("");
@@ -286,7 +290,16 @@ export function ConversationList({
 
       <div className="flex-1 overflow-y-auto">
         {loading ? (
-          <p className="p-6 text-center text-xs text-text-3">{t("inbox.loading")}</p>
+          loadFailed ? (
+            <div className="flex flex-col items-center gap-2 p-6 text-center">
+              <p className="text-xs text-text-3">{t("common.loadError")}</p>
+              <Button size="sm" variant="outline" onClick={onSeeded}>
+                {t("common.retry")}
+              </Button>
+            </div>
+          ) : (
+            <ListSkeleton rows={7} />
+          )
         ) : conversations.length === 0 ? (
           <EmptyState onSeeded={onSeeded} />
         ) : visible.length === 0 ? (

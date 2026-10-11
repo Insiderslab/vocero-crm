@@ -7,6 +7,8 @@ const messages: typeof base = {
   cancel: "Cancel",
   close: "Close",
   loading: "Loading…",
+  loadError: "Could not load. Check your connection.",
+  retry: "Retry",
   create: "Create",
   creating: "Creating…",
   edit: "Edit",

@@ -18,6 +18,7 @@ import { useT, type TFunction } from "@/lib/i18n/client";
 import { cn } from "@/lib/utils";
 import type { Locale } from "@/lib/i18n";
 import { formatBubbleTime, formatBytes, formatDay, mediaLabel } from "./helpers";
+import { LoadingRegion, Skeleton } from "@/components/ui/skeleton";
 
 function StatusTicks({ status }: { status: MessageDto["status"] }) {
   const cls = "h-[13px] w-[13px]";
@@ -186,7 +187,14 @@ function dayLabel(iso: string, t: TFunction, locale: Locale): string {
   return formatDay(iso, locale);
 }
 
-export function MessageThread({ messages }: { messages: MessageDto[] }) {
+export function MessageThread({
+  messages,
+  loading = false,
+}: {
+  messages: MessageDto[];
+  /** 009 (E3): el hilo todavía no llegó. */
+  loading?: boolean;
+}) {
   const { t, locale } = useT();
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -194,6 +202,18 @@ export function MessageThread({ messages }: { messages: MessageDto[] }) {
     const el = scrollRef.current;
     if (el) el.scrollTop = el.scrollHeight;
   }, [messages.length]);
+
+  if (loading) {
+    return (
+      <LoadingRegion className="flex flex-1 flex-col gap-3 overflow-hidden bg-chat px-3 py-5 sm:px-[6%]">
+        {[60, 40, 70, 35, 55].map((w, i) => (
+          <div key={i} className={cn("flex", i % 2 ? "justify-end" : "justify-start")}>
+            <Skeleton className="h-10 rounded-lg" style={{ width: `${w}%` }} />
+          </div>
+        ))}
+      </LoadingRegion>
+    );
+  }
 
   return (
     <div

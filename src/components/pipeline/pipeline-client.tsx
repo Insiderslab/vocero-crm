@@ -28,6 +28,7 @@ import { PriorityBadge } from "./priority-picker";
 import { LeadDrawer } from "./lead-drawer";
 import { stageLabel } from "@/lib/stages";
 import { intlLocale } from "@/lib/i18n";
+import { BoardSkeleton } from "@/components/ui/skeleton";
 
 export type BoardLead = {
   id: string;
@@ -46,6 +47,10 @@ export function PipelineClient() {
   const [stages, setStages] = useState<StageDto[]>([]);
   const [currency, setCurrency] = useState("MXN");
   const [leads, setLeads] = useState<BoardLead[]>([]);
+  // 009 (E3): hasta la primera respuesta el tablero es un esqueleto, no
+  // "cero columnas".
+  const [loaded, setLoaded] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [activeLead, setActiveLead] = useState<BoardLead | null>(null);
   const [managing, setManaging] = useState(false);
   /** Arrastre hacia una etapa perdida, esperando el motivo. */
@@ -70,7 +75,11 @@ export function PipelineClient() {
 
   const refetch = useCallback(async () => {
     const res = await fetch("/api/pipeline/board").catch(() => null);
-    if (!res?.ok) return;
+    if (!res?.ok) {
+      setLoadFailed(true);
+      return;
+    }
+    setLoadFailed(false);
     const data = (await res.json()) as {
       stages: StageDto[];
       leads: BoardLead[];
@@ -79,6 +88,7 @@ export function PipelineClient() {
     if (data.currency) setCurrency(data.currency);
     setStages(data.stages);
     setLeads(data.leads);
+    setLoaded(true);
   }, []);
 
   useEffect(() => {
@@ -186,6 +196,18 @@ export function PipelineClient() {
       {/* El tablero se arrastra en horizontal; en el teléfono cada columna
           se detiene en su sitio (snap) para no quedar a medio camino. */}
       <div className="flex-1 snap-x snap-mandatory overflow-x-auto p-3 sm:snap-none sm:p-4">
+        {!loaded ? (
+          loadFailed ? (
+            <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
+              <p className="text-sm text-muted-foreground">{t("common.loadError")}</p>
+              <Button size="sm" variant="outline" onClick={() => void refetch()}>
+                {t("common.retry")}
+              </Button>
+            </div>
+          ) : (
+            <BoardSkeleton />
+          )
+        ) : (
         <DndContext
           sensors={sensors}
           onDragStart={onDragStart}
@@ -211,6 +233,7 @@ export function PipelineClient() {
             ) : null}
           </DragOverlay>
         </DndContext>
+        )}
       </div>
 
       {managing && (

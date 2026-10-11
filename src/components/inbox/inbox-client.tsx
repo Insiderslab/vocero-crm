@@ -41,6 +41,9 @@ export function InboxClient() {
   );
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [messages, setMessages] = useState<MessageDto[]>([]);
+  // 009 (E3): el hilo recién elegido aún no llegó (no es un hilo vacío).
+  const [messagesLoading, setMessagesLoading] = useState(false);
+  const [conversationsFailed, setConversationsFailed] = useState(false);
   const [pending, setPending] = useState<PendingOut[]>([]);
   // Arranca cerrado: en pantallas angostas el panel de detalles es un cajón
   // ENCIMA del hilo, así que abrirlo por defecto taparía la conversación. El
@@ -73,7 +76,11 @@ export function InboxClient() {
 
   const refetchConversations = useCallback(async () => {
     const res = await fetch("/api/conversations").catch(() => null);
-    if (!res?.ok) return;
+    if (!res?.ok) {
+      setConversationsFailed(true);
+      return;
+    }
+    setConversationsFailed(false);
     const data = (await res.json()) as { conversations: ConversationDto[] };
     setConversations(data.conversations);
     lastFetchRef.current = new Date().toISOString();
@@ -83,6 +90,7 @@ export function InboxClient() {
     const res = await fetch(
       `/api/conversations/${conversationId}/messages`
     ).catch(() => null);
+    if (selectedIdRef.current === conversationId) setMessagesLoading(false);
     if (!res?.ok) return;
     const data = (await res.json()) as { messages: MessageDto[] };
     if (selectedIdRef.current === conversationId) setMessages(data.messages);
@@ -95,7 +103,10 @@ export function InboxClient() {
   const select = useCallback(
     (id: string) => {
       setSelectedId(id);
+      // selectedIdRef se actualiza en el render; aquí ya hace falta.
+      selectedIdRef.current = id;
       setMessages([]);
+      setMessagesLoading(true);
       void refetchMessages(id);
       void fetch(`/api/conversations/${id}`, {
         method: "PATCH",
@@ -320,6 +331,7 @@ export function InboxClient() {
           selectedId={selectedId}
           onSelect={select}
           onSeeded={() => void refetchConversations()}
+          loadFailed={conversationsFailed}
         />
       </section>
 
@@ -373,7 +385,7 @@ export function InboxClient() {
                 </button>
               )}
             </header>
-            <MessageThread messages={thread} />
+            <MessageThread messages={thread} loading={messagesLoading && thread.length === 0} />
             <Composer
               conversation={selected}
               onSend={sendText}

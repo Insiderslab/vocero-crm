@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useT } from "@/lib/i18n/client";
+import { CardsSkeleton } from "@/components/ui/skeleton";
 import {
   createLatestGate,
   initServerForm,
@@ -72,6 +73,7 @@ export function AgentClient() {
   const [toggleError, setToggleError] = useState<string | null>(null);
   // Un segundo clic con el primer PUT en vuelo mandaría el mismo valor viejo.
   const [toggling, setToggling] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
 
   // Solo la respuesta del ÚLTIMO refetch se aplica (las viejas se ignoran).
   const refetchGate = useRef(createLatestGate());
@@ -85,10 +87,12 @@ export function AgentClient() {
     ]).catch(() => [null, null, null]);
     if (!refetchGate.current.isLatest(ticket)) return;
     if (p) {
+      setLoadFailed(false);
       setProfile(p.profile);
       setRestriction(p.restriction ?? null);
       setAiConfigured(p.aiConfigured);
     }
+    if (!p) setLoadFailed(true);
     if (kb) setEntries(kb.entries);
     if (size) setKbSize(size);
   }, []);
@@ -98,9 +102,21 @@ export function AgentClient() {
   }, [refetch]);
 
   if (!profile) {
-    return (
-      <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-        {t("agent.loading")}
+    // 009 (E3): esqueleto con la forma de la página; si la carga falla, se
+    // dice (antes quedaba "Caricamento…" para siempre).
+    return loadFailed ? (
+      <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
+        <p className="text-sm text-muted-foreground">{t("common.loadError")}</p>
+        <Button size="sm" variant="outline" onClick={() => void refetch()}>
+          {t("common.retry")}
+        </Button>
+      </div>
+    ) : (
+      <div className="h-full overflow-y-auto">
+        <header className="flex items-center justify-between border-b px-4 py-3 sm:px-6 sm:py-4">
+          <h2 className="font-semibold">{t("agent.title")}</h2>
+        </header>
+        <CardsSkeleton cards={2} className="p-4 sm:p-6 lg:grid-cols-2" />
       </div>
     );
   }

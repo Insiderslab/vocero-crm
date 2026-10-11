@@ -23,6 +23,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { intlLocale } from "@/lib/i18n";
+import { ListSkeleton } from "@/components/ui/skeleton";
 
 type TemplateDto = {
   id: string;
@@ -79,12 +80,20 @@ export function AutomationsClient({
   const [runs, setRuns] = useState<Run[]>([]);
   const [running, setRunning] = useState(false);
   const [runResult, setRunResult] = useState<string | null>(null);
+  // 009 (E3): sin respuesta todavía no es "sin reglas".
+  const [loaded, setLoaded] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
 
   const refetch = useCallback(async () => {
     const res = await fetch("/api/automations").catch(() => null);
-    if (!res?.ok) return;
+    if (!res?.ok) {
+      setLoadFailed(true);
+      return;
+    }
+    setLoadFailed(false);
     const data = (await res.json()) as { rules: Rule[] };
     setRules(data.rules);
+    setLoaded(true);
   }, []);
 
   useEffect(() => {
@@ -322,7 +331,18 @@ export function AutomationsClient({
         </div>
       </div>
 
-      {rules.length === 0 ? (
+      {!loaded ? (
+        loadFailed ? (
+          <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed p-8 text-center">
+            <p className="text-sm text-muted-foreground">{t("common.loadError")}</p>
+            <Button size="sm" variant="outline" onClick={() => void refetch()}>
+              {t("common.retry")}
+            </Button>
+          </div>
+        ) : (
+          <ListSkeleton rows={3} />
+        )
+      ) : rules.length === 0 ? (
         <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed p-8 text-center">
           <Zap className="h-6 w-6 text-muted-foreground" />
           <p className="text-sm text-muted-foreground">

@@ -5,6 +5,8 @@ const messages = {
   cancel: "Cancelar",
   close: "Cerrar",
   loading: "Cargando…",
+  loadError: "No se pudo cargar. Revisa la conexión.",
+  retry: "Reintentar",
   create: "Crear",
   creating: "Creando…",
   edit: "Editar",
