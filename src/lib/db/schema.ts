@@ -711,6 +711,11 @@ export const agentProfile = pgTable(
       .notNull()
       .default(sql`'{}'`),
     outsiderReply: text("outsider_reply"),
+    /**
+     * 009 (E1) — Mensaje de cortesía cuando el proveedor de IA falla y la
+     * conversación pasa a un humano con motivo `error`. NULL/vacío = apagado.
+     */
+    errorReply: text("error_reply"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },

@@ -19,6 +19,19 @@ export type SseEvent =
       };
     }
   | { type: "conversation.updated"; data: { conversation: unknown } }
+  /**
+   * 009 (E1) — Una conversación acaba de pasar a un humano (transición, no
+   * cada guardado). La app lo enseña como aviso en cualquier pantalla: es la
+   * única alerta, sin servicios externos (Constitución II).
+   */
+  | {
+      type: "conversation.handoff";
+      data: {
+        conversationId: string;
+        reason: string;
+        contactName: string | null;
+      };
+    }
   | {
       type: "lab.run";
       data: {

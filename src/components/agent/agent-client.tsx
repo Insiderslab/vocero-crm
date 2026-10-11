@@ -24,6 +24,8 @@ type Profile = {
   instructions: string | null;
   escalationRules: string | null;
   greeting: string | null;
+  /** 009 (E1b): cortesía si falla el proveedor de IA. */
+  errorReply: string | null;
 };
 
 type Restriction = {
@@ -50,6 +52,7 @@ function behaviorOf(p: Profile): BehaviorForm {
     instructions: p.instructions,
     escalationRules: p.escalationRules,
     greeting: p.greeting,
+    errorReply: p.errorReply ?? null,
   };
 }
 
@@ -275,6 +278,19 @@ export function ProfileSection({
             disabled={saving}
             onChange={(e) => edit({ greeting: e.target.value })}
           />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="agent-error-reply">{t("agent.behavior.errorReplyLabel")}</Label>
+          <Textarea
+            id="agent-error-reply"
+            rows={2}
+            maxLength={1000}
+            placeholder={t("agent.behavior.errorReplyPlaceholder")}
+            value={form.errorReply ?? ""}
+            disabled={saving}
+            onChange={(e) => edit({ errorReply: e.target.value })}
+          />
+          <p className="text-xs text-muted-foreground">{t("agent.behavior.errorReplyHint")}</p>
         </div>
         {state.dirty && !error && (
           <p className="text-xs text-muted-foreground">{t("agent.unsaved")}</p>

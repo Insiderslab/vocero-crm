@@ -8,6 +8,7 @@ import { useT } from "@/lib/i18n/client";
 import type { Locale } from "@/lib/i18n";
 import type { ThemePreference } from "@/lib/theme";
 import { AppNav } from "@/components/app-nav";
+import { HandoffAlerts } from "@/components/handoff-alerts";
 import { HeiliMark } from "@/components/heili-mark";
 import { RoleProvider } from "@/components/role-context";
 
@@ -115,6 +116,9 @@ export function AppShell({
           <RoleProvider value={role}>{children}</RoleProvider>
         </main>
       </div>
+
+      {/* 009 (E1d): avisos de handoff en cualquier pantalla. */}
+      <HandoffAlerts />
     </div>
   );
 }

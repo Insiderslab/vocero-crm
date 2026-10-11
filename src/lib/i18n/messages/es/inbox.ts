@@ -26,6 +26,7 @@ const messages = {
   filters: {
     all: "Todas",
     unread: "No leídas",
+    handoff: "Atención humana",
     allStages: "Toda etapa",
     stageAria: "Filtrar por etapa del embudo",
   },
@@ -91,6 +92,14 @@ const messages = {
     title: "Detalles",
     hide: "Ocultar panel",
     reactivate: "Reactivar IA",
+    retryAi: "Reintentar respuesta IA",
+    retrying: "Reintentando…",
+    retryStarted: "La IA está respondiendo; el mensaje aparecerá en el hilo.",
+    retryErrors: {
+      ai_not_configured: "La IA no está configurada en esta instancia.",
+      agent_disabled: "El agente está apagado: enciéndelo en Agente IA.",
+      failed: "No se pudo reintentar. Prueba de nuevo.",
+    },
     aiTitle: "IA en esta conversación",
     stateHandoff: "En pausa · atención humana",
     statePaused: "En pausa",
@@ -108,12 +117,20 @@ const messages = {
     saving: "Guardando…",
     saveNotes: "Guardar notas",
   },
+  alert: {
+    title: "{{name}} necesita a una persona",
+    someone: "Un contacto",
+    open: "Abrir conversación",
+    dismiss: "Cerrar aviso",
+    region: "Avisos",
+  },
   handoffReasons: {
     cliente: "El cliente pidió un humano",
     modelo: "El agente decidió escalar",
     error: "Error del proveedor de IA",
     ventana: "Ventana de 24h cerrada",
     manual_reply: "Respondiste desde el teléfono — IA en pausa",
+    hostilidad: "Cliente molesto: lo atiende una persona",
     default: "La IA está en pausa en esta conversación.",
   },
   templates: {

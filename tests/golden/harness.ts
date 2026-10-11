@@ -65,6 +65,8 @@ type AfterTask = (() => unknown) | Promise<unknown>;
 const g = globalThis as unknown as {
   __goldenAfter?: AfterTask[];
   __agentCoalesce?: Map<string, unknown>;
+  /** 009: segundos intentos del agente programados (no son "trabajo en curso"). */
+  __agentRetry?: Map<string, { timer: ReturnType<typeof setTimeout> }>;
 };
 
 const state = {
@@ -75,6 +77,8 @@ const state = {
   seq: { out: 0, upload: 0 },
   overrides: [] as Override[],
   aiReplies: [] as string[],
+  /** 009: las próximas N llamadas al proveedor de IA responden 503. */
+  aiFailures: 0,
   unsubscribe: [] as (() => void)[],
 };
 
@@ -191,6 +195,10 @@ async function fakeFetch(input: RequestInfo | URL, init?: RequestInit): Promise<
     await Promise.resolve();
     if (to === "graph" || to === "wapi") return graphResponse(to, url.origin, method, p);
     if (to === "ai" && method === "POST" && url.pathname === "/api/v1/chat/completions") {
+      if (state.aiFailures > 0) {
+        state.aiFailures -= 1;
+        return json(503, { error: { message: "golden: proveedor de IA no disponible" } });
+      }
       return aiResponse();
     }
     // Ninguna red real desde los golden: el host queda en la instantánea.
@@ -210,6 +218,20 @@ export function aiWillReply(...contents: string[]): void {
   state.aiReplies.push(...contents);
 }
 
+/**
+ * 009 — El proveedor de IA responde 503 a las próximas `calls` llamadas. Un
+ * turno hace hasta 3 (los reintentos de `chatJson`): `aiWillFail(3)` tumba un
+ * turno entero.
+ */
+export function aiWillFail(calls: number): void {
+  state.aiFailures += calls;
+}
+
+/** Eventos SSE observados (para aserciones explícitas, no golden). */
+export function recordedSse(): readonly { org: string; type: string; data: unknown }[] {
+  return state.sse;
+}
+
 /* ------------------------- ciclo de vida del caso ------------------------- */
 
 export async function resetHarness(): Promise<void> {
@@ -221,6 +243,7 @@ export async function resetHarness(): Promise<void> {
   state.seq = { out: 0, upload: 0 };
   state.overrides = [];
   state.aiReplies = [];
+  state.aiFailures = 0;
   g.__goldenAfter = [];
   vi.stubGlobal("fetch", fakeFetch);
   vi.spyOn(console, "error").mockImplementation(() => {
@@ -245,6 +268,9 @@ export async function resetHarness(): Promise<void> {
 
 export async function teardownHarness(): Promise<void> {
   await settle().catch(() => {});
+  // Un segundo intento que quedó programado no debe disparar en el caso siguiente.
+  for (const entry of g.__agentRetry?.values() ?? []) clearTimeout(entry.timer);
+  g.__agentRetry?.clear();
   for (const off of state.unsubscribe.splice(0)) off();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();

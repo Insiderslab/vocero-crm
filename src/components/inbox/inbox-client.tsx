@@ -11,7 +11,7 @@ import { useEvents } from "@/components/use-events";
 import { ConversationList } from "./conversation-list";
 import { MessageThread } from "./message-thread";
 import { Composer } from "./composer";
-import { ContactPanel } from "./contact-panel";
+import { ContactPanel, type RetryAiResult } from "./contact-panel";
 
 /**
  * Texto que ya salió del compositor pero cuyo POST todavía viaja. Existe solo
@@ -106,14 +106,27 @@ export function InboxClient() {
     [refetchMessages]
   );
 
-  // Enlace directo desde Contactos/Pipeline: /inbox?contact=<id>
+  // Enlace directo desde Contactos/Pipeline (/inbox?contact=<id>) y desde un
+  // aviso de handoff (/inbox?conversation=<id>, 009 E1d). El aviso puede
+  // llegar con otra conversación abierta: manda el enlace.
   const searchParams = useSearchParams();
   const contactParam = searchParams.get("contact");
+  const conversationParam = searchParams.get("conversation");
+  // Cada enlace se aplica UNA vez: después el operador elige otra libremente.
+  const appliedConversationParam = useRef<string | null>(null);
   useEffect(() => {
+    if (conversationParam) {
+      if (appliedConversationParam.current === conversationParam) return;
+      if (conversations?.some((c) => c.id === conversationParam)) {
+        appliedConversationParam.current = conversationParam;
+        if (selectedIdRef.current !== conversationParam) select(conversationParam);
+      }
+      return;
+    }
     if (!contactParam || selectedIdRef.current) return;
     const match = conversations?.find((c) => c.contact.id === contactParam);
     if (match) select(match.id);
-  }, [contactParam, conversations, select]);
+  }, [contactParam, conversationParam, conversations, select]);
 
   useEvents({
     onMessageNew: ({ conversationId, message }) => {
@@ -276,6 +289,22 @@ export function InboxClient() {
     [refetchConversations]
   );
 
+  /** 009 (E1c) — «Riprova risposta IA». `null` = el turno quedó lanzado. */
+  const retryAi = useCallback(async (): Promise<RetryAiResult> => {
+    const id = selectedIdRef.current;
+    if (!id) return "failed";
+    const res = await fetch(`/api/conversations/${id}/agent-retry`, {
+      method: "POST",
+    }).catch(() => null);
+    void refetchConversations();
+    if (res?.ok) return null;
+    const data = (await res?.json().catch(() => null)) as {
+      error?: { code?: string };
+    } | null;
+    const code = data?.error?.code;
+    return code === "ai_not_configured" || code === "agent_disabled" ? code : "failed";
+  }, [refetchConversations]);
+
   return (
     <div className="flex h-full">
       {/* Móvil: una columna a la vez. La lista cede la pantalla completa al
@@ -389,6 +418,7 @@ export function InboxClient() {
               conversation={selected}
               refreshKey={detailRev}
               onPatchConversation={patchConversation}
+              onRetryAi={retryAi}
               onClose={() => togglePanel(false)}
             />
           </div>

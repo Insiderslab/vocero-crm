@@ -5,6 +5,7 @@ import { apiError, parseBody } from "@/lib/api";
 import { authenticateBot } from "@/server/bot/auth";
 import { publish } from "@/server/events/bus";
 import { toHandoffReason } from "@/server/bot/handoff";
+import { publishHandoffAlert } from "@/server/ai/pipeline";
 
 export const dynamic = "force-dynamic";
 
@@ -37,6 +38,7 @@ export async function POST(req: Request) {
   const rows = await db
     .select({
       id: schema.conversation.id,
+      contactId: schema.conversation.contactId,
       handoffAt: schema.conversation.handoffAt,
     })
     .from(schema.conversation)
@@ -51,12 +53,13 @@ export async function POST(req: Request) {
   if (!conv) return apiError(404, "not_found", "Conversación no encontrada");
 
   if (!conv.handoffAt) {
+    const reason = toHandoffReason(body.data.reason);
     await db
       .update(schema.conversation)
       .set({
         aiEnabled: false,
         handoffAt: new Date(),
-        handoffReason: toHandoffReason(body.data.reason),
+        handoffReason: reason,
         updatedAt: new Date(),
       })
       .where(eq(schema.conversation.id, conv.id));
@@ -64,6 +67,8 @@ export async function POST(req: Request) {
       type: "conversation.updated",
       data: { conversation: { id: conv.id } },
     });
+    // 009 (E1d): el mismo aviso en la app que un handoff del agente propio.
+    await publishHandoffAlert(organizationId, conv.id, conv.contactId, reason);
   }
   return Response.json({ ok: true });
 }

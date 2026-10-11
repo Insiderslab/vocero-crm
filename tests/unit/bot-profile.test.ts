@@ -50,6 +50,7 @@ function profileRow(overrides: Partial<AgentProfile> = {}): AgentProfile {
     restrictToAllowlist: false,
     allowedIdentities: [],
     outsiderReply: null,
+    errorReply: null,
     createdAt: new Date(),
     updatedAt: new Date(),
     ...overrides,

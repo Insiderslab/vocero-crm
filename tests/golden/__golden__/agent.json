@@ -439,6 +439,15 @@
             "handoffReason": "modelo"
           }
         }
+      },
+      {
+        "org": "org_golden_a",
+        "type": "conversation.handoff",
+        "data": {
+          "conversationId": "<cv#1>",
+          "reason": "modelo",
+          "contactName": "Ana Golden"
+        }
       }
     ],
     "consoleErrors": 0
@@ -594,6 +603,15 @@
             "id": "<cv#1>",
             "handoffReason": "ventana"
           }
+        }
+      },
+      {
+        "org": "org_golden_a",
+        "type": "conversation.handoff",
+        "data": {
+          "conversationId": "<cv#1>",
+          "reason": "ventana",
+          "contactName": "Ana Golden"
         }
       }
     ],

@@ -28,6 +28,7 @@ const messages: typeof base = {
   filters: {
     all: "All",
     unread: "Unread",
+    handoff: "Human support",
     allStages: "Any stage",
     stageAria: "Filter by pipeline stage",
   },
@@ -93,6 +94,14 @@ const messages: typeof base = {
     title: "Details",
     hide: "Hide panel",
     reactivate: "Reactivate AI",
+    retryAi: "Retry AI reply",
+    retrying: "Retrying…",
+    retryStarted: "The AI is replying; the message will appear in the thread.",
+    retryErrors: {
+      ai_not_configured: "AI is not configured on this instance.",
+      agent_disabled: "The agent is off: turn it on in AI Agent.",
+      failed: "Could not retry. Try again.",
+    },
     aiTitle: "AI in this conversation",
     stateHandoff: "Paused · human support",
     statePaused: "Paused",
@@ -110,12 +119,20 @@ const messages: typeof base = {
     saving: "Saving…",
     saveNotes: "Save notes",
   },
+  alert: {
+    title: "{{name}} needs a person",
+    someone: "A contact",
+    open: "Open conversation",
+    dismiss: "Dismiss alert",
+    region: "Alerts",
+  },
   handoffReasons: {
     cliente: "The customer asked for a human",
     modelo: "The agent decided to escalate",
     error: "AI provider error",
     ventana: "24-hour window closed",
     manual_reply: "You replied from your phone — AI paused",
+    hostilidad: "Upset customer: a person takes over",
     default: "AI is paused in this conversation.",
   },
   templates: {

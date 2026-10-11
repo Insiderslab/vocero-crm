@@ -28,6 +28,7 @@ const messages: typeof base = {
   filters: {
     all: "Tutte",
     unread: "Non lette",
+    handoff: "Assistenza umana",
     allStages: "Qualsiasi fase",
     stageAria: "Filtra per fase della pipeline",
   },
@@ -93,6 +94,14 @@ const messages: typeof base = {
     title: "Dettagli",
     hide: "Nascondi pannello",
     reactivate: "Riattiva IA",
+    retryAi: "Riprova risposta IA",
+    retrying: "Nuovo tentativo…",
+    retryStarted: "L'IA sta rispondendo; il messaggio comparirà nel filo.",
+    retryErrors: {
+      ai_not_configured: "L'IA non è configurata in questa istanza.",
+      agent_disabled: "L'agente è spento: accendilo in Agente IA.",
+      failed: "Impossibile riprovare. Riprova tra poco.",
+    },
     aiTitle: "IA in questa conversazione",
     stateHandoff: "In pausa · assistenza umana",
     statePaused: "In pausa",
@@ -110,12 +119,20 @@ const messages: typeof base = {
     saving: "Salvataggio…",
     saveNotes: "Salva note",
   },
+  alert: {
+    title: "{{name}} ha bisogno di una persona",
+    someone: "Un contatto",
+    open: "Apri conversazione",
+    dismiss: "Chiudi avviso",
+    region: "Avvisi",
+  },
   handoffReasons: {
     cliente: "Il cliente ha chiesto una persona",
     modelo: "L'agente ha deciso di escalare",
     error: "Errore del provider IA",
     ventana: "Finestra di 24 ore chiusa",
     manual_reply: "Hai risposto dal telefono — IA in pausa",
+    hostilidad: "Cliente arrabbiato: lo segue una persona",
     default: "L'IA è in pausa in questa conversazione.",
   },
   templates: {

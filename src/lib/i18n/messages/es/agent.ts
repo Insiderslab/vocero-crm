@@ -26,6 +26,10 @@ const messages = {
     escalationPlaceholder: "Cuándo pasar la conversación a un humano…",
     greetingLabel: "Saludo",
     greetingPlaceholder: "Saludo para conversaciones nuevas",
+    errorReplyLabel: "Mensaje si la IA no está disponible (opcional)",
+    errorReplyPlaceholder: "Ahora mismo no puedo responder; una persona del equipo te escribe enseguida.",
+    errorReplyHint:
+      "Si el proveedor de IA falla dos veces seguidas, la conversación pasa a una persona y el cliente recibe este mensaje una vez. Vacío = no se envía nada.",
     save: "Guardar comportamiento",
   },
   restricted: {

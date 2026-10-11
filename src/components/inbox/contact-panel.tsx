@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Check, ChevronRight, Sparkles, UserRound } from "lucide-react";
+import { AlertTriangle, Check, ChevronRight, RotateCcw, Sparkles, UserRound } from "lucide-react";
 import type {
   ConversationDto,
   FichaDto,
@@ -15,13 +15,16 @@ import { ContactAvatar } from "@/components/avatar";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { FichaPanel } from "@/components/ficha-panel";
+import { handoffLabel } from "./helpers";
 
-const HANDOFF_KEYS = ["cliente", "modelo", "error", "ventana", "manual_reply"];
+/** Resultado de «Riprova risposta IA»: `null` = lanzado; si no, el código. */
+export type RetryAiResult = null | "ai_not_configured" | "agent_disabled" | "failed";
 
 export function ContactPanel({
   conversation,
   refreshKey = 0,
   onPatchConversation,
+  onRetryAi,
   onClose,
 }: {
   conversation: ConversationDto;
@@ -31,6 +34,8 @@ export function ContactPanel({
     aiEnabled?: boolean;
     reactivate?: boolean;
   }) => Promise<void>;
+  /** 009 (E1c): quita el handoff y lanza un turno del agente ya. */
+  onRetryAi?: () => Promise<RetryAiResult>;
   onClose: () => void;
 }) {
   const { t } = useT();
@@ -45,8 +50,28 @@ export function ContactPanel({
   // cuando el agente aún no se ha configurado/encendido.
   const [agentEnabled, setAgentEnabled] = useState(false);
   const [aiConfigured, setAiConfigured] = useState(false);
+  const [retrying, setRetrying] = useState(false);
+  const [retryNote, setRetryNote] = useState<{ ok: boolean; text: string } | null>(null);
 
   const contactId = conversation.contact.id;
+
+  // El aviso de «Riprova» es de ESTA conversación: al cambiar, se va.
+  useEffect(() => {
+    setRetryNote(null);
+  }, [conversation.id]);
+
+  async function retryAi() {
+    if (!onRetryAi) return;
+    setRetrying(true);
+    setRetryNote(null);
+    const result = await onRetryAi();
+    setRetrying(false);
+    setRetryNote(
+      result === null
+        ? { ok: true, text: t("inbox.panel.retryStarted") }
+        : { ok: false, text: t(`inbox.panel.retryErrors.${result}`) }
+    );
+  }
 
   const agentReady = aiConfigured && agentEnabled;
   // El control es la FUENTE DE VERDAD de la conversación: el agente in-process
@@ -180,24 +205,76 @@ export function ContactPanel({
           </div>
 
           {conversation.handoffAt && (
-            <div className="mt-3 rounded-md border border-warning-soft bg-warning-tint p-3">
-              <p className="flex items-center gap-1.5 text-[13px] font-medium text-warning-text">
-                <UserRound className="h-4 w-4" strokeWidth={1.7} /> {t("inbox.handoff")}
+            <div
+              className={cn(
+                "mt-3 rounded-md border p-3",
+                conversation.handoffReason === "error"
+                  ? "border-danger-soft bg-danger-tint"
+                  : "border-warning-soft bg-warning-tint"
+              )}
+            >
+              <p
+                className={cn(
+                  "flex items-center gap-1.5 text-[13px] font-medium",
+                  conversation.handoffReason === "error"
+                    ? "text-danger-text"
+                    : "text-warning-text"
+                )}
+              >
+                {conversation.handoffReason === "error" ? (
+                  <AlertTriangle className="h-4 w-4" strokeWidth={1.7} />
+                ) : (
+                  <UserRound className="h-4 w-4" strokeWidth={1.7} />
+                )}{" "}
+                {t("inbox.handoff")}
               </p>
-              <p className="mt-1 text-xs text-warning-text opacity-80">
-                {HANDOFF_KEYS.includes(conversation.handoffReason ?? "")
-                  ? t(`inbox.handoffReasons.${conversation.handoffReason}`)
+              <p
+                className={cn(
+                  "mt-1 text-xs opacity-80",
+                  conversation.handoffReason === "error"
+                    ? "text-danger-text"
+                    : "text-warning-text"
+                )}
+              >
+                {conversation.handoffReason
+                  ? handoffLabel(conversation.handoffReason, t)
                   : t("inbox.handoffReasons.default")}
               </p>
+              {onRetryAi && (
+                // 009 (E1c): volver a intentar la respuesta de la IA AHORA
+                // (sin esperar al próximo mensaje del cliente).
+                <Button
+                  size="sm"
+                  variant={conversation.handoffReason === "error" ? "default" : "outline"}
+                  className="mt-2 w-full"
+                  disabled={retrying}
+                  onClick={() => void retryAi()}
+                >
+                  <RotateCcw className="h-3.5 w-3.5" strokeWidth={1.8} />
+                  {retrying ? t("inbox.panel.retrying") : t("inbox.panel.retryAi")}
+                </Button>
+              )}
               <Button
                 size="sm"
                 variant="outline"
                 className="mt-2 w-full"
+                disabled={retrying}
                 onClick={() => void onPatchConversation({ reactivate: true })}
               >
                 {t("inbox.panel.reactivate")}
               </Button>
             </div>
+          )}
+          {retryNote && (
+            <p
+              role="status"
+              className={cn(
+                "mt-2 text-xs",
+                retryNote.ok ? "text-text-2" : "text-danger-text"
+              )}
+            >
+              {retryNote.text}
+            </p>
           )}
 
           <div className="mt-3 rounded-md border bg-secondary/50 px-3 py-2.5">

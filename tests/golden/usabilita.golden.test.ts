@@ -1,16 +1,36 @@
+import { setTimeout as sleep } from "node:timers/promises";
 import { describe, expect, it, vi } from "vitest";
 import { getSql } from "@/lib/db";
-import { runAgentTurn } from "@/server/ai/pipeline";
+import {
+  applyHandoff,
+  pendingAgentRetries,
+  runAgentTurn,
+  runAgentTurnNow,
+} from "@/server/ai/pipeline";
+import { prepareManualRetry } from "@/server/ai/manual-retry";
 import { listConversations, listMessages } from "@/server/inbox/queries";
-import { aiWillReply, recordedRequests } from "./harness";
-import { ORG_A } from "./setup";
+import { waFixture } from "./fixtures/whatsapp";
+import {
+  aiWillFail,
+  aiWillReply,
+  conversationIdOf,
+  postWebhook,
+  recordedRequests,
+  recordedSse,
+  settle,
+} from "./harness";
+import { ORG_A, ORG_B } from "./setup";
 
-// IA configurada (proveedor sintético interceptado), como agent.golden.
+// IA configurada (proveedor sintético interceptado), como agent.golden, y un
+// segundo intento corto para no esperar el minuto real.
 vi.hoisted(() => {
   process.env.OPENROUTER_API_TOKEN = "sk-or-golden-synthetic-token";
   process.env.OPENROUTER_MODEL = "golden/modelo-sintetico";
   process.env.AGENT_COALESCE_MS = "0";
+  process.env.AGENT_RETRY_MS = "300";
 });
+
+const RETRY_MS = 300;
 
 /**
  * 009 — Usabilidad P1 (specs/custom-heili/009-usabilita-p1.md). Aserciones
@@ -77,6 +97,233 @@ describe("E4 — orden de los mensajes", () => {
       "user:P1",
       "assistant:R1",
       "user:P2",
+    ]);
+  });
+});
+
+/* ------------------------------------------------------------------------ */
+/* E1 — el proveedor de IA falla                                            */
+/* ------------------------------------------------------------------------ */
+
+const ANA = "525512345678"; // inbound-text-mx (5215512345678 normalizado)
+const ERROR_REPLY = "Ahora mismo no puedo responder; una persona del equipo te escribe enseguida.";
+
+async function agentProfile(opts: { errorReply?: string | null; enabled?: boolean } = {}) {
+  await sql()`
+    insert into agent_profile (id, organization_id, enabled, name, error_reply)
+    values ('agp_e1', ${ORG_A}, ${opts.enabled ?? true}, 'Asistente E1', ${opts.errorReply ?? null})
+  `;
+}
+
+const aiCalls = () => recordedRequests().filter((r) => r.to === "ai");
+const graphTexts = () =>
+  recordedRequests()
+    .filter((r) => r.to === "graph" && r.method === "POST" && /\/messages$/.test(r.path))
+    .map((r) => (r.body as { text?: { body?: string } }).text?.body ?? null);
+
+async function conv(cv: string) {
+  const [row] = await sql()<{ handoff_at: Date | null; handoff_reason: string | null; ai_enabled: boolean }[]>`
+    select handoff_at, handoff_reason, ai_enabled from conversation where id = ${cv}
+  `;
+  return row!;
+}
+
+async function outbound(cv: string) {
+  return sql()<{ text: string | null; ai_generated: boolean; origin: string }[]>`
+    select text, ai_generated, origin from message
+    where conversation_id = ${cv} and direction = 'out' order by created_at, id
+  `;
+}
+
+/** Espera a que disparen los segundos intentos y a que su turno termine. */
+async function waitRetries(): Promise<void> {
+  await sleep(RETRY_MS + 50);
+  for (let i = 0; i < 200 && pendingAgentRetries().length > 0; i++) await sleep(10);
+  await settle();
+}
+
+describe("E1a — segundo intento", () => {
+  it("el proveedor cae en el turno: sin handoff; el segundo intento responde UNA vez", async () => {
+    await agentProfile({ errorReply: ERROR_REPLY });
+    aiWillFail(3); // un turno entero (los 3 intentos de chatJson)
+    aiWillReply('{"action":"reply","text":"¡Hola Ana! Ya estoy de vuelta."}');
+
+    await postWebhook(waFixture("inbound-text-mx"));
+    const cv = await conversationIdOf(ORG_A, ANA);
+    expect(pendingAgentRetries()).toEqual([cv]);
+    expect((await conv(cv)).handoff_at).toBeNull();
+    expect(graphTexts()).toEqual([]);
+
+    await waitRetries();
+    expect(aiCalls()).toHaveLength(4);
+    expect(graphTexts()).toEqual(["¡Hola Ana! Ya estoy de vuelta."]);
+    expect((await conv(cv)).handoff_at).toBeNull();
+    expect(pendingAgentRetries()).toEqual([]);
+  });
+
+  it("el segundo intento también falla: handoff `error`, cortesía UNA vez y aviso SSE", async () => {
+    await agentProfile({ errorReply: ERROR_REPLY });
+    aiWillFail(6);
+
+    await postWebhook(waFixture("inbound-text-mx"));
+    const cv = await conversationIdOf(ORG_A, ANA);
+    await waitRetries();
+
+    expect(aiCalls()).toHaveLength(6); // 3 + 3: nunca un tercer turno
+    const c = await conv(cv);
+    expect(c.handoff_reason).toBe("error");
+    expect(c.handoff_at).not.toBeNull();
+    expect(graphTexts()).toEqual([ERROR_REPLY]);
+    expect(await outbound(cv)).toEqual([{ text: ERROR_REPLY, ai_generated: true, origin: "ai" }]);
+    expect(pendingAgentRetries()).toEqual([]);
+
+    const alerts = recordedSse().filter((e) => e.type === "conversation.handoff");
+    expect(alerts).toEqual([
+      {
+        org: ORG_A,
+        type: "conversation.handoff",
+        data: { conversationId: cv, reason: "error", contactName: "Ana Golden" },
+      },
+    ]);
+    // El aviso es solo del canal de A.
+    expect(recordedSse().some((e) => e.org === ORG_B)).toBe(false);
+
+    // Otro entrante con el handoff activo: el agente calla, ni IA ni cortesía.
+    await postWebhook(waFixture("inbound-text-mx-again"));
+    await waitRetries();
+    expect(aiCalls()).toHaveLength(6);
+    expect(graphTexts()).toEqual([ERROR_REPLY]);
+  });
+
+  it("sin texto de cortesía configurado: handoff `error` y ningún mensaje al cliente", async () => {
+    await agentProfile({ errorReply: null });
+    aiWillFail(6);
+    await postWebhook(waFixture("inbound-text-mx"));
+    const cv = await conversationIdOf(ORG_A, ANA);
+    await waitRetries();
+    expect((await conv(cv)).handoff_reason).toBe("error");
+    expect(graphTexts()).toEqual([]);
+  });
+
+  it("llega un entrante nuevo durante la espera: el segundo intento se anula y hay UNA sola respuesta", async () => {
+    await agentProfile({ errorReply: ERROR_REPLY });
+    aiWillFail(3);
+    await postWebhook(waFixture("inbound-text-mx"));
+    const cv = await conversationIdOf(ORG_A, ANA);
+    expect(pendingAgentRetries()).toEqual([cv]);
+
+    aiWillReply('{"action":"reply","text":"Respuesta a los dos mensajes."}');
+    await postWebhook(waFixture("inbound-text-mx-again"));
+    expect(pendingAgentRetries()).toEqual([]);
+
+    await waitRetries();
+    expect(graphTexts()).toEqual(["Respuesta a los dos mensajes."]);
+    expect(aiCalls()).toHaveLength(4);
+    expect((await conv(cv)).handoff_at).toBeNull();
+  });
+
+  it("el operador contesta durante la espera: el segundo intento no habla ni pasa a humano", async () => {
+    await agentProfile({ errorReply: ERROR_REPLY });
+    aiWillFail(3);
+    aiWillReply('{"action":"reply","text":"NO DEBE SALIR"}');
+    await postWebhook(waFixture("inbound-text-mx"));
+    const cv = await conversationIdOf(ORG_A, ANA);
+    await sql()`
+      insert into message (id, organization_id, conversation_id, direction, type, text, status, origin)
+      values ('msg_e1_operador', ${ORG_A}, ${cv}, 'out', 'text', 'Te contesto yo', 'sent', 'operator')
+    `;
+    await waitRetries();
+    expect(aiCalls()).toHaveLength(3); // el segundo intento ni llamó al modelo
+    expect(graphTexts()).toEqual([]);
+    expect((await conv(cv)).handoff_at).toBeNull();
+  });
+
+  it("Laboratorio: sin segundo intento ni cortesía (handoff inmediato, como antes)", async () => {
+    await agentProfile({ errorReply: ERROR_REPLY });
+    const cv = await contactAndConversation("lab", { isTest: true });
+    await sql()`
+      insert into message (id, organization_id, conversation_id, direction, type, text, status, wa_timestamp)
+      values ('msg_e1_lab', ${ORG_A}, ${cv}, 'in', 'text', 'Hola', 'delivered', now())
+    `;
+    aiWillFail(3);
+    await runAgentTurn(cv);
+    expect(pendingAgentRetries()).toEqual([]);
+    expect((await conv(cv)).handoff_reason).toBe("error");
+    expect(await outbound(cv)).toEqual([]);
+    expect(recordedRequests().some((r) => r.to === "graph")).toBe(false);
+  });
+});
+
+describe("E1c — «Riprova risposta IA»", () => {
+  async function failedConversation(): Promise<string> {
+    aiWillFail(6);
+    await postWebhook(waFixture("inbound-text-mx"));
+    const cv = await conversationIdOf(ORG_A, ANA);
+    await waitRetries();
+    expect((await conv(cv)).handoff_reason).toBe("error");
+    return cv;
+  }
+
+  it("quita el handoff y el turno inmediato responde", async () => {
+    await agentProfile({ errorReply: ERROR_REPLY });
+    const cv = await failedConversation();
+
+    const res = await prepareManualRetry(ORG_A, cv);
+    expect(res.status).toBe("ok");
+    const c = await conv(cv);
+    expect(c.handoff_at).toBeNull();
+    expect(c.ai_enabled).toBe(true);
+
+    aiWillReply('{"action":"reply","text":"Perdona la espera, abrimos de 9 a 19 h."}');
+    expect(await runAgentTurnNow(cv)).toBe("ran");
+    await settle();
+    expect(graphTexts()).toEqual([ERROR_REPLY, "Perdona la espera, abrimos de 9 a 19 h."]);
+  });
+
+  it("si el proveedor sigue caído: handoff `error` inmediato, sin otro intento y sin repetir la cortesía", async () => {
+    await agentProfile({ errorReply: ERROR_REPLY });
+    const cv = await failedConversation();
+    expect((await prepareManualRetry(ORG_A, cv)).status).toBe("ok");
+
+    aiWillFail(3);
+    await runAgentTurnNow(cv);
+    await settle();
+    expect(pendingAgentRetries()).toEqual([]);
+    expect((await conv(cv)).handoff_reason).toBe("error");
+    // La cortesía ya salió tras el último entrante: no se repite.
+    expect(graphTexts()).toEqual([ERROR_REPLY]);
+    expect(aiCalls()).toHaveLength(9);
+  });
+
+  it("agente apagado o conversación de otra organización: nada cambia", async () => {
+    await agentProfile({ errorReply: ERROR_REPLY });
+    const cv = await failedConversation();
+
+    await sql()`update agent_profile set enabled = false where id = 'agp_e1'`;
+    expect((await prepareManualRetry(ORG_A, cv)).status).toBe("agent_disabled");
+    expect((await conv(cv)).handoff_reason).toBe("error");
+
+    await sql()`update agent_profile set enabled = true where id = 'agp_e1'`;
+    expect((await prepareManualRetry(ORG_B, cv)).status).toBe("not_found");
+    expect((await conv(cv)).handoff_reason).toBe("error");
+  });
+});
+
+describe("E1d — el handoff se aplica y se avisa solo en la transición", () => {
+  it("dos handoffs seguidos: el segundo no pisa motivo ni hora y no repite el aviso", async () => {
+    const cv = await contactAndConversation("transicion");
+    expect(await applyHandoff(cv, ORG_A, "cliente")).toBe(true);
+    const first = await conv(cv);
+    expect(await applyHandoff(cv, ORG_A, "error")).toBe(false);
+    const second = await conv(cv);
+    expect(second.handoff_reason).toBe("cliente");
+    expect(String(second.handoff_at)).toBe(String(first.handoff_at));
+    expect(recordedSse().filter((e) => e.type === "conversation.handoff")).toEqual([
+      {
+        org: ORG_A,
+        type: "conversation.handoff",
+        data: { conversationId: cv, reason: "cliente", contactName: "Contacto transicion" },
+      },
     ]);
   });
 });

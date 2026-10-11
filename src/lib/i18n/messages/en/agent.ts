@@ -28,6 +28,10 @@ const messages: typeof base = {
     escalationPlaceholder: "When to hand the conversation over to a human…",
     greetingLabel: "Greeting",
     greetingPlaceholder: "Greeting for new conversations",
+    errorReplyLabel: "Message when the AI is unavailable (optional)",
+    errorReplyPlaceholder: "I can't reply right now; someone from the team will write to you shortly.",
+    errorReplyHint:
+      "If the AI provider fails twice in a row, the conversation goes to a person and the customer gets this message once. Empty = nothing is sent.",
     save: "Save behavior",
   },
   restricted: {
