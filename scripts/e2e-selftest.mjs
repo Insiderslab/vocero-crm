@@ -957,6 +957,8 @@ async function main() {
 
   await teamAssistantSection();
 
+  await usabilitySection();
+
   // Al final a propósito: el Embedded Signup cambia el número de la org.
   await coexistenceSection();
 
@@ -1001,6 +1003,128 @@ async function sintesiSection() {
   }
   const anon = await fetch(`${BASE}/api/dashboard/summary?days=30`, { headers: { origin: BASE } });
   ok("010: summary sin sesión → 401", anon.status === 401);
+}
+
+/**
+ * 009 — Usabilidad P1 (specs/custom-heili/009-usabilita-p1.md).
+ * E1: proveedor de IA caído (ai-mock con «mock-proveedor-*»): segundo intento,
+ * handoff `error`, cortesía una vez, evento SSE `conversation.handoff` y
+ * «Riprova risposta IA». E2: la organización del registro nace en el idioma
+ * de quien se registra (sin cookie ni Accept-Language → default `it`).
+ * E4: orden del hilo. E9: título de la pestaña.
+ * Necesita AGENT_RETRY_MS corto (p. ej. 4000) para no esperar el minuto.
+ * Deja el agente apagado y sin texto de cortesía, como estaba.
+ */
+async function usabilitySection() {
+  console.log("\n== 009: usabilità — E9 título, E2 idioma de la organización ==");
+  const loginHtml = await (await fetch(`${BASE}/login`)).text();
+  const title = /<title>([^<]*)<\/title>/.exec(loginHtml)?.[1] ?? "";
+  ok("E9: el título de la pestaña ya no es la llave cruda", title.endsWith("— WhatsApp") && !title.includes("meta."), title);
+
+  const board = (await api("/api/pipeline/board")).json;
+  const stageNames = (board?.stages ?? []).map((s) => s.name);
+  ok(
+    "E2: el registro sin idioma explícito siembra las etapas en el default (it)",
+    JSON.stringify(stageNames) === JSON.stringify(["Nuovo", "In conversazione", "Interessato", "Cliente", "Perso"]),
+    JSON.stringify(stageNames)
+  );
+  ok("E2: moneda de la organización nueva = EUR (italiano)", board?.currency === "EUR", String(board?.currency));
+
+  console.log("\n== 009: E1 — proveedor de IA caído ==");
+  const ERROR_REPLY = "Al momento non riesco a rispondere; ti scrive una persona del team (e2e).";
+  const prof = (body) => api("/api/agent/profile", { method: "PUT", body: JSON.stringify(body) });
+  const put = await prof({ enabled: true, errorReply: `  ${ERROR_REPLY}  ` });
+  ok("cortesía guardada (recortada) y agente encendido", put.res.ok, JSON.stringify(put.json));
+  const got = (await api("/api/agent/profile")).json;
+  ok("GET del perfil devuelve errorReply", got?.profile?.errorReply === ERROR_REPLY, JSON.stringify(got?.profile));
+
+  // SSE: se escucha el canal de la organización mientras pasa todo.
+  const sse = { text: "" };
+  const sseAbort = new AbortController();
+  void fetch(`${BASE}/api/events`, { headers: { cookie }, signal: sseAbort.signal })
+    .then(async (res) => {
+      const reader = res.body.getReader();
+      const dec = new TextDecoder();
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        sse.text += dec.decode(value);
+      }
+    })
+    .catch(() => null);
+  await sleep(300);
+
+  await api("/api/dev/wa-mock/outbox", { method: "DELETE" });
+  const inbound = (from, name, text, id) =>
+    api("/api/dev/wa-mock/inbound", {
+      method: "POST",
+      body: JSON.stringify({ phoneNumberId: PN, from, name, text, waMessageId: id }),
+    });
+  const outboxTo = async (to) =>
+    ((await api("/api/dev/wa-mock/outbox")).json?.outbox ?? []).filter((o) => o.to === to);
+  const convOf = async (phone) =>
+    ((await api("/api/conversations")).json?.conversations ?? []).find((c) => c.contact.phone === phone);
+
+  // (a) Proveedor intermitente: el turno falla, el SEGUNDO intento responde.
+  const FLAKY = "393470009001";
+  await inbound(FLAKY, "Intermitente E2E", "mock-proveedor-intermitente ciao", "wamid.e2e.009.flaky.1");
+  await sleep(2500);
+  ok("tras el primer fallo: aún sin respuesta y sin handoff", (await outboxTo(FLAKY)).length === 0 && !(await convOf(FLAKY))?.handoffAt);
+  for (let i = 0; i < 40 && (await outboxTo(FLAKY)).length === 0; i++) await sleep(500);
+  await sleep(1500);
+  const flakyOut = await outboxTo(FLAKY);
+  ok(
+    "el segundo intento responde UNA vez (sin cortesía ni handoff)",
+    flakyOut.length === 1 && flakyOut[0]?.body?.text?.body === "Respuesta de prueba sobre: mock-proveedor-intermitente ciao" && !(await convOf(FLAKY))?.handoffAt,
+    JSON.stringify(flakyOut.map((o) => o.body?.text?.body))
+  );
+  const flakyConv = await convOf(FLAKY);
+  const flakyMsgs = (await api(`/api/conversations/${flakyConv?.id}/messages`)).json?.messages ?? [];
+  ok("E4: el hilo queda pregunta → respuesta", flakyMsgs.map((m) => m.direction).join(",") === "in,out", JSON.stringify(flakyMsgs.map((m) => [m.direction, m.text])));
+
+  // (b) Proveedor caído: dos turnos fallidos → handoff `error` + cortesía una vez.
+  const DOWN = "393470009002";
+  await inbound(DOWN, "Caído E2E", "mock-proveedor-caido hola", "wamid.e2e.009.down.1");
+  let downConv = null;
+  for (let i = 0; i < 40; i++) {
+    downConv = await convOf(DOWN);
+    if (downConv?.handoffReason === "error") break;
+    await sleep(500);
+  }
+  ok("handoff `error` tras el segundo intento", downConv?.handoffReason === "error", JSON.stringify(downConv));
+  await sleep(800);
+  let downOut = await outboxTo(DOWN);
+  ok("cortesía enviada UNA vez", downOut.length === 1 && downOut[0]?.body?.text?.body === ERROR_REPLY, JSON.stringify(downOut.map((o) => o.body?.text?.body)));
+  ok(
+    "evento SSE conversation.handoff con motivo error y nombre del contacto",
+    sse.text.includes("event: conversation.handoff") && sse.text.includes(`"conversationId":"${downConv?.id}"`) && sse.text.includes('"reason":"error"') && sse.text.includes("Caído E2E"),
+    sse.text.slice(-400)
+  );
+
+  // (c) «Riprova risposta IA»: quita el handoff y corre un turno ya. El
+  // proveedor sigue caído → handoff `error` otra vez, sin repetir la cortesía.
+  const retry = await api(`/api/conversations/${downConv?.id}/agent-retry`, { method: "POST" });
+  ok("Riprova → 202 y la conversación sin handoff", retry.res.status === 202 && retry.json?.conversation?.handoffAt === null, JSON.stringify(retry.json));
+  for (let i = 0; i < 30; i++) {
+    downConv = await convOf(DOWN);
+    if (downConv?.handoffReason === "error") break;
+    await sleep(500);
+  }
+  await sleep(800);
+  downOut = await outboxTo(DOWN);
+  ok("proveedor aún caído: handoff `error` de nuevo, cortesía NO repetida", downConv?.handoffReason === "error" && downOut.length === 1, JSON.stringify({ reason: downConv?.handoffReason, out: downOut.length }));
+
+  const missing = await api(`/api/conversations/cv_no_existe/agent-retry`, { method: "POST" });
+  ok("Riprova de una conversación ajena/inexistente → 404", missing.res.status === 404);
+  await prof({ enabled: false });
+  const off = await api(`/api/conversations/${downConv?.id}/agent-retry`, { method: "POST" });
+  ok("Riprova con el agente apagado → 409 agent_disabled (y el handoff sigue)", off.res.status === 409 && off.json?.error?.code === "agent_disabled" && (await convOf(DOWN))?.handoffReason === "error", JSON.stringify(off.json));
+  const anon = await fetch(`${BASE}/api/conversations/${downConv?.id}/agent-retry`, { method: "POST", headers: { origin: BASE } });
+  ok("Riprova sin sesión → 401", anon.status === 401);
+
+  sseAbort.abort();
+  const restore = await prof({ enabled: false, errorReply: "" });
+  ok("estado original: agente apagado, sin cortesía", restore.res.ok && (await api("/api/agent/profile")).json?.profile?.errorReply === null);
 }
 
 /**
