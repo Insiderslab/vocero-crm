@@ -1,4 +1,4 @@
-import { and, asc, desc, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { newId } from "@/lib/db/ids";
 import { scoped } from "@/lib/db/tenant";
@@ -12,6 +12,7 @@ import { AgentAction, degradeAction, resolveStage, type AgentActionType } from "
 import { matchesHandoffIntent } from "@/server/ai/handoff";
 import { buildAgentSystemPrompt } from "@/server/ai/prompts";
 import { isAllowedIdentity } from "@/server/ai/allowlist";
+import { MESSAGE_CHRONOLOGY_DESC } from "@/server/inbox/queries";
 
 /**
  * Turno del agente (FR-021..FR-025).
@@ -139,7 +140,7 @@ export async function runAgentTurn(conversationId: string): Promise<void> {
     .select()
     .from(schema.message)
     .where(eq(schema.message.conversationId, conversationId))
-    .orderBy(desc(schema.message.createdAt))
+    .orderBy(...MESSAGE_CHRONOLOGY_DESC)
     .limit(20);
   history.reverse();
   const lastInbound = [...history].reverse().find((m) => m.direction === "in");

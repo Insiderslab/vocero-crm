@@ -1,4 +1,4 @@
-import { and, desc, eq, gt, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, sql } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { scoped } from "@/lib/db/tenant";
 import { isWindowOpen, windowRemainingMs } from "@/server/inbox/window";
@@ -27,7 +27,7 @@ export async function listConversations(
     select coalesce(m.text, m.type)
     from message m
     where m.conversation_id = ${schema.conversation.id}
-    order by m.created_at desc
+    order by m.created_at desc, m.direction desc, m.id desc
     limit 1
   )`;
   const stageSql = sql<string | null>`(
@@ -108,8 +108,31 @@ export async function listMessages(
         since ? gt(schema.message.createdAt, since) : undefined
       )
     )
-    .orderBy(schema.message.createdAt);
+    .orderBy(...MESSAGE_CHRONOLOGY);
 }
+
+/**
+ * E4 — Orden cronológico DETERMINISTA de un hilo. `created_at` solo no
+ * alcanza: el historial de coexistence (y los timestamps de Meta) llegan con
+ * precisión de SEGUNDO, así que una pregunta y su respuesta pueden compartir
+ * instante, y entonces PostgreSQL las devolvía en cualquier orden (la
+ * respuesta antes de la pregunta). A igual instante va primero lo entrante
+ * ("in" < "out": una respuesta no puede preceder a lo que contesta) y después
+ * el id, para que dos lecturas del mismo hilo den siempre el mismo orden.
+ * Usado por la bandeja, el contexto del agente, el Laboratorio y el export.
+ */
+export const MESSAGE_CHRONOLOGY = [
+  asc(schema.message.createdAt),
+  asc(schema.message.direction),
+  asc(schema.message.id),
+] as const;
+
+/** El mismo orden, al revés (lo más reciente primero). */
+export const MESSAGE_CHRONOLOGY_DESC = [
+  desc(schema.message.createdAt),
+  desc(schema.message.direction),
+  desc(schema.message.id),
+] as const;
 
 export function serializeConversation(
   c: typeof schema.conversation.$inferSelect,
