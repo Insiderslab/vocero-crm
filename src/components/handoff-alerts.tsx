@@ -97,6 +97,7 @@ export function HandoffAlerts() {
               <p className="mt-0.5 text-xs text-text-2">{handoffLabel(a.reason, t)}</p>
               <Link
                 href={`/inbox?conversation=${encodeURIComponent(a.conversationId)}`}
+                prefetch={false}
                 onClick={() => dismiss(a.conversationId)}
                 className="mt-1.5 inline-block text-xs font-medium text-brand-text underline underline-offset-2 hover:text-brand"
               >

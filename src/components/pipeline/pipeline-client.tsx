@@ -481,6 +481,10 @@ function LeadCard({
         {lead.conversationId && (
           <Link
             href={`/inbox?contact=${lead.contact.id}`}
+            // 009 (E5): una tarjeta por lead, cada una con su URL — con el
+            // prefetch de siempre, abrir el tablero pedía decenas de ?_rsc=
+            // a la vez. Se carga al hacer clic.
+            prefetch={false}
             onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => e.stopPropagation()}
             aria-label={t("pipeline.card.openConversation")}

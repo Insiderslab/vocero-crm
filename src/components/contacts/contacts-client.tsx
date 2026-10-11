@@ -285,7 +285,8 @@ export function ContactsClient() {
                   >
                     <Send className="h-4 w-4" />
                   </Button>
-                  <Link href={`/inbox?contact=${c.id}`}>
+                  {/* 009 (E5): sin prefetch — uno por fila sería una ráfaga de ?_rsc=. */}
+                  <Link href={`/inbox?contact=${c.id}`} prefetch={false}>
                     <Button
                       variant="ghost"
                       size="icon"

@@ -143,6 +143,7 @@ export function LeadDrawer({
             {lead.conversationId ? (
               <Link
                 href={`/inbox?contact=${lead.contact.id}`}
+                prefetch={false}
                 className="mt-3 flex w-full items-center justify-center gap-2 rounded-md border bg-secondary px-3 py-2 text-sm font-medium hover:bg-accent"
               >
                 <MessageSquareText className="h-4 w-4" />{" "}

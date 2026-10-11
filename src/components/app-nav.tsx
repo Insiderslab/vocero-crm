@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -28,6 +28,7 @@ import { useEvents } from "@/components/use-events";
 import { LocaleToggle } from "@/components/locale-toggle";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { APP_VERSION, BUILD_COMMIT, versionLabel } from "@/lib/version";
+import { createIntentPrefetcher } from "@/lib/intent-prefetch";
 
 const NAV = [
   { href: "/dashboard", key: "dashboard", icon: LayoutDashboard },
@@ -75,6 +76,17 @@ export function AppNav({
   const router = useRouter();
   const { t } = useT();
   const [unread, setUnread] = useState(0);
+  // 009 (E5/E6): precarga por intención, una petición cada vez (ver lib).
+  const prefetchOnIntent = useMemo(
+    () => createIntentPrefetcher((href) => router.prefetch(href)),
+    [router]
+  );
+  const intent = (href: string) => ({
+    prefetch: false as const,
+    onMouseEnter: () => prefetchOnIntent(href),
+    onFocus: () => prefetchOnIntent(href),
+    onTouchStart: () => prefetchOnIntent(href),
+  });
 
   async function refetchUnread() {
     const res = await fetch("/api/conversations").catch(() => null);
@@ -168,6 +180,7 @@ export function AppNav({
             <Link
               key={item.href}
               href={item.href}
+              {...intent(item.href)}
               className={cn(
                 "flex items-center gap-[11px] rounded-sm px-2.5 py-2.5 text-sm font-medium transition-colors lg:py-2",
                 active
@@ -200,6 +213,7 @@ export function AppNav({
       {isSuperadmin && (
         <Link
           href="/admin"
+          {...intent("/admin")}
           className={cn(
             "mb-0.5 flex items-center gap-[11px] rounded-sm px-2.5 py-2 text-sm font-medium transition-colors",
             pathname.startsWith("/admin")
@@ -220,6 +234,7 @@ export function AppNav({
 
       <Link
         href="/settings"
+        {...intent("/settings")}
         className={cn(
           "flex items-center gap-[11px] rounded-sm px-2.5 py-2 text-sm font-medium transition-colors",
           pathname.startsWith("/settings")
