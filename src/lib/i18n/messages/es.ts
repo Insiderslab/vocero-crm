@@ -8,6 +8,7 @@ import inbox from "./es/inbox";
 import lab from "./es/lab";
 import legal from "./es/legal";
 import nav from "./es/nav";
+import onboarding from "./es/onboarding";
 import pipeline from "./es/pipeline";
 import settings from "./es/settings";
 
@@ -23,6 +24,7 @@ const es = {
   lab,
   legal,
   nav,
+  onboarding,
   pipeline,
   settings,
 };

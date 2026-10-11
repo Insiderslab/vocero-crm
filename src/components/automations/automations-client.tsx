@@ -53,7 +53,15 @@ type Run = {
   createdAt: string;
 };
 
-export function AutomationsClient() {
+export function AutomationsClient({
+  onboarding,
+}: {
+  /**
+   * Pasos 1–2 de «Primi passi» (ya calculados por el servidor con la misma
+   * función): si faltan, «Crea regola» lo dice en vez de quedarse gris.
+   */
+  onboarding?: { whatsappConnected: boolean; templateApproved: boolean };
+} = {}) {
   const { t } = useT();
   const [rules, setRules] = useState<Rule[]>([]);
   const [tags, setTags] = useState<TagDto[]>([]);
@@ -178,6 +186,20 @@ export function AutomationsClient() {
     );
   }
 
+  // Qué falta para poder crear, con los pasos 1–2 de «Primi passi» incluidos:
+  // el botón deshabilitado nunca queda mudo.
+  const missing: string[] = [];
+  if (onboarding && !onboarding.whatsappConnected) {
+    missing.push(t("onboarding.steps.whatsapp.title"));
+  }
+  if (onboarding && !onboarding.templateApproved) {
+    missing.push(t("onboarding.steps.template.title"));
+  }
+  if (!name.trim()) missing.push(t("admin.automations.ruleName"));
+  if (!tagId) missing.push(t("admin.automations.tag"));
+  if (!templateId) missing.push(t("admin.automations.template"));
+  if (!Number(intervalDays)) missing.push(t("admin.automations.interval"));
+
   return (
     <div className="max-w-3xl space-y-6">
       <Card>
@@ -269,6 +291,11 @@ export function AutomationsClient() {
               ? t("admin.automations.creating")
               : t("admin.automations.createSubmit")}
           </Button>
+          {missing.length > 0 && (
+            <p className="text-xs text-muted-foreground">
+              {t("admin.automations.missing", { items: missing.join(", ") })}
+            </p>
+          )}
         </CardContent>
       </Card>
 

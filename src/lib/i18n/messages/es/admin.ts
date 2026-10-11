@@ -53,6 +53,7 @@ const messages = {
     createError: "No se pudo crear la regla",
     creating: "Creando…",
     createSubmit: "Crear regla",
+    missing: "Falta: {{items}}.",
     rulesTitle: "Reglas",
     runNow: "Ejecutar ahora",
     running: "Ejecutando…",
