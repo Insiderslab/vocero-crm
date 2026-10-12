@@ -12,6 +12,10 @@ const messages = {
   closeDetails: "Cerrar los detalles",
   windowOpen: "ventana abierta",
   handoff: "Atención humana",
+  /** 009 (E1): segundo intento del agente pendiente. */
+  retryPending: "IA: nuevo intento en curso",
+  retryPendingHint:
+    "El proveedor de IA no respondió. El agente lo vuelve a intentar solo a las {{time}}; si falla otra vez, la conversación pasa a ti.",
   empty: {
     title: "Sin conversaciones todavía",
     body: "Cuando alguien escriba a tu número de WhatsApp, su conversación aparecerá aquí en tiempo real.",

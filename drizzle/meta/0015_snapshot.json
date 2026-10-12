@@ -1,5 +1,5 @@
 {
-  "id": "e64082d6-b5a2-47ad-9148-baf10f2e2331",
+  "id": "9a7e39c2-5304-4437-807f-629be1ca4111",
   "prevId": "e73cd8c5-a0df-4ff9-bc85-a36fb252fbd4",
   "version": "7",
   "dialect": "postgresql",
@@ -1646,6 +1646,12 @@
         "handoff_reason": {
           "name": "handoff_reason",
           "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "agent_retry_at": {
+          "name": "agent_retry_at",
+          "type": "timestamp",
           "primaryKey": false,
           "notNull": false
         },

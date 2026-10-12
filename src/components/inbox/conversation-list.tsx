@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { AlertTriangle, Search, Sparkles, Trash2, UserRound, X } from "lucide-react";
+import { AlertTriangle, RotateCcw, Search, Sparkles, Trash2, UserRound, X } from "lucide-react";
 import type { ConversationDto } from "@/lib/types";
 import { matchesQuery } from "@/lib/search";
 import { useT } from "@/lib/i18n/client";
@@ -375,7 +375,17 @@ export function ConversationList({
                             {stageLabel(c.stageName, locale)}
                           </span>
                         )}
-                        {c.handoffAt && (
+                        {c.agentRetryAt ? (
+                          // 009 (E1): el agente reintentará solo; aún no es
+                          // trabajo para una persona.
+                          <span
+                            data-retry-pending=""
+                            className="inline-flex min-w-0 items-center gap-1 rounded-full border border-info-soft bg-info-tint px-2 py-0.5 text-[11px] text-info-text"
+                          >
+                            <RotateCcw className="h-3 w-3 shrink-0" strokeWidth={1.8} />
+                            <span className="truncate">{t("inbox.retryPending")}</span>
+                          </span>
+                        ) : c.handoffAt && (
                           // 009 (E1c): el motivo a la vista; un fallo del
                           // proveedor de IA se distingue en rojo.
                           <span

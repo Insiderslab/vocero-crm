@@ -42,7 +42,8 @@ export function decideOnFailure(input: {
 /**
  * ¿Sigue teniendo sentido el segundo intento? Solo si el mensaje más reciente
  * de la conversación sigue siendo EL entrante al que el turno fallido debía
- * responder. Cualquier mensaje posterior lo invalida:
+ * responder. Cualquier mensaje posterior lo invalida (sin `expectInboundId`,
+ * caso del arranque tras un reinicio, basta con que el último sea entrante):
  * - un entrante nuevo ya agendó su propio turno (que responde a todo);
  * - un saliente significa que alguien (el operador, otro cerebro) ya contestó.
  * Así el segundo intento nunca produce una respuesta doble.
@@ -51,8 +52,12 @@ export function retryStillValid(
   expectInboundId: string | undefined,
   newest: { id: string; direction: string } | undefined
 ): boolean {
-  if (!expectInboundId || !newest) return false;
-  return newest.direction === "in" && newest.id === expectInboundId;
+  if (!newest || newest.direction !== "in") return false;
+  // Tras un reinicio el entrante concreto ya no se conoce (el temporizador
+  // vivía en memoria): basta con que nadie haya contestado después del
+  // último entrante — si es otro más nuevo, el turno responde a todo.
+  if (!expectInboundId) return true;
+  return newest.id === expectInboundId;
 }
 
 /**

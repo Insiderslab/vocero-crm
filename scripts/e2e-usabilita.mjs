@@ -83,7 +83,8 @@ const DOWN_NAME = `Caido${S}`;
 const DOWN = `39347${Math.floor(Math.random() * 9e6) + 1e6}`;
 await inbound(DOWN, DOWN_NAME, "mock-proveedor-caido, avete posto?");
 const failed = await until(
-  async () => (await convs()).some((c) => c.contact.name === DOWN_NAME && c.handoffReason === "error"),
+  async () =>
+    (await convs()).some((c) => c.contact.name === DOWN_NAME && c.handoffReason === "error" && !c.agentRetryAt),
   60000
 );
 ok("conversación con handoff `error` preparada", failed);

@@ -2,6 +2,7 @@ import { z } from "zod";
 import { apiError, parseBody, withAuth } from "@/lib/api";
 import { publish } from "@/server/events/bus";
 import { serializeConversation, getConversation, updateConversation } from "@/server/inbox/queries";
+import { cancelAgentRetry } from "@/server/ai/pipeline";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +20,8 @@ export const PATCH = withAuth(async (session, req: Request, ctx: Params) => {
   if (!body.ok) return body.response;
 
   const updated = await updateConversation(session.organizationId, id, body.data);
+  // 009: «Riattiva IA» anula también el temporizador del segundo intento.
+  if (updated && body.data.reactivate) cancelAgentRetry(id);
   if (!updated) return apiError(404, "not_found", "Conversación no encontrada");
 
   const row = await getConversation(session.organizationId, id);

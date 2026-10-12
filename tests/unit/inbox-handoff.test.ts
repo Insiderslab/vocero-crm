@@ -55,6 +55,16 @@ describe("helpers de la bandeja", () => {
     expect(lista.filter((c) => matchesInboxFilter(c, "all"))).toHaveLength(4);
   });
 
+  it("un handoff con segundo intento pendiente NO cuenta como «asistencia humana»", () => {
+    const pendiente = conv("p", {
+      handoffAt: "2030-01-01T10:00:00Z",
+      handoffReason: "error",
+      agentRetryAt: "2030-01-01T10:01:00Z",
+    });
+    expect(matchesInboxFilter(pendiente, "handoff")).toBe(false);
+    expect(sortHandoffFirst([conv("a"), pendiente, lista[1]!]).map((c) => c.id)).toEqual(["b", "a", "p"]);
+  });
+
   it("etiqueta del motivo; `error` → «Errore del provider IA»", () => {
     expect(handoffLabel("error", t)).toBe("inbox.handoffReasons.error");
     expect(handoffLabel("hostilidad", t)).toBe("inbox.handoffReasons.hostilidad");
@@ -80,6 +90,21 @@ describe("lista de conversaciones", () => {
     expect(html).toContain("inbox.filters.handoff");
   });
 
+  it("una conversación con segundo intento pendiente lleva la etiqueta «IA: nuovo tentativo in corso»", () => {
+    const out = renderToStaticMarkup(
+      createElement(ConversationList, {
+        conversations: [
+          conv("p", { handoffAt: "2030-01-01T10:00:00Z", handoffReason: "error", agentRetryAt: "2030-01-01T10:01:00Z" }),
+        ],
+        selectedId: null,
+        onSelect: () => undefined,
+        onSeeded: () => undefined,
+      })
+    );
+    expect(out).toContain("inbox.retryPending");
+    expect(out).not.toContain("inbox.handoffReasons.error");
+  });
+
   it("muestra el motivo del handoff y lo pone primero", () => {
     expect(html).toContain("inbox.handoffReasons.error");
     expect(html.indexOf("Nombre b")).toBeLessThan(html.indexOf("Nombre a"));
@@ -102,6 +127,16 @@ describe("panel del contacto", () => {
     expect(out).toContain("inbox.panel.retryAi");
     expect(out).toContain("inbox.handoffReasons.error");
     expect(out).toContain("inbox.panel.reactivate");
+  });
+
+  it("segundo intento pendiente: aviso propio, no el de asistencia humana", () => {
+    const out = render({
+      handoffAt: "2030-01-01T10:00:00Z",
+      handoffReason: "error",
+      agentRetryAt: "2030-01-01T10:01:00Z",
+    });
+    expect(out).toContain("inbox.retryPending");
+    expect(out).toContain("data-retry-pending");
   });
 
   it("sin handoff no hay nada que reintentar", () => {

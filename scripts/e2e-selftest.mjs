@@ -1069,7 +1069,13 @@ async function usabilitySection() {
   const FLAKY = "393470009001";
   await inbound(FLAKY, "Intermitente E2E", "mock-proveedor-intermitente ciao", "wamid.e2e.009.flaky.1");
   await sleep(2500);
-  ok("tras el primer fallo: aún sin respuesta y sin handoff", (await outboxTo(FLAKY)).length === 0 && !(await convOf(FLAKY))?.handoffAt);
+  const flakyPending = await convOf(FLAKY);
+  ok(
+    "tras el primer fallo: aún sin respuesta; handoff provisional con segundo intento pendiente",
+    (await outboxTo(FLAKY)).length === 0 && flakyPending?.handoffReason === "error" && Boolean(flakyPending?.agentRetryAt),
+    JSON.stringify(flakyPending)
+  );
+  ok("…y sin aviso todavía", !sse.text.includes(`"conversationId":"${flakyPending?.id}"`));
   for (let i = 0; i < 40 && (await outboxTo(FLAKY)).length === 0; i++) await sleep(500);
   await sleep(1500);
   const flakyOut = await outboxTo(FLAKY);
@@ -1088,7 +1094,7 @@ async function usabilitySection() {
   let downConv = null;
   for (let i = 0; i < 40; i++) {
     downConv = await convOf(DOWN);
-    if (downConv?.handoffReason === "error") break;
+    if (downConv?.handoffReason === "error" && !downConv?.agentRetryAt) break;
     await sleep(500);
   }
   ok("handoff `error` tras el segundo intento", downConv?.handoffReason === "error", JSON.stringify(downConv));
@@ -1107,7 +1113,7 @@ async function usabilitySection() {
   ok("Riprova → 202 y la conversación sin handoff", retry.res.status === 202 && retry.json?.conversation?.handoffAt === null, JSON.stringify(retry.json));
   for (let i = 0; i < 30; i++) {
     downConv = await convOf(DOWN);
-    if (downConv?.handoffReason === "error") break;
+    if (downConv?.handoffReason === "error" && !downConv?.agentRetryAt) break;
     await sleep(500);
   }
   await sleep(800);

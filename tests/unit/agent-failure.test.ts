@@ -43,9 +43,14 @@ describe("retryStillValid", () => {
     expect(retryStillValid("msg_1", { id: "msg_3", direction: "out" })).toBe(false);
   });
 
-  it("sin datos no se arriesga", () => {
-    expect(retryStillValid(undefined, { id: "msg_1", direction: "in" })).toBe(false);
+  it("sin mensajes no se arriesga", () => {
     expect(retryStillValid("msg_1", undefined)).toBe(false);
+    expect(retryStillValid(undefined, undefined)).toBe(false);
+  });
+
+  it("tras un reinicio (sin el id del entrante): vale si nadie contestó después del último entrante", () => {
+    expect(retryStillValid(undefined, { id: "msg_9", direction: "in" })).toBe(true);
+    expect(retryStillValid(undefined, { id: "msg_9", direction: "out" })).toBe(false);
   });
 });
 
@@ -101,5 +106,14 @@ describe("sentSinceLastInbound", () => {
 
   it("otro texto no cuenta", () => {
     expect(sentSinceLastInbound([{ direction: "out", text: "otra cosa" }], text)).toBe(false);
+  });
+});
+
+describe("arranque (vigilancia del código)", () => {
+  it("el hook de arranque recupera los segundos intentos pendientes", async () => {
+    const { readFileSync } = await import("node:fs");
+    const path = await import("node:path");
+    const src = readFileSync(path.resolve(import.meta.dirname, "..", "..", "src", "instrumentation.ts"), "utf8");
+    expect(src).toMatch(/await recoverPendingAgentRetries\(\);/);
   });
 });

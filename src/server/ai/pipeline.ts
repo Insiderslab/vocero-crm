@@ -1,4 +1,4 @@
-import { and, asc, eq, isNull } from "drizzle-orm";
+import { and, asc, eq, isNotNull, isNull } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { newId } from "@/lib/db/ids";
 import { scoped } from "@/lib/db/tenant";
@@ -39,8 +39,11 @@ type CoalesceEntry = {
 /** 009 (E1) — Segundo intento programado tras un `provider_error`. */
 type RetryEntry = {
   timer: ReturnType<typeof setTimeout>;
-  /** El entrante al que el turno fallido debía responder. */
-  inboundId: string;
+  /**
+   * El entrante al que el turno fallido debía responder. Falta cuando el
+   * temporizador se reprogramó al arrancar (la marca persistida no lo guarda).
+   */
+  inboundId?: string;
 };
 
 export type TurnOptions = {
@@ -91,7 +94,9 @@ export function cancelAgentRetry(conversationId: string): boolean {
 /** Punto de entrada con debounce (mensajes entrantes reales). */
 export function scheduleAgentTurn(conversationId: string): void {
   // Un entrante nuevo agenda su propio turno, que responde a todo lo
-  // pendiente: el segundo intento del turno anterior sobra.
+  // pendiente: el temporizador del segundo intento sobra. La MARCA persistida
+  // (`agent_retry_at`) la quita ese turno al empezar (ver runAgentTurn); si el
+  // proceso muere antes, el arranque la reprograma y responde igual.
   cancelAgentRetry(conversationId);
   const map = coalesceMap();
   const entry = map.get(conversationId) ?? {
@@ -153,20 +158,218 @@ async function runExclusive(
   return "ran";
 }
 
-/** 009 (E1a) — Programa EL segundo intento (uno; reprogramar lo reemplaza). */
-function scheduleAgentRetry(conversationId: string, inboundId: string): void {
+/**
+ * 009 (E1a) — Temporizador del segundo intento (uno por conversación;
+ * reprogramar lo reemplaza). La verdad está en la BD (`agent_retry_at`): el
+ * temporizador solo dice CUÁNDO mirarla.
+ */
+function scheduleAgentRetry(
+  conversationId: string,
+  inboundId: string | undefined,
+  delayMs: number
+): void {
   cancelAgentRetry(conversationId);
-  const delay = getEnv().AGENT_RETRY_MS;
   const timer = setTimeout(() => {
     retryMap().delete(conversationId);
-    void runExclusive(conversationId, {
-      mode: "retry",
-      expectInboundId: inboundId,
-    });
-  }, delay);
+    void fireAgentRetry(conversationId, inboundId).catch((err) =>
+      console.error("[agente] segundo intento falló:", err)
+    );
+  }, Math.max(0, delayMs));
   // Que el temporizador no mantenga vivo el proceso (scripts, pruebas).
   if (typeof timer.unref === "function") timer.unref();
   retryMap().set(conversationId, { timer, inboundId });
+}
+
+/**
+ * Arma el segundo intento de forma DURABLE: la conversación pasa YA a
+ * handoff `error` con la marca `agent_retry_at` (si el proceso muere, nadie
+ * queda colgado: el arranque lo retoma o lo cierra). Ni aviso ni cortesía
+ * todavía: solo si el segundo intento también falla.
+ */
+async function armAgentRetry(
+  conversation: Conversation,
+  inboundId: string
+): Promise<boolean> {
+  const delay = getEnv().AGENT_RETRY_MS;
+  const armed = await getDb()
+    .update(schema.conversation)
+    .set({
+      handoffAt: new Date(),
+      handoffReason: "error",
+      agentRetryAt: new Date(Date.now() + delay),
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(schema.conversation.id, conversation.id),
+        isNull(schema.conversation.handoffAt)
+      )
+    )
+    .returning({ id: schema.conversation.id });
+  if (!armed[0]) return false;
+  publish(conversation.organizationId, {
+    type: "conversation.updated",
+    data: { conversation: { id: conversation.id } },
+  });
+  scheduleAgentRetry(conversation.id, inboundId, delay);
+  return true;
+}
+
+/**
+ * Quita la marca y el handoff que la acompaña, de forma ATÓMICA: solo uno
+ * (el temporizador, un entrante nuevo, «Riprova») se queda con el turno.
+ */
+async function claimAgentRetry(conversationId: string): Promise<boolean> {
+  const claimed = await getDb()
+    .update(schema.conversation)
+    .set({ handoffAt: null, handoffReason: null, agentRetryAt: null, updatedAt: new Date() })
+    .where(
+      and(
+        eq(schema.conversation.id, conversationId),
+        isNotNull(schema.conversation.agentRetryAt)
+      )
+    )
+    .returning({ id: schema.conversation.id });
+  return Boolean(claimed[0]);
+}
+
+/** Quita solo la marca (el handoff `error` se queda: lo atiende una persona). */
+async function dropAgentRetryMarker(
+  conversationId: string,
+  organizationId?: string
+): Promise<boolean> {
+  const dropped = await getDb()
+    .update(schema.conversation)
+    .set({ agentRetryAt: null, updatedAt: new Date() })
+    .where(
+      and(
+        eq(schema.conversation.id, conversationId),
+        organizationId ? eq(schema.conversation.organizationId, organizationId) : undefined,
+        isNotNull(schema.conversation.agentRetryAt)
+      )
+    )
+    .returning({ organizationId: schema.conversation.organizationId });
+  if (!dropped[0]) return false;
+  publish(dropped[0].organizationId, {
+    type: "conversation.updated",
+    data: { conversation: { id: conversationId } },
+  });
+  return true;
+}
+
+/**
+ * Llega la hora del segundo intento. Si alguien contestó mientras tanto
+ * (operador, eco del teléfono), la marca se quita y el handoff se queda:
+ * una persona ya lo lleva. Si el agente ya no puede contestar (IA sin
+ * configurar, agente o IA de la conversación apagados), igual. Si no, se
+ * reclama la marca y corre el turno `retry`.
+ */
+export async function fireAgentRetry(
+  conversationId: string,
+  inboundId?: string
+): Promise<"retried" | "answered_by_human" | "agent_off" | "nothing"> {
+  const db = getDb();
+  const rows = await db
+    .select()
+    .from(schema.conversation)
+    .where(eq(schema.conversation.id, conversationId))
+    .limit(1);
+  const conversation = rows[0];
+  if (!conversation?.agentRetryAt) return "nothing";
+
+  const newest = await db
+    .select({ id: schema.message.id, direction: schema.message.direction })
+    .from(schema.message)
+    .where(
+      and(
+        eq(schema.message.organizationId, conversation.organizationId),
+        eq(schema.message.conversationId, conversationId)
+      )
+    )
+    .orderBy(...MESSAGE_CHRONOLOGY_DESC)
+    .limit(1);
+  if (!retryStillValid(inboundId, newest[0])) {
+    // Un entrante distinto del esperado: lo responde su propio turno.
+    if (newest[0]?.direction === "in") return "nothing";
+    await dropAgentRetryMarker(conversationId);
+    return "answered_by_human";
+  }
+
+  const profile = await db
+    .select({ enabled: schema.agentProfile.enabled })
+    .from(schema.agentProfile)
+    .where(eq(schema.agentProfile.organizationId, conversation.organizationId))
+    .limit(1);
+  if (!isAiConfigured() || !profile[0]?.enabled || !conversation.aiEnabled) {
+    await dropAgentRetryMarker(conversationId);
+    return "agent_off";
+  }
+
+  if (!(await claimAgentRetry(conversationId))) return "nothing";
+  const ran = await runExclusive(conversationId, { mode: "retry", expectInboundId: inboundId });
+  // `busy`: ya corre un turno normal; responde él (la marca ya no existe).
+  return ran === "ran" ? "retried" : "nothing";
+}
+
+/**
+ * El segundo intento vencido sin haber corrido (p. ej. el proceso estuvo
+ * caído): se cierra el handoff `error` como si hubiera fallado — aviso y
+ * cortesía, una vez.
+ */
+export async function finalizeAgentRetry(conversationId: string): Promise<boolean> {
+  const done = await getDb()
+    .update(schema.conversation)
+    .set({ agentRetryAt: null, handoffAt: new Date(), handoffReason: "error", updatedAt: new Date() })
+    .where(
+      and(
+        eq(schema.conversation.id, conversationId),
+        isNotNull(schema.conversation.agentRetryAt)
+      )
+    )
+    .returning();
+  const conversation = done[0];
+  if (!conversation) return false;
+  await announceErrorHandoff(conversation);
+  return true;
+}
+
+/**
+ * 009 (E1) — Arranque: cada marca pendiente se reprograma con lo que le
+ * falta o, si ya venció, se cierra (`finalizeAgentRetry`). Sin esto, un
+ * reinicio durante la espera dejaba al cliente sin respuesta y sin que nadie
+ * del equipo se enterara.
+ */
+export async function recoverAgentRetries(
+  now: number = Date.now()
+): Promise<{ rescheduled: number; finalized: number }> {
+  const rows = await getDb()
+    .select({ id: schema.conversation.id, at: schema.conversation.agentRetryAt })
+    .from(schema.conversation)
+    .where(isNotNull(schema.conversation.agentRetryAt));
+  let rescheduled = 0;
+  let finalized = 0;
+  for (const row of rows) {
+    const remaining = (row.at?.getTime() ?? now) - now;
+    if (remaining > 0) {
+      scheduleAgentRetry(row.id, undefined, remaining);
+      rescheduled++;
+    } else if (await finalizeAgentRetry(row.id)) {
+      finalized++;
+    }
+  }
+  return { rescheduled, finalized };
+}
+
+/**
+ * Una persona contestó (bandeja, plantilla, adjunto): fuera el segundo
+ * intento. El handoff `error` se queda: la conversación ya la lleva alguien.
+ */
+export async function clearAgentRetryOnHumanReply(
+  organizationId: string,
+  conversationId: string
+): Promise<boolean> {
+  cancelAgentRetry(conversationId);
+  return dropAgentRetryMarker(conversationId, organizationId);
 }
 
 /**
@@ -201,7 +404,18 @@ export async function runAgentTurn(
   const organizationId = conversation.organizationId;
 
   // Condiciones de silencio: handoff activo o IA apagada en la conversación.
-  if (conversation.handoffAt || !conversation.aiEnabled) return;
+  // Un handoff con `agent_retry_at` NO silencia: es un segundo intento
+  // pendiente. Un turno normal (entrante nuevo) o manual se queda con él —
+  // reclamando la marca de forma atómica — y responde.
+  if (!conversation.aiEnabled) return;
+  if (conversation.handoffAt) {
+    if (!conversation.agentRetryAt || mode === "retry") return;
+    cancelAgentRetry(conversationId);
+    if (!(await claimAgentRetry(conversationId))) return;
+    conversation.handoffAt = null;
+    conversation.handoffReason = null;
+    conversation.agentRetryAt = null;
+  }
 
   const profileRows = await db
     .select()
@@ -300,8 +514,7 @@ export async function runAgentTurn(
       isTest: conversation.isTest,
       retryDelayMs: getEnv().AGENT_RETRY_MS,
     });
-    if (decision === "retry_later") {
-      scheduleAgentRetry(conversationId, lastInbound.id);
+    if (decision === "retry_later" && (await armAgentRetry(conversation, lastInbound.id))) {
       console.warn(
         `[agente] proveedor no disponible en ${conversationId}: segundo intento en ${getEnv().AGENT_RETRY_MS} ms`
       );
@@ -536,6 +749,31 @@ export async function applyHandoff(
     await publishHandoffAlert(organizationId, conversationId, conv.contactId, reason);
   }
   return true;
+}
+
+/**
+ * Cierre de un handoff `error` armado antes (segundo intento vencido sin
+ * correr): lo que `applyHandoff` habría publicado, más la cortesía.
+ */
+async function announceErrorHandoff(conversation: Conversation): Promise<void> {
+  publish(conversation.organizationId, {
+    type: "conversation.updated",
+    data: { conversation: { id: conversation.id, handoffReason: "error" } },
+  });
+  if (!conversation.isTest) {
+    await publishHandoffAlert(
+      conversation.organizationId,
+      conversation.id,
+      conversation.contactId,
+      "error"
+    );
+  }
+  const profile = await getDb()
+    .select({ errorReply: schema.agentProfile.errorReply })
+    .from(schema.agentProfile)
+    .where(eq(schema.agentProfile.organizationId, conversation.organizationId))
+    .limit(1);
+  await sendErrorReply(conversation, profile[0]?.errorReply ?? null, true);
 }
 
 /**

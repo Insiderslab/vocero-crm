@@ -18,6 +18,7 @@ import { FichaPanel } from "@/components/ficha-panel";
 import { handoffLabel } from "./helpers";
 import { stageLabel } from "@/lib/stages";
 import { Switch } from "@/components/ui/switch";
+import { intlLocale } from "@/lib/i18n";
 
 /** Resultado de «Riprova risposta IA»: `null` = lanzado; si no, el código. */
 export type RetryAiResult = null | "ai_not_configured" | "agent_disabled" | "failed";
@@ -206,7 +207,26 @@ export function ContactPanel({
             </div>
           </div>
 
-          {conversation.handoffAt && (
+          {conversation.agentRetryAt && (
+            // 009 (E1): handoff provisional — el agente reintentará solo.
+            <div
+              data-retry-pending=""
+              className="mt-3 rounded-md border border-info-soft bg-info-tint p-3"
+            >
+              <p className="flex items-center gap-1.5 text-[13px] font-medium text-info-text">
+                <RotateCcw className="h-4 w-4" strokeWidth={1.7} /> {t("inbox.retryPending")}
+              </p>
+              <p className="mt-1 text-xs text-info-text opacity-80">
+                {t("inbox.retryPendingHint", {
+                  time: new Date(conversation.agentRetryAt).toLocaleTimeString(intlLocale(locale), {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  }),
+                })}
+              </p>
+            </div>
+          )}
+          {conversation.handoffAt && !conversation.agentRetryAt && (
             <div
               className={cn(
                 "mt-3 rounded-md border p-3",
@@ -284,7 +304,9 @@ export function ContactPanel({
               <div className="min-w-0">
                 <p className="text-[13px] font-medium">{t("inbox.panel.aiTitle")}</p>
                 <p className="text-[11px] text-text-3">
-                  {conversation.handoffAt
+                  {conversation.agentRetryAt
+                    ? t("inbox.retryPending")
+                    : conversation.handoffAt
                     ? t("inbox.panel.stateHandoff")
                     : !conversation.aiEnabled
                       ? t("inbox.panel.statePaused")

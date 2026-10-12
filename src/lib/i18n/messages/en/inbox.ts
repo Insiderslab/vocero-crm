@@ -14,6 +14,10 @@ const messages: typeof base = {
   closeDetails: "Close details",
   windowOpen: "window open",
   handoff: "Human support",
+  /** 009 (E1): segundo intento del agente pendiente. */
+  retryPending: "AI: retrying",
+  retryPendingHint:
+    "The AI provider did not answer. The agent retries on its own at {{time}}; if it fails again, the conversation is handed to you.",
   empty: {
     title: "No conversations yet",
     body: "When someone messages your WhatsApp number, their conversation will appear here in real time.",

@@ -332,6 +332,13 @@ export const conversation = pgTable(
         "manual_reply",
       ],
     }),
+    /**
+     * 009 (E1) — Segundo intento del agente PENDIENTE (persistido): el
+     * proveedor de IA falló, la conversación queda con handoff `error` y aquí
+     * la hora a la que se reintenta. Sobrevive a un reinicio: al arrancar se
+     * reprograma o, si ya pasó, se cierra el handoff. NULL = nada pendiente.
+     */
+    agentRetryAt: timestamp("agent_retry_at"),
     lastInboundAt: timestamp("last_inbound_at"),
     lastMessageAt: timestamp("last_message_at"),
     unreadCount: integer("unread_count").notNull().default(0),

@@ -6,7 +6,10 @@ import { getBranding } from "@/server/branding";
 import { seedDemo } from "@/server/seed/demo";
 import {
   applyHandoff,
+  cancelAgentRetry,
+  clearAgentRetryOnHumanReply,
   pendingAgentRetries,
+  recoverAgentRetries,
   runAgentTurn,
   runAgentTurnNow,
 } from "@/server/ai/pipeline";
@@ -125,8 +128,10 @@ const graphTexts = () =>
     .map((r) => (r.body as { text?: { body?: string } }).text?.body ?? null);
 
 async function conv(cv: string) {
-  const [row] = await sql()<{ handoff_at: Date | null; handoff_reason: string | null; ai_enabled: boolean }[]>`
-    select handoff_at, handoff_reason, ai_enabled from conversation where id = ${cv}
+  const [row] = await sql()<
+    { handoff_at: Date | null; handoff_reason: string | null; ai_enabled: boolean; agent_retry_at: Date | null }[]
+  >`
+    select handoff_at, handoff_reason, ai_enabled, agent_retry_at from conversation where id = ${cv}
   `;
   return row!;
 }
@@ -145,8 +150,8 @@ async function waitRetries(): Promise<void> {
   await settle();
 }
 
-describe("E1a — segundo intento", () => {
-  it("el proveedor cae en el turno: sin handoff; el segundo intento responde UNA vez", async () => {
+describe("E1a — segundo intento (persistido)", () => {
+  it("el proveedor cae: handoff `error` PROVISIONAL con marca, sin aviso ni cortesía; el segundo intento responde UNA vez", async () => {
     await agentProfile({ errorReply: ERROR_REPLY });
     aiWillFail(3); // un turno entero (los 3 intentos de chatJson)
     aiWillReply('{"action":"reply","text":"¡Hola Ana! Ya estoy de vuelta."}');
@@ -154,17 +159,23 @@ describe("E1a — segundo intento", () => {
     await postWebhook(waFixture("inbound-text-mx"));
     const cv = await conversationIdOf(ORG_A, ANA);
     expect(pendingAgentRetries()).toEqual([cv]);
-    expect((await conv(cv)).handoff_at).toBeNull();
+    const pending = await conv(cv);
+    expect(pending.handoff_reason).toBe("error");
+    expect(pending.agent_retry_at).not.toBeNull();
     expect(graphTexts()).toEqual([]);
+    expect(recordedSse().filter((e) => e.type === "conversation.handoff")).toEqual([]);
 
     await waitRetries();
     expect(aiCalls()).toHaveLength(4);
     expect(graphTexts()).toEqual(["¡Hola Ana! Ya estoy de vuelta."]);
-    expect((await conv(cv)).handoff_at).toBeNull();
+    const after = await conv(cv);
+    expect(after.handoff_at).toBeNull();
+    expect(after.agent_retry_at).toBeNull();
     expect(pendingAgentRetries()).toEqual([]);
+    expect(recordedSse().filter((e) => e.type === "conversation.handoff")).toEqual([]);
   });
 
-  it("el segundo intento también falla: handoff `error`, cortesía UNA vez y aviso SSE", async () => {
+  it("el segundo intento también falla: handoff `error` definitivo, cortesía UNA vez y aviso SSE", async () => {
     await agentProfile({ errorReply: ERROR_REPLY });
     aiWillFail(6);
 
@@ -176,6 +187,7 @@ describe("E1a — segundo intento", () => {
     const c = await conv(cv);
     expect(c.handoff_reason).toBe("error");
     expect(c.handoff_at).not.toBeNull();
+    expect(c.agent_retry_at).toBeNull();
     expect(graphTexts()).toEqual([ERROR_REPLY]);
     expect(await outbound(cv)).toEqual([{ text: ERROR_REPLY, ai_generated: true, origin: "ai" }]);
     expect(pendingAgentRetries()).toEqual([]);
@@ -191,7 +203,7 @@ describe("E1a — segundo intento", () => {
     // El aviso es solo del canal de A.
     expect(recordedSse().some((e) => e.org === ORG_B)).toBe(false);
 
-    // Otro entrante con el handoff activo: el agente calla, ni IA ni cortesía.
+    // Otro entrante con el handoff DEFINITIVO: el agente calla, ni IA ni cortesía.
     await postWebhook(waFixture("inbound-text-mx-again"));
     await waitRetries();
     expect(aiCalls()).toHaveLength(6);
@@ -208,7 +220,7 @@ describe("E1a — segundo intento", () => {
     expect(graphTexts()).toEqual([]);
   });
 
-  it("llega un entrante nuevo durante la espera: el segundo intento se anula y hay UNA sola respuesta", async () => {
+  it("llega un entrante nuevo durante la espera: la marca no silencia, se quita y hay UNA sola respuesta", async () => {
     await agentProfile({ errorReply: ERROR_REPLY });
     aiWillFail(3);
     await postWebhook(waFixture("inbound-text-mx"));
@@ -222,10 +234,34 @@ describe("E1a — segundo intento", () => {
     await waitRetries();
     expect(graphTexts()).toEqual(["Respuesta a los dos mensajes."]);
     expect(aiCalls()).toHaveLength(4);
-    expect((await conv(cv)).handoff_at).toBeNull();
+    const c = await conv(cv);
+    expect(c.handoff_at).toBeNull();
+    expect(c.agent_retry_at).toBeNull();
   });
 
-  it("el operador contesta durante la espera: el segundo intento no habla ni pasa a humano", async () => {
+  it("el operador contesta desde la bandeja durante la espera: fuera la marca, el handoff se queda, el agente no habla", async () => {
+    await agentProfile({ errorReply: ERROR_REPLY });
+    aiWillFail(3);
+    aiWillReply('{"action":"reply","text":"NO DEBE SALIR"}');
+    await postWebhook(waFixture("inbound-text-mx"));
+    const cv = await conversationIdOf(ORG_A, ANA);
+    // Lo que hace la ruta de envío de la bandeja tras enviar.
+    await sql()`
+      insert into message (id, organization_id, conversation_id, direction, type, text, status, origin)
+      values ('msg_e1_operador', ${ORG_A}, ${cv}, 'out', 'text', 'Te contesto yo', 'sent', 'operator')
+    `;
+    expect(await clearAgentRetryOnHumanReply(ORG_A, cv)).toBe(true);
+    expect(pendingAgentRetries()).toEqual([]);
+    await waitRetries();
+    expect(aiCalls()).toHaveLength(3);
+    expect(graphTexts()).toEqual([]);
+    const c = await conv(cv);
+    expect(c.handoff_reason).toBe("error");
+    expect(c.agent_retry_at).toBeNull();
+    expect(recordedSse().filter((e) => e.type === "conversation.handoff")).toEqual([]);
+  });
+
+  it("una respuesta que NO pasó por la bandeja (eco del teléfono): al disparar, el segundo intento no habla", async () => {
     await agentProfile({ errorReply: ERROR_REPLY });
     aiWillFail(3);
     aiWillReply('{"action":"reply","text":"NO DEBE SALIR"}');
@@ -233,12 +269,55 @@ describe("E1a — segundo intento", () => {
     const cv = await conversationIdOf(ORG_A, ANA);
     await sql()`
       insert into message (id, organization_id, conversation_id, direction, type, text, status, origin)
-      values ('msg_e1_operador', ${ORG_A}, ${cv}, 'out', 'text', 'Te contesto yo', 'sent', 'operator')
+      values ('msg_e1_eco', ${ORG_A}, ${cv}, 'out', 'text', 'Te contesto yo', 'sent', 'manual')
     `;
     await waitRetries();
-    expect(aiCalls()).toHaveLength(3); // el segundo intento ni llamó al modelo
+    expect(aiCalls()).toHaveLength(3);
     expect(graphTexts()).toEqual([]);
-    expect((await conv(cv)).handoff_at).toBeNull();
+    const c = await conv(cv);
+    expect(c.handoff_reason).toBe("error");
+    expect(c.agent_retry_at).toBeNull();
+  });
+
+  it("reinicio con la marca FUTURA: el arranque reprograma y el segundo intento responde", async () => {
+    await agentProfile({ errorReply: ERROR_REPLY });
+    aiWillFail(3);
+    await postWebhook(waFixture("inbound-text-mx"));
+    const cv = await conversationIdOf(ORG_A, ANA);
+    // «Se cae el proceso»: el temporizador en memoria desaparece; la marca no.
+    cancelAgentRetry(cv);
+    expect(pendingAgentRetries()).toEqual([]);
+    expect((await conv(cv)).agent_retry_at).not.toBeNull();
+
+    aiWillReply('{"action":"reply","text":"Perdona, ya estoy."}');
+    expect(await recoverAgentRetries()).toEqual({ rescheduled: 1, finalized: 0 });
+    expect(pendingAgentRetries()).toEqual([cv]);
+    await waitRetries();
+    expect(graphTexts()).toEqual(["Perdona, ya estoy."]);
+    const c = await conv(cv);
+    expect(c.handoff_at).toBeNull();
+    expect(c.agent_retry_at).toBeNull();
+  });
+
+  it("reinicio con la marca VENCIDA: el arranque cierra el handoff (aviso + cortesía una vez), sin llamar al modelo", async () => {
+    await agentProfile({ errorReply: ERROR_REPLY });
+    aiWillFail(3);
+    await postWebhook(waFixture("inbound-text-mx"));
+    const cv = await conversationIdOf(ORG_A, ANA);
+    cancelAgentRetry(cv);
+    await sql()`update conversation set agent_retry_at = now() - interval '1 hour' where id = ${cv}`;
+
+    expect(await recoverAgentRetries()).toEqual({ rescheduled: 0, finalized: 1 });
+    await settle();
+    expect(aiCalls()).toHaveLength(3);
+    const c = await conv(cv);
+    expect(c.handoff_reason).toBe("error");
+    expect(c.agent_retry_at).toBeNull();
+    expect(graphTexts()).toEqual([ERROR_REPLY]);
+    expect(recordedSse().filter((e) => e.type === "conversation.handoff")).toHaveLength(1);
+    // Repetir la recuperación no hace nada más.
+    expect(await recoverAgentRetries()).toEqual({ rescheduled: 0, finalized: 0 });
+    expect(graphTexts()).toEqual([ERROR_REPLY]);
   });
 
   it("Laboratorio: sin segundo intento ni cortesía (handoff inmediato, como antes)", async () => {

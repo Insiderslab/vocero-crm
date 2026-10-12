@@ -3,6 +3,7 @@ import { apiError, parseBody, withAuth } from "@/lib/api";
 import { getConversation, listMessages } from "@/server/inbox/queries";
 import { serializeMessage } from "@/server/inbox/ingest";
 import { SendError, sendStructured, sendText } from "@/server/inbox/send";
+import { clearAgentRetryOnHumanReply } from "@/server/ai/pipeline";
 
 export const dynamic = "force-dynamic";
 
@@ -94,6 +95,8 @@ export const POST = withAuth(async (session, req: Request, ctx: Params) => {
               kind: "contacts",
               contacts: data.contacts,
             });
+    // 009 (E1): contestó una persona → fuera el segundo intento del agente.
+    await clearAgentRetryOnHumanReply(session.organizationId, id);
     return Response.json({ messageId: result.messageId });
   } catch (err) {
     if (err instanceof SendError) {

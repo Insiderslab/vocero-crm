@@ -76,13 +76,21 @@ export function previewText(preview: string | null, t: TFunction): string {
 /** Filtros rápidos de la bandeja. */
 export type InboxFilter = "all" | "unread" | "handoff";
 
-/** ¿La conversación espera a una persona? (handoff activo). */
-export function needsHuman(c: Pick<ConversationDto, "handoffAt">): boolean {
-  return Boolean(c.handoffAt);
+/**
+ * ¿La conversación espera a una persona? Handoff activo, salvo que sea el
+ * provisional de un segundo intento del agente todavía pendiente.
+ */
+export function needsHuman(c: Pick<ConversationDto, "handoffAt" | "agentRetryAt">): boolean {
+  return Boolean(c.handoffAt) && !c.agentRetryAt;
+}
+
+/** 009 (E1): el agente reintentará solo (`agent_retry_at`). */
+export function retryPending(c: Pick<ConversationDto, "agentRetryAt">): boolean {
+  return Boolean(c.agentRetryAt);
 }
 
 export function matchesInboxFilter(
-  c: Pick<ConversationDto, "handoffAt" | "unreadCount">,
+  c: Pick<ConversationDto, "handoffAt" | "agentRetryAt" | "unreadCount">,
   filter: InboxFilter
 ): boolean {
   if (filter === "unread") return c.unreadCount > 0;
@@ -95,7 +103,7 @@ export function matchesInboxFilter(
  * se conserva el orden del servidor (lo más reciente primero), así la lista no
  * baila con cada evento.
  */
-export function sortHandoffFirst<T extends Pick<ConversationDto, "handoffAt">>(
+export function sortHandoffFirst<T extends Pick<ConversationDto, "handoffAt" | "agentRetryAt">>(
   list: readonly T[]
 ): T[] {
   return [...list.filter(needsHuman), ...list.filter((c) => !needsHuman(c))];

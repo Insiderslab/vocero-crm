@@ -10,6 +10,8 @@ export type ConversationDto = {
   aiEnabled: boolean;
   handoffAt: string | null;
   handoffReason: string | null;
+  /** 009 (E1): segundo intento del agente pendiente (ISO) o null. */
+  agentRetryAt: string | null;
   lastInboundAt: string | null;
   lastMessageAt: string | null;
   unreadCount: number;
@@ -147,6 +149,7 @@ export function serializeConversation(
     aiEnabled: c.aiEnabled,
     handoffAt: c.handoffAt?.toISOString() ?? null,
     handoffReason: c.handoffReason,
+    agentRetryAt: c.agentRetryAt?.toISOString() ?? null,
     lastInboundAt: c.lastInboundAt?.toISOString() ?? null,
     lastMessageAt: c.lastMessageAt?.toISOString() ?? null,
     unreadCount: c.unreadCount,
@@ -167,6 +170,8 @@ export async function updateConversation(
   if (patch.reactivate) {
     set.handoffAt = null;
     set.handoffReason = null;
+    // 009: reactivar a mano también anula un segundo intento pendiente.
+    set.agentRetryAt = null;
     set.aiEnabled = patch.aiEnabled ?? true;
   }
   if (patch.markRead) set.unreadCount = 0;

@@ -7,6 +7,8 @@ export type ConversationDto = {
   aiEnabled: boolean;
   handoffAt: string | null;
   handoffReason: string | null;
+  /** 009 (E1): el agente reintentará a esta hora (handoff `error` provisional). */
+  agentRetryAt?: string | null;
   lastInboundAt: string | null;
   lastMessageAt: string | null;
   unreadCount: number;
