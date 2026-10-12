@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { defaultStageKeyOf, defaultStageKeyOfLoose } from "@/lib/stages";
 
 /**
  * Acción tipada del agente: exactamente UNA por turno (FR-021).
@@ -38,7 +39,15 @@ export function resolveStage(
   const exact = stages.find((s) => s.name === requested.trim());
   if (exact) return exact;
   const lower = requested.trim().toLowerCase();
-  return stages.find((s) => s.name.toLowerCase() === lower) ?? null;
+  const loose = stages.find((s) => s.name.toLowerCase() === lower);
+  if (loose) return loose;
+  // 009 (E2): el prompt y el ai-mock nombran las etapas de fábrica en un
+  // idioma ("Interesado") y una organización sembrada en otro las tiene como
+  // "Interessato". Misma clave de fábrica → misma etapa. Solo etapas que
+  // conservan su nombre de fábrica: una renombrada no se adivina.
+  const key = defaultStageKeyOfLoose(requested);
+  if (!key) return null;
+  return stages.find((s) => defaultStageKeyOf(s.name) === key) ?? null;
 }
 
 /** Degrada una move_stage sin etapa válida (FR-021 / contrato ai.md). */

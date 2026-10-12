@@ -73,3 +73,19 @@ export function isStageRename(typed: string, stored: string, locale: Locale): bo
   if (!v) return false;
   return v !== stored && v !== stageLabel(stored, locale);
 }
+
+/**
+ * Como `defaultStageKeyOf`, sin distinguir mayúsculas ni espacios de los
+ * extremos: para lo que escribe un MODELO ("interesado", "Interessato "), no
+ * para decidir cómo se muestra un dato del dueño.
+ */
+export function defaultStageKeyOfLoose(name: string | null | undefined): DefaultStageKey | null {
+  const wanted = name?.trim().toLowerCase();
+  if (!wanted) return null;
+  for (const locale of LOCALES) {
+    for (const key of DEFAULT_STAGE_KEYS) {
+      if (defaultStageName(key, locale).toLowerCase() === wanted) return key;
+    }
+  }
+  return null;
+}
