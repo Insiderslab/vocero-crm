@@ -221,3 +221,80 @@ Dopo il rebase la pagina Sintesi mostrava le fasi col nome grezzo: commit 11. Nu
 - Le persone del Laboratorio sono tradotte nel nome; i **copioni** (i testi del cliente simulato) e la KB demo restano in spagnolo, perché sono dati che vede il modello.
 - Le organizzazioni **esistenti** senza valuta salvata restano in MXN finché il proprietario non la cambia in Marca: è una scelta voluta, per non riscrivere dati.
 - La CI su GitHub non è stata eseguita (nessun push).
+
+## Revisione avversaria della PR #12 — correzioni (12/10/2026)
+
+Un commit per punto, sullo stesso branch locale `ux-p1`. Nessun push.
+
+| # | Punto della revisione | Correzione | Commit |
+|---|---|---|---|
+| 2 | Gli handoff del Laboratorio mostravano l'avviso | `applyHandoff` pubblica `conversation.handoff` solo se `!isTest` | `881a279` |
+| 6 | `resolveStage` non trovava «Interesado» in un'organizzazione italiana | Dopo esatto e minuscole: fase con la stessa chiave di fabbrica (`defaultStageKeyOfLoose`); una fase rinominata non si indovina; `agent.json` invariato | `66785d9` |
+| 7 | Replay del clic troppo largo | Non ferma controlli nativi annidati (`a[href]`, `input`, `select`, `textarea`, `label`, `summary`), clic non principali o con modificatori; smette di fermare dopo 10 s senza idratazione (timer, e controllo dell'orologio nel clic se il timer non gira) | `33ed4f9` |
+| 3 | La connessione SSE condivisa non si riapriva | `resetEvents()` (chiude e riapre) dopo `setActive` nel menu e nel pannello admin; `onerror` con `readyState === CLOSED` → riapertura con attesa 1 s … 30 s; `onReconnect` una volta all'apertura | `fc3e5b7` |
+| 4 | Un riavvio durante l'attesa lasciava il cliente senza risposta | Progetto persistito (dettagli sotto) | `cc1fc8b` |
+| 5 | L'escalation si poteva rimandare all'infinito | Se il turno parte con un secondo tentativo già pendente e fallisce, handoff `error` definitivo subito, senza riarmare (scenario C) | `f20caff` |
+| 1 | «Riprova» non idempotente e cieco al motivo | Reclamo atomico `UPDATE … WHERE handoff_reason='error' RETURNING` (nessuna riga → 409); 409 `already_answered` se dopo l'ultimo entrante c'è un uscente che non è la cortesia (anche nel turno `manual`); 429 dopo meno di 30 s; il pulsante solo con motivo `error` | `83c6864` |
+| — | Test instabile scoperto durante i sabotaggi | `claimManualRetry()` estratto e provato con 5 reclami paralleli; con due «Riprova» simultanei il perdente può ricevere `not_retryable` o `cooldown`; i golden aspettano anche un secondo tentativo già scattato (`__agentRetryInflight`) | `51b6bd7` |
+| 8 | La cortesia contava come prima risposta nella Sintesi | Dopo l'invio il messaggio diventa `origin = 'system'` (`send.ts` non toccato; la colonna è testo senza CHECK, quindi nessuna migrazione); la Sintesi esclude `origin = 'system'` | `d857fb2` |
+| — | E2E | Il controllo «nessun avviso durante l'attesa» guarda solo gli eventi `conversation.handoff` | `abf6a06` |
+
+### Punto 4 — secondo tentativo persistito
+- **Migrazione.** `conversation.agent_retry_at timestamp` nella **stessa** `0015_agent_error_reply.sql`, rigenerata con `drizzle-kit generate`: lo snapshot 0015 discende da 0014, un secondo `generate` dice «No schema changes», `SET LOCAL lock_timeout = '5s'` rimesso.
+- **Fallimento in modo normale.** La conversazione passa **subito** a handoff `error` con la marca (`agent_retry_at = ora + AGENT_RETRY_MS`). Avviso e cortesia aspettano.
+- **Scadenza del timer.** Se dopo l'ultimo entrante ha risposto qualcuno (posta o eco dal telefono), la marca se ne va e l'handoff resta. Lo stesso se l'agente non può rispondere. Altrimenti il timer reclama la marca in modo atomico (`UPDATE … WHERE agent_retry_at IS NOT NULL RETURNING`) e lancia il turno `retry`. Se fallisce: handoff `error`, avviso e cortesia, una volta.
+- **Chi toglie la marca.** Un entrante nuovo non resta zitto: il suo turno reclama la marca e risponde. Una risposta dalla posta (testo, allegato, modello) toglie la marca e l'handoff resta. Anche «Riattiva IA» la toglie.
+- **Avvio** (`instrumentation-node.ts`, accanto a `cleanupOrphanRuns`). Una marca futura si riprogramma con il tempo che manca. Una marca scaduta si chiude subito: handoff `error`, avviso e cortesia, senza chiamare il modello.
+- **Posta.** Etichetta «IA: nuovo tentativo in corso» e un riquadro nel pannello con l'ora (es/en/it). Queste conversazioni non contano come «Assistenza umana».
+
+### Prove nuove
+- **Golden** (`usabilita.golden.test.ts`, ora 27 casi):
+  - simulazione del crash, con marca futura (riprogrammata e il secondo tentativo risponde) e con marca scaduta (chiusa con avviso e cortesia una volta, senza chiamare il modello);
+  - entrante nuovo e risposta dalla posta durante l'attesa, eco dal telefono;
+  - scenari A, B e C della revisione;
+  - già risposto, pausa di 30 s, reclamo parallelo;
+  - Laboratorio senza avviso;
+  - Sintesi senza la cortesia.
+- **Unità:** `resolve-stage`, `sse-shared` (EventSource finto: reset, CLOSED con attesa crescente, CONNECTING, nessun suscrittore), `click-replay` riscritto con un mini-DOM vero (`closest`/`contains`), decisioni nuove in `agent-failure`, interfaccia in `inbox-handoff`.
+
+### Sabotaggi (un frammento alla volta, file rimesso com'era)
+
+| Sabotaggio | Test che lo vede |
+|---|---|
+| R2: avviso anche per gli handoff del Laboratorio | golden: 1 rosso |
+| R6: `resolveStage` senza il ripiego per chiave di fabbrica | unità: 1 rosso |
+| R7a: controllo nativo annidato fermato | unità: 6 rossi |
+| R7b: clic secondario o con modificatori fermato | unità: 1 rosso |
+| R7c: senza il controllo dei 10 s dentro il clic | unità: 1 rosso |
+| R7d: senza il timer dei 10 s | unità: 1 rosso |
+| R3a: CLOSED senza riapertura | unità: 1 rosso |
+| R3b: `resetEvents` che non chiude la connessione vecchia | unità: 1 rosso |
+| R3c: cambio di organizzazione senza `resetEvents` | unità (vigilanza): 1 rosso |
+| R4a: la marca silenzia come un handoff qualsiasi | golden: 1 rosso |
+| R4b: avvio senza recupero delle marche | golden: 2 rossi |
+| R4c: marca non persistita | golden: 7 rossi |
+| R4d: la risposta dalla posta non toglie la marca | golden: 1 rosso |
+| R4e: secondo tentativo senza il controllo «ha risposto una persona» | golden: 1 rosso |
+| R4f: chiusura all'avvio senza avviso né cortesia | golden: 1 rosso |
+| R5: si riarma con un secondo tentativo già pendente | golden: 1 rosso; unità: 1 rosso |
+| R1a: reclamo senza `handoff_reason='error'` | golden: 2 rossi (incluso il reclamo parallelo deterministico) |
+| R1b: senza il controllo «già risposto» | golden: 2 rossi |
+| R1c: senza la pausa di 30 s | golden: 1 rosso |
+| R1d: turno `manual` che parla sopra una persona | golden: 1 rosso |
+| R1e: pulsante «Riprova» con qualsiasi motivo | unità: 1 rosso |
+| R1f: senza il controllo preliminare del motivo | golden: 1 rosso |
+| R8a: la Sintesi conta la cortesia | golden: 1 rosso |
+| R8b: cortesia non marcata `system` | golden: 1 rosso |
+
+### Gate (stato finale, base `4911355`)
+- `tsc` ed `eslint` verdi.
+- Unità: **81 file, 1195 test**.
+- Golden su una base **nuova** (`vocero_ux_golden_r2`): **148/148**. `__golden__` diverso da `origin/main` solo in `agent.json` (+18, già dichiarato).
+- `next build` verde.
+- E2E API su base nuova (`vocero_ux_e2e_r2`): **171/171**, V1–V6 = 0.
+- E2E nel browser: **36/36**.
+
+### Da segnalare
+- La cortesia con `origin = 'system'` esce ora in `/api/export/messages` con questo valore nuovo: è un valore aggiuntivo del campo. La risposta fissa agli esterni (007) resta `ai`: il suo golden la verifica così, e la revisione chiedeva solo la cortesia.
+- Il cambio di organizzazione con `resetEvents` è coperto da test unitari e di vigilanza; **non è stato provato nel browser**. Servirebbe una seconda organizzazione con un numero collegato nel mock: non era economico.
+- Una risposta dal telefono (eco, in `ingest.ts`, area R2) non toglie la marca subito: lo fa il timer allo scadere, perché `ingest.ts` non è stato toccato. Fino ad allora la posta mostra «nuovo tentativo in corso».

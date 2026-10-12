@@ -149,6 +149,27 @@ l'owner nel registro.
 - `applyHandoff` agisce solo nella transizione (non sovrascrive un handoff
   attivo).
 
+## Revisione della PR #12 (12/10/2026) — cosa cambia rispetto agli AC sopra
+- US1.a, AC 1–4: il secondo tentativo è **persistito**. Al primo
+  `provider_error` la conversazione passa SUBITO a handoff `error` con
+  `conversation.agent_retry_at` (stessa migrazione 0015). Avviso e cortesia
+  arrivano solo se fallisce anche il secondo tentativo.
+  - Un entrante nuovo non resta zitto: reclama la marca e risponde. Se il
+    turno fallisce di nuovo con una marca già pendente, escala subito.
+  - Una risposta di una persona toglie la marca.
+  - All'avvio una marca futura si riprogramma; una scaduta si chiude (avviso
+    e cortesia).
+- US1.c, AC 4: «Riprova» funziona solo con `handoff_reason = 'error'`.
+  - Reclamo atomico; 409 se il motivo non è `error`, se è ripetuto o se c'è
+    già una risposta dopo l'ultimo entrante; 429 entro 30 s.
+  - In posta: etichetta «IA: nuovo tentativo in corso».
+- US1.d: niente avviso per gli handoff del Laboratorio.
+- US1.b: la cortesia ha `origin = 'system'` e la Sintesi non la conta come
+  prima risposta.
+- La connessione SSE condivisa si riapre al cambio di organizzazione e
+  quando il browser la chiude.
+- `resolveStage` riconosce le fasi di fabbrica in un'altra lingua.
+
 ## Fuori ambito
 - Copioni del Laboratorio (testi del cliente simulato) e KB demo restano in
   spagnolo: sono dati che vede il modello.
