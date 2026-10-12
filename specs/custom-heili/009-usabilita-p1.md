@@ -1,7 +1,8 @@
 # Fase 9 — Usabilità P1/P2 (test di usabilità del 2026-10-11)
 
 > Customización sobre el fork desplegado en crm.heili.cloud.
-> **Stato: in corso** — branch locale `ux-p1` (base `origin/main` @ `0bc731e`).
+> **Stato: ✅ IMPLEMENTATA** (2026-10-11), branch locale `ux-p1` (base
+> `origin/main` @ `0bc731e`, ribasata su `4911355`).
 > Il test di usabilità è stato fatto sulla produzione `e23332e`; ogni rilievo
 > è stato ricontrollato su `0bc731e` prima di toccare il codice.
 > **Corsia: COMPLETA** — migrazione nuova `drizzle/0015_*.sql` (una colonna in
@@ -138,6 +139,15 @@ l'owner nel registro.
    manopola visibile, `role="switch"`, `aria-checked` ed etichetta.
 4. Il piede della colonna della pipeline non ripete «Nessun importo
    inserito»: si nasconde se nessuna scheda ha un importo.
+
+## Aggiunte emerse durante il lavoro
+- E6: script inline che ripete il clic arrivato prima dell'idratazione
+  (`src/lib/click-replay.ts` + `HydrationMark`), con prova nel browser.
+- E5: link per scheda/riga senza prefetch e menu laterale con prefetch per
+  intenzione (nessuna raffica di `?_rsc=` al caricamento).
+- Una sola connessione SSE condivisa per scheda.
+- `applyHandoff` agisce solo nella transizione (non sovrascrive un handoff
+  attivo).
 
 ## Fuori ambito
 - Copioni del Laboratorio (testi del cliente simulato) e KB demo restano in
