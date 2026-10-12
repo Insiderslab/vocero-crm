@@ -14,6 +14,7 @@ import { buildAgentSystemPrompt } from "@/server/ai/prompts";
 import { isAllowedIdentity } from "@/server/ai/allowlist";
 import { MESSAGE_CHRONOLOGY_DESC } from "@/server/inbox/queries";
 import {
+  answeredSinceLastInbound,
   decideOnFailure,
   retryStillValid,
   sentSinceLastInbound,
@@ -462,6 +463,11 @@ export async function runAgentTurn(
   // 009 (E1a): el segundo intento solo responde si el entrante del turno
   // fallido sigue siendo el ÚLTIMO mensaje (nada nuevo, nadie contestó).
   if (mode === "retry" && !retryStillValid(options.expectInboundId, history[0])) {
+    return;
+  }
+  // 009 (E1c): «Riprova» no habla encima de una persona — si después del
+  // último entrante ya hay un saliente (que no sea la cortesía), no responde.
+  if (mode === "manual" && answeredSinceLastInbound(history, profile.errorReply)) {
     return;
   }
   history.reverse();

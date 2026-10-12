@@ -21,7 +21,22 @@ import { Switch } from "@/components/ui/switch";
 import { intlLocale } from "@/lib/i18n";
 
 /** Resultado de «Riprova risposta IA»: `null` = lanzado; si no, el código. */
-export type RetryAiResult = null | "ai_not_configured" | "agent_disabled" | "failed";
+export type RetryAiResult =
+  | null
+  | "ai_not_configured"
+  | "agent_disabled"
+  | "not_retryable"
+  | "already_answered"
+  | "retry_cooldown"
+  | "failed";
+
+export const RETRY_AI_CODES = [
+  "ai_not_configured",
+  "agent_disabled",
+  "not_retryable",
+  "already_answered",
+  "retry_cooldown",
+] as const;
 
 export function ContactPanel({
   conversation,
@@ -224,6 +239,18 @@ export function ContactPanel({
                   }),
                 })}
               </p>
+              {onRetryAi && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="mt-2 w-full"
+                  disabled={retrying}
+                  onClick={() => void retryAi()}
+                >
+                  <RotateCcw className="h-3.5 w-3.5" strokeWidth={1.8} />
+                  {retrying ? t("inbox.panel.retrying") : t("inbox.panel.retryAi")}
+                </Button>
+              )}
             </div>
           )}
           {conversation.handoffAt && !conversation.agentRetryAt && (
@@ -262,12 +289,13 @@ export function ContactPanel({
                   ? handoffLabel(conversation.handoffReason, t)
                   : t("inbox.handoffReasons.default")}
               </p>
-              {onRetryAi && (
-                // 009 (E1c): volver a intentar la respuesta de la IA AHORA
-                // (sin esperar al próximo mensaje del cliente).
+              {onRetryAi && conversation.handoffReason === "error" && (
+                // 009 (E1c): volver a intentar la respuesta de la IA AHORA.
+                // Solo para un fallo del proveedor: con otro motivo (el
+                // cliente pidió una persona, se contestó desde el teléfono…)
+                // la IA no debe volver sola; para eso está «Riattiva IA».
                 <Button
                   size="sm"
-                  variant={conversation.handoffReason === "error" ? "default" : "outline"}
                   className="mt-2 w-full"
                   disabled={retrying}
                   onClick={() => void retryAi()}

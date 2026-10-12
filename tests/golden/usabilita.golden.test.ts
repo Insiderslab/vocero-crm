@@ -425,6 +425,72 @@ describe("E1c — «Riprova risposta IA»", () => {
   });
 });
 
+describe("E1c — «Riprova» idempotente y solo para fallos del proveedor", () => {
+  async function failedConversation(): Promise<string> {
+    aiWillFail(6);
+    await postWebhook(waFixture("inbound-text-mx"));
+    const cv = await conversationIdOf(ORG_A, ANA);
+    await waitRetries();
+    expect((await conv(cv)).handoff_reason).toBe("error");
+    return cv;
+  }
+
+  it("escenario A: tras la respuesta, más «Riprova» → 409 y ningún envío más; dos a la vez → uno solo", async () => {
+    await agentProfile({ errorReply: ERROR_REPLY });
+    const cv = await failedConversation();
+    const [a, b] = await Promise.all([prepareManualRetry(ORG_A, cv), prepareManualRetry(ORG_A, cv)]);
+    expect([a.status, b.status].sort()).toEqual(["not_retryable", "ok"]);
+
+    aiWillReply('{"action":"reply","text":"Perdona la espera."}');
+    await runAgentTurnNow(cv);
+    await settle();
+    expect(graphTexts()).toEqual([ERROR_REPLY, "Perdona la espera."]);
+
+    for (let i = 0; i < 3; i++) {
+      expect((await prepareManualRetry(ORG_A, cv, Date.now() + 60_000 * (i + 1))).status).toBe("not_retryable");
+    }
+    aiWillReply('{"action":"reply","text":"NO DEBE SALIR"}');
+    await runAgentTurnNow(cv); // aunque alguien lanzara el turno a mano, no hay nada que contestar
+    await settle();
+    expect(graphTexts()).toEqual([ERROR_REPLY, "Perdona la espera."]);
+  });
+
+  it("escenario B: handoff por respuesta desde el teléfono (manual_reply) → 409, nada cambia", async () => {
+    await agentProfile({ errorReply: ERROR_REPLY });
+    const cv = await contactAndConversation("manualreply");
+    await sql()`update conversation set handoff_at = now(), handoff_reason = 'manual_reply', ai_enabled = false where id = ${cv}`;
+    expect((await prepareManualRetry(ORG_A, cv)).status).toBe("not_retryable");
+    const c = await conv(cv);
+    expect(c.handoff_reason).toBe("manual_reply");
+    expect(c.ai_enabled).toBe(false);
+  });
+
+  it("si una persona ya contestó tras el último entrante (la cortesía no cuenta) → already_answered", async () => {
+    await agentProfile({ errorReply: ERROR_REPLY });
+    const cv = await failedConversation();
+    await sql()`
+      insert into message (id, organization_id, conversation_id, direction, type, text, status, origin)
+      values ('msg_e1c_operador', ${ORG_A}, ${cv}, 'out', 'text', 'Ya te atiendo yo', 'sent', 'operator')
+    `;
+    expect((await prepareManualRetry(ORG_A, cv)).status).toBe("already_answered");
+    expect((await conv(cv)).handoff_reason).toBe("error");
+  });
+
+  it("pausa de 30 s entre reintentos de la misma conversación", async () => {
+    await agentProfile({ errorReply: ERROR_REPLY });
+    const cv = await failedConversation();
+    const t0 = Date.now();
+    expect((await prepareManualRetry(ORG_A, cv, t0)).status).toBe("ok");
+    aiWillFail(3);
+    await runAgentTurnNow(cv);
+    await settle();
+    expect((await conv(cv)).handoff_reason).toBe("error");
+    expect((await prepareManualRetry(ORG_A, cv, t0 + 10_000)).status).toBe("cooldown");
+    expect((await conv(cv)).handoff_reason).toBe("error");
+    expect((await prepareManualRetry(ORG_A, cv, t0 + 31_000)).status).toBe("ok");
+  });
+});
+
 describe("E1d — el handoff se aplica y se avisa solo en la transición", () => {
   it("dos handoffs seguidos: el segundo no pisa motivo ni hora y no repite el aviso", async () => {
     const cv = await contactAndConversation("transicion");

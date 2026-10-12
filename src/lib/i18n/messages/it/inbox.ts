@@ -102,6 +102,9 @@ const messages: typeof base = {
     retrying: "Nuovo tentativo…",
     retryStarted: "L'IA sta rispondendo; il messaggio comparirà nel filo.",
     retryErrors: {
+      not_retryable: "Questa conversazione non è in pausa per un errore dell'IA.",
+      already_answered: "Qualcuno ha già risposto dopo l'ultimo messaggio del cliente: usa «Riattiva IA» se vuoi che l'IA continui.",
+      retry_cooldown: "Hai appena riprovato: aspetta qualche secondo.",
       ai_not_configured: "L'IA non è configurata in questa istanza.",
       agent_disabled: "L'agente è spento: accendilo in Agente IA.",
       failed: "Impossibile riprovare. Riprova tra poco.",

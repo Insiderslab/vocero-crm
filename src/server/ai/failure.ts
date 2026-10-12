@@ -99,3 +99,20 @@ export function sentSinceLastInbound(
   }
   return false;
 }
+
+/**
+ * ¿Contestó alguien después del último entrante? Mensajes del más reciente
+ * al más antiguo. La cortesía automática (`errorReply`) no cuenta: es lo que
+ * se envió PORQUE nadie podía contestar.
+ */
+export function answeredSinceLastInbound(
+  newestFirst: { direction: string; text: string | null }[],
+  errorReply: string | null | undefined
+): boolean {
+  const courtesy = errorReply?.trim() || null;
+  for (const m of newestFirst) {
+    if (m.direction === "in") return false;
+    if (courtesy === null || m.text !== courtesy) return true;
+  }
+  return false;
+}

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  answeredSinceLastInbound,
   decideOnFailure,
   retryStillValid,
   sentSinceLastInbound,
@@ -119,5 +120,17 @@ describe("arranque (vigilancia del código)", () => {
     const path = await import("node:path");
     const src = readFileSync(path.resolve(import.meta.dirname, "..", "..", "src", "instrumentation.ts"), "utf8");
     expect(src).toMatch(/await recoverPendingAgentRetries\(\);/);
+  });
+});
+
+describe("answeredSinceLastInbound («Riprova» no habla encima de una persona)", () => {
+  const C = "Te escribe una persona.";
+  it("un saliente tras el último entrante cuenta; la cortesía no", () => {
+    expect(answeredSinceLastInbound([{ direction: "out", text: "Ya te atiendo" }, { direction: "in", text: "hola" }], C)).toBe(true);
+    expect(answeredSinceLastInbound([{ direction: "out", text: C }, { direction: "in", text: "hola" }], C)).toBe(false);
+    expect(answeredSinceLastInbound([{ direction: "in", text: "hola" }, { direction: "out", text: "x" }], C)).toBe(false);
+  });
+  it("sin cortesía configurada, cualquier saliente cuenta", () => {
+    expect(answeredSinceLastInbound([{ direction: "out", text: C }], null)).toBe(true);
   });
 });

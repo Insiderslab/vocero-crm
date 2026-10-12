@@ -102,6 +102,9 @@ const messages: typeof base = {
     retrying: "Retrying…",
     retryStarted: "The AI is replying; the message will appear in the thread.",
     retryErrors: {
+      not_retryable: "This conversation is not paused because of an AI failure.",
+      already_answered: "Someone already replied after the customer's last message: use “Reactivate AI” if you want the AI to continue.",
+      retry_cooldown: "You just retried: wait a few seconds.",
       ai_not_configured: "AI is not configured on this instance.",
       agent_disabled: "The agent is off: turn it on in AI Agent.",
       failed: "Could not retry. Try again.",

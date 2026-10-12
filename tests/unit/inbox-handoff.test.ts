@@ -139,6 +139,14 @@ describe("panel del contacto", () => {
     expect(out).toContain("data-retry-pending");
   });
 
+  it("«Riprova» solo para un fallo del proveedor: con otro motivo, solo «Riattiva IA»", () => {
+    for (const reason of ["cliente", "modelo", "ventana", "manual_reply", "hostilidad"]) {
+      const out = render({ handoffAt: "2030-01-01T10:00:00Z", handoffReason: reason });
+      expect(out).not.toContain("inbox.panel.retryAi");
+      expect(out).toContain("inbox.panel.reactivate");
+    }
+  });
+
   it("sin handoff no hay nada que reintentar", () => {
     expect(render({})).not.toContain("inbox.panel.retryAi");
   });

@@ -100,6 +100,9 @@ const messages = {
     retrying: "Reintentando…",
     retryStarted: "La IA está respondiendo; el mensaje aparecerá en el hilo.",
     retryErrors: {
+      not_retryable: "Esta conversación no está en pausa por un fallo de la IA.",
+      already_answered: "Alguien ya respondió después del último mensaje del cliente: usa «Reactivar IA» si quieres que la IA siga.",
+      retry_cooldown: "Acabas de reintentar: espera unos segundos.",
       ai_not_configured: "La IA no está configurada en esta instancia.",
       agent_disabled: "El agente está apagado: enciéndelo en Agente IA.",
       failed: "No se pudo reintentar. Prueba de nuevo.",

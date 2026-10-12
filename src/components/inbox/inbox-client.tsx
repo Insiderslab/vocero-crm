@@ -11,7 +11,7 @@ import { useEvents } from "@/components/use-events";
 import { ConversationList } from "./conversation-list";
 import { MessageThread } from "./message-thread";
 import { Composer } from "./composer";
-import { ContactPanel, type RetryAiResult } from "./contact-panel";
+import { ContactPanel, RETRY_AI_CODES, type RetryAiResult } from "./contact-panel";
 
 /**
  * Texto que ya salió del compositor pero cuyo POST todavía viaja. Existe solo
@@ -313,7 +313,9 @@ export function InboxClient() {
       error?: { code?: string };
     } | null;
     const code = data?.error?.code;
-    return code === "ai_not_configured" || code === "agent_disabled" ? code : "failed";
+    return (RETRY_AI_CODES as readonly string[]).includes(code ?? "")
+      ? (code as RetryAiResult)
+      : "failed";
   }, [refetchConversations]);
 
   return (
