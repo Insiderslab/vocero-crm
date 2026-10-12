@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useT } from "@/lib/i18n/client";
 import { cn } from "@/lib/utils";
 import type { DashboardSummary, SummaryDays } from "@/server/dashboard/summary";
+import { stageLabel } from "@/lib/stages";
 import {
   DailyChart,
   EmptyNote,
@@ -115,11 +116,12 @@ export function DashboardClient() {
         <div className="grid gap-4 lg:grid-cols-2">
           <Section title={t("dashboard.stages.title")}>
             <StageChart
-              rows={data.stages.map((s) => ({ name: s.name, value: s.conversations }))}
+              // 009 (E2): las etapas de fábrica, en el idioma de la interfaz.
+              rows={data.stages.map((s) => ({ name: stageLabel(s.name, locale), value: s.conversations }))}
               empty={t("dashboard.stages.empty")}
               aria={t("dashboard.stages.aria", {
                 items: data.stages
-                  .map((s) => `${s.name}: ${formatNumber(s.conversations)}`)
+                  .map((s) => `${stageLabel(s.name, locale)}: ${formatNumber(s.conversations)}`)
                   .join(", "),
               })}
               formatValue={formatNumber}
