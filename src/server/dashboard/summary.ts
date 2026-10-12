@@ -132,6 +132,8 @@ export async function getDashboardSummary(
             on message.conversation_id = first_in.id
            and message.direction = 'out'
            and message.status <> 'failed'
+           -- 009: la cortesía automática (origin = 'system') no es una respuesta.
+           and message.origin <> 'system'
            and message.created_at > first_in.first_in
           where ${messageScope}
           group by first_in.id, first_in.first_in

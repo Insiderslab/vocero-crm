@@ -48,7 +48,7 @@ export type MessageDto = {
   error: string | null;
   aiGenerated: boolean;
   /** 008 — Origen del saliente (en entrantes viene 'operator' y se ignora). */
-  origin: "ai" | "operator" | "manual" | "template";
+  origin: "ai" | "operator" | "manual" | "template" | "system";
   media: MessageMediaDto | null;
   createdAt: string;
 };

@@ -4,6 +4,7 @@ import { getDb, getSql } from "@/lib/db";
 import { provisionOrganization } from "@/server/auth/on-signup";
 import { getBranding } from "@/server/branding";
 import { seedDemo } from "@/server/seed/demo";
+import { getDashboardSummary } from "@/server/dashboard/summary";
 import {
   applyHandoff,
   cancelAgentRetry,
@@ -189,7 +190,7 @@ describe("E1a — segundo intento (persistido)", () => {
     expect(c.handoff_at).not.toBeNull();
     expect(c.agent_retry_at).toBeNull();
     expect(graphTexts()).toEqual([ERROR_REPLY]);
-    expect(await outbound(cv)).toEqual([{ text: ERROR_REPLY, ai_generated: true, origin: "ai" }]);
+    expect(await outbound(cv)).toEqual([{ text: ERROR_REPLY, ai_generated: true, origin: "system" }]);
     expect(pendingAgentRetries()).toEqual([]);
 
     const alerts = recordedSse().filter((e) => e.type === "conversation.handoff");
@@ -582,5 +583,20 @@ describe("E2 — siembra de una organización nueva", () => {
     `;
     // Ninguna etapa queda vacía por no encontrar "Interesado" o "Perdido".
     expect(rows.every((r) => r.n > 0)).toBe(true);
+  });
+});
+
+describe("E1b — la cortesía no cuenta como «primera respuesta» en la Sintesi", () => {
+  it("entrante 10:00, cortesía (system) 10:01, persona 10:10 → primera respuesta 10 min", async () => {
+    const cv = await contactAndConversation("sintesi");
+    await sql()`
+      insert into message (id, organization_id, conversation_id, direction, type, text, status, origin, ai_generated, created_at)
+      values ('msg_s_in', ${ORG_A}, ${cv}, 'in', 'text', 'hola', 'delivered', 'operator', false, '2029-12-31 10:00:00'),
+             ('msg_s_cortesia', ${ORG_A}, ${cv}, 'out', 'text', ${ERROR_REPLY}, 'sent', 'system', true, '2029-12-31 10:01:00'),
+             ('msg_s_persona', ${ORG_A}, ${cv}, 'out', 'text', 'Ya te atiendo', 'sent', 'operator', false, '2029-12-31 10:10:00')
+    `;
+    const summary = await getDashboardSummary(ORG_A, 30);
+    expect(summary.firstResponse.answered).toBe(1);
+    expect(summary.firstResponse.medianMinutes).toBe(10);
   });
 });

@@ -397,7 +397,9 @@ export const message = pgTable(
      * queda el default y la UI lo ignora.
      */
     origin: text("origin", {
-      enum: ["ai", "operator", "manual", "template"],
+      // 009: `system` = texto automático fijo (cortesía cuando falla la IA),
+      // no una respuesta: las métricas de «primera respuesta» lo excluyen.
+      enum: ["ai", "operator", "manual", "template", "system"],
     })
       .notNull()
       .default("operator"),

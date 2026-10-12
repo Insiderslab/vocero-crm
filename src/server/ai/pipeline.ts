@@ -688,12 +688,24 @@ async function sendErrorReply(
     .limit(50);
   if (sentSinceLastInbound(recent, reply)) return;
   try {
-    await sendText({
+    const sent = await sendText({
       conversationId: conversation.id,
       organizationId: conversation.organizationId,
       text: reply,
       aiGenerated: true,
     });
+    // `system`: es un aviso automático, no una respuesta (la Sintesi no lo
+    // cuenta como «primera respuesta»). Se marca después de enviar para no
+    // tocar el camino de envío (`send.ts`).
+    await db
+      .update(schema.message)
+      .set({ origin: "system" })
+      .where(
+        and(
+          eq(schema.message.id, sent.messageId),
+          eq(schema.message.organizationId, conversation.organizationId)
+        )
+      );
   } catch (err) {
     if (err instanceof SendError) {
       console.warn(
