@@ -67,6 +67,8 @@ const g = globalThis as unknown as {
   __agentCoalesce?: Map<string, unknown>;
   /** 009: segundos intentos del agente programados (no son "trabajo en curso"). */
   __agentRetry?: Map<string, { timer: ReturnType<typeof setTimeout> }>;
+  /** 009: segundos intentos ya disparados que aún trabajan (sí es trabajo en curso). */
+  __agentRetryInflight?: number;
 };
 
 const state = {
@@ -305,6 +307,7 @@ export async function settle(): Promise<void> {
       state.inflight > 0 ||
       (g.__goldenAfter?.length ?? 0) > 0 ||
       (g.__agentCoalesce?.size ?? 0) > 0 ||
+      (g.__agentRetryInflight ?? 0) > 0 ||
       (row?.n ?? 0) > 0;
     idle = busy ? 0 : idle + 1;
     if (idle >= 3) return;

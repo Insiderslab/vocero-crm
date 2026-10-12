@@ -56,6 +56,8 @@ export type TurnOptions = {
 const globalForAgent = globalThis as unknown as {
   __agentCoalesce?: Map<string, CoalesceEntry>;
   __agentRetry?: Map<string, RetryEntry>;
+  /** Segundos intentos que ya dispararon y aún trabajan (diagnóstico, pruebas). */
+  __agentRetryInflight?: number;
 };
 
 function coalesceMap(): Map<string, CoalesceEntry> {
@@ -172,9 +174,12 @@ function scheduleAgentRetry(
   cancelAgentRetry(conversationId);
   const timer = setTimeout(() => {
     retryMap().delete(conversationId);
-    void fireAgentRetry(conversationId, inboundId).catch((err) =>
-      console.error("[agente] segundo intento falló:", err)
-    );
+    globalForAgent.__agentRetryInflight = (globalForAgent.__agentRetryInflight ?? 0) + 1;
+    void fireAgentRetry(conversationId, inboundId)
+      .catch((err) => console.error("[agente] segundo intento falló:", err))
+      .finally(() => {
+        globalForAgent.__agentRetryInflight = (globalForAgent.__agentRetryInflight ?? 1) - 1;
+      });
   }, Math.max(0, delayMs));
   // Que el temporizador no mantenga vivo el proceso (scripts, pruebas).
   if (typeof timer.unref === "function") timer.unref();

@@ -13,7 +13,7 @@ import {
   runAgentTurn,
   runAgentTurnNow,
 } from "@/server/ai/pipeline";
-import { prepareManualRetry } from "@/server/ai/manual-retry";
+import { claimManualRetry, prepareManualRetry } from "@/server/ai/manual-retry";
 import { listConversations, listMessages } from "@/server/inbox/queries";
 import { waFixture } from "./fixtures/whatsapp";
 import {
@@ -439,7 +439,11 @@ describe("E1c — «Riprova» idempotente y solo para fallos del proveedor", () 
     await agentProfile({ errorReply: ERROR_REPLY });
     const cv = await failedConversation();
     const [a, b] = await Promise.all([prepareManualRetry(ORG_A, cv), prepareManualRetry(ORG_A, cv)]);
-    expect([a.status, b.status].sort()).toEqual(["not_retryable", "ok"]);
+    // Exactamente uno gana; el otro se rechaza (por el reclamo atómico o por
+    // la pausa, según quién llegue antes: las dos negativas son correctas).
+    const statuses = [a.status, b.status];
+    expect(statuses.filter((x) => x === "ok")).toHaveLength(1);
+    expect(statuses.find((x) => x !== "ok")).toMatch(/^(not_retryable|cooldown)$/);
 
     aiWillReply('{"action":"reply","text":"Perdona la espera."}');
     await runAgentTurnNow(cv);
@@ -453,6 +457,14 @@ describe("E1c — «Riprova» idempotente y solo para fallos del proveedor", () 
     await runAgentTurnNow(cv); // aunque alguien lanzara el turno a mano, no hay nada que contestar
     await settle();
     expect(graphTexts()).toEqual([ERROR_REPLY, "Perdona la espera."]);
+  });
+
+  it("el reclamo es atómico: cinco a la vez → exactamente uno", async () => {
+    await agentProfile({ errorReply: ERROR_REPLY });
+    const cv = await failedConversation();
+    const results = await Promise.all(Array.from({ length: 5 }, () => claimManualRetry(ORG_A, cv)));
+    expect(results.filter(Boolean)).toHaveLength(1);
+    expect(await claimManualRetry(ORG_B, cv)).toBe(false);
   });
 
   it("escenario B: handoff por respuesta desde el teléfono (manual_reply) → 409, nada cambia", async () => {

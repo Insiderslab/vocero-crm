@@ -85,7 +85,32 @@ export async function prepareManualRetry(
   const last = lastRetries().get(conversationId);
   if (last !== undefined && now - last < MANUAL_RETRY_COOLDOWN_MS) return { status: "cooldown" };
 
-  const claimed = await db
+  if (!(await claimManualRetry(organizationId, conversationId))) {
+    return { status: "not_retryable" };
+  }
+  lastRetries().set(conversationId, now);
+  cancelAgentRetry(conversationId);
+
+  const fresh = await getConversation(organizationId, conversationId);
+  if (!fresh) return { status: "not_found" };
+  const dto = serializeConversation(fresh.conversation, fresh.contact);
+  publish(organizationId, {
+    type: "conversation.updated",
+    data: { conversation: dto },
+  });
+  return { status: "ok", conversation: dto };
+}
+
+/**
+ * El reclamo atómico: solo una petición pasa una conversación en handoff
+ * `error` a «la IA responde». Las demás (doble clic, otra pestaña, otra
+ * persona) reciben `false`.
+ */
+export async function claimManualRetry(
+  organizationId: string,
+  conversationId: string
+): Promise<boolean> {
+  const claimed = await getDb()
     .update(schema.conversation)
     .set({
       handoffAt: null,
@@ -102,18 +127,7 @@ export async function prepareManualRetry(
       )
     )
     .returning({ id: schema.conversation.id });
-  if (!claimed[0]) return { status: "not_retryable" };
-  lastRetries().set(conversationId, now);
-  cancelAgentRetry(conversationId);
-
-  const fresh = await getConversation(organizationId, conversationId);
-  if (!fresh) return { status: "not_found" };
-  const dto = serializeConversation(fresh.conversation, fresh.contact);
-  publish(organizationId, {
-    type: "conversation.updated",
-    data: { conversation: dto },
-  });
-  return { status: "ok", conversation: dto };
+  return Boolean(claimed[0]);
 }
 
 /** Para pruebas: ¿la conversación sigue con handoff? */
