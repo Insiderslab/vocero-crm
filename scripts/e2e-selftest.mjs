@@ -1075,7 +1075,9 @@ async function usabilitySection() {
     (await outboxTo(FLAKY)).length === 0 && flakyPending?.handoffReason === "error" && Boolean(flakyPending?.agentRetryAt),
     JSON.stringify(flakyPending)
   );
-  ok("…y sin aviso todavía", !sse.text.includes(`"conversationId":"${flakyPending?.id}"`));
+  const handoffEvents = () =>
+    sse.text.split("\n\n").filter((b) => b.startsWith("event: conversation.handoff"));
+  ok("…y sin aviso todavía", !handoffEvents().some((b) => b.includes(`"conversationId":"${flakyPending?.id}"`)));
   for (let i = 0; i < 40 && (await outboxTo(FLAKY)).length === 0; i++) await sleep(500);
   await sleep(1500);
   const flakyOut = await outboxTo(FLAKY);
