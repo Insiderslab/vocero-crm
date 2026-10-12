@@ -24,7 +24,7 @@ import type { ThemePreference } from "@/lib/theme";
 import { cn, initials } from "@/lib/utils";
 import { HeiliMark } from "@/components/heili-mark";
 import { authClient, signOut } from "@/lib/auth/client";
-import { useEvents } from "@/components/use-events";
+import { resetEvents, useEvents } from "@/components/use-events";
 import { LocaleToggle } from "@/components/locale-toggle";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { APP_VERSION, BUILD_COMMIT, versionLabel } from "@/lib/version";
@@ -166,6 +166,9 @@ export function AppNav({
               await authClient.organization.setActive({
                 organizationId: e.target.value,
               });
+              // El canal SSE es por organización: el viejo seguiría
+              // entregando eventos de la anterior.
+              resetEvents();
               router.refresh();
             }}
             className="w-full rounded-md border bg-background px-2 py-1.5 text-[13px] font-medium text-foreground"

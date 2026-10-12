@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { resetEvents } from "@/components/use-events";
 
 type Org = {
   id: string;
@@ -197,6 +198,8 @@ export function AdminClient() {
 
   async function enter(orgId: string) {
     await authClient.organization.setActive({ organizationId: orgId });
+    // 009: el canal SSE es por organización (ver use-events).
+    resetEvents();
     router.push("/inbox");
     router.refresh();
   }
