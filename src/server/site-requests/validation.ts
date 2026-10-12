@@ -269,17 +269,21 @@ export function labelLocale(locale: string | null): Locale {
  */
 export function formatSiteRequest(req: SiteRequest): string {
   const messages = messagesFor(labelLocale(req.locale)) as Record<string, unknown>;
-  const t = (key: string) => translate(messages, `inbox.siteRequest.${key}`);
-  const lines = [t("title"), `${t("name")}: ${req.name}`];
-  if (req.phone) lines.push(`${t("phone")}: +${req.phone}`);
-  if (req.email) lines.push(`${t("email")}: ${req.email}`);
+  // Llaves completas y literales: las comprueba tests/unit/i18n-keys.test.ts.
+  const t = (key: string) => translate(messages, key);
+  const lines = [
+    t("inbox.siteRequest.title"),
+    `${t("inbox.siteRequest.name")}: ${req.name}`,
+  ];
+  if (req.phone) lines.push(`${t("inbox.siteRequest.phone")}: +${req.phone}`);
+  if (req.email) lines.push(`${t("inbox.siteRequest.email")}: ${req.email}`);
   lines.push("", req.message);
   const extra = Object.entries(req.fields);
   if (extra.length > 0) {
     lines.push("");
     for (const [k, v] of extra) lines.push(`${k}: ${v}`);
   }
-  if (req.pageUrl) lines.push("", `${t("page")}: ${req.pageUrl}`);
+  if (req.pageUrl) lines.push("", `${t("inbox.siteRequest.page")}: ${req.pageUrl}`);
   return lines.join("\n");
 }
 
