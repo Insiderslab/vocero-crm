@@ -255,6 +255,20 @@ describe("E1a — segundo intento", () => {
     expect(await outbound(cv)).toEqual([]);
     expect(recordedRequests().some((r) => r.to === "graph")).toBe(false);
   });
+
+  it("Laboratorio: un handoff NO dispara el aviso en la app (no hay nadie esperando)", async () => {
+    await agentProfile({ errorReply: ERROR_REPLY });
+    const cv = await contactAndConversation("labaviso", { isTest: true });
+    await sql()`
+      insert into message (id, organization_id, conversation_id, direction, type, text, status, wa_timestamp)
+      values ('msg_e1_lab_humano', ${ORG_A}, ${cv}, 'in', 'text', 'quiero hablar con un humano', 'delivered', now())
+    `;
+    await runAgentTurn(cv);
+    expect((await conv(cv)).handoff_reason).toBe("cliente");
+    expect(recordedSse().filter((e) => e.type === "conversation.handoff")).toEqual([]);
+    // El resto sí: la conversación del Laboratorio sigue informando su estado.
+    expect(recordedSse().some((e) => e.type === "conversation.updated")).toBe(true);
+  });
 });
 
 describe("E1c — «Riprova risposta IA»", () => {

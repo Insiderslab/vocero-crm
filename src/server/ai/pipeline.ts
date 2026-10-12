@@ -531,7 +531,10 @@ export async function applyHandoff(
       conversation: { id: conversationId, handoffReason: reason },
     },
   });
-  await publishHandoffAlert(organizationId, conversationId, conv.contactId, reason);
+  // El Laboratorio (is_test) no es una persona esperando: sin aviso.
+  if (!conv.isTest) {
+    await publishHandoffAlert(organizationId, conversationId, conv.contactId, reason);
+  }
   return true;
 }
 
