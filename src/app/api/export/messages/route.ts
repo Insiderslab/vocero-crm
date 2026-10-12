@@ -1,9 +1,10 @@
-import { and, asc, eq, gte } from "drizzle-orm";
+import { and, eq, gte } from "drizzle-orm";
 import { apiError } from "@/lib/api";
 import { csvResponse, toCsv } from "@/lib/csv";
 import { getDb, schema } from "@/lib/db";
 import { parseFormat } from "@/server/export/auth";
 import { withExport } from "@/server/export/handler";
+import { MESSAGE_CHRONOLOGY } from "@/server/inbox/queries";
 
 export const dynamic = "force-dynamic";
 
@@ -49,7 +50,7 @@ export const GET = withExport(async (org, url) => {
         since ? gte(schema.message.createdAt, since) : undefined
       )
     )
-    .orderBy(asc(schema.message.createdAt))
+    .orderBy(...MESSAGE_CHRONOLOGY)
     .limit(5000);
 
   const rows = messages.map((m) => ({

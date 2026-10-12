@@ -70,6 +70,8 @@ const config: Config = {
         chat: "var(--chat-bg)",
         "bubble-out": "var(--bubble-out)",
         "bubble-out-text": "var(--bubble-out-text)",
+        "bubble-out-meta": "var(--bubble-out-meta)",
+        "bubble-out-tick": "var(--bubble-out-tick-read)",
         success: {
           DEFAULT: "var(--success)",
           tint: "var(--success-tint)",

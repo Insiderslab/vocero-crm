@@ -180,7 +180,7 @@ function CreateForm({ onCreated }: { onCreated: () => void }) {
             <Label htmlFor="tpl-name">{t("common.name")}</Label>
             <Input
               id="tpl-name"
-              placeholder="seguimiento_cotizacion"
+              placeholder={t("settings.templates.namePlaceholder")}
               value={name}
               onChange={(e) => setName(e.target.value)}
             />

@@ -1,6 +1,18 @@
 ﻿/** Diccionario ES — pipeline. Fuente de la forma para en/it. */
 const messages = {
   manageStages: "Gestionar etapas",
+  /**
+   * 009 (E2) — Nombres de las etapas sembradas. Sirven para sembrar una
+   * organización nueva en su idioma y para TRADUCIR al mostrar una etapa que
+   * conserva exactamente su nombre de fábrica (en cualquier idioma).
+   */
+  defaultStages: {
+    new: "Nuevo",
+    talking: "En conversación",
+    interested: "Interesado",
+    won: "Cliente",
+    lost: "Perdido",
+  },
   priority: {
     alta: "Alta",
     media: "Media",
@@ -15,7 +27,6 @@ const messages = {
     addAmount: "+ monto",
   },
   footer: {
-    empty: "Sin montos capturados",
     total: "Total",
     withoutAmount: "{{count}} sin monto",
     otherCurrency: "{{count}} en otra moneda, fuera del total",
@@ -42,6 +53,7 @@ const messages = {
   },
   stages: {
     title: "Etapas del pipeline",
+    nameAria: "Nombre de la etapa {{name}}",
     won: "ganado",
     lost: "perdido",
     delete: "Eliminar etapa",

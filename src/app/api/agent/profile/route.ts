@@ -25,6 +25,8 @@ export const GET = withAuth(async (session) => {
       instructions: p.instructions,
       escalationRules: p.escalationRules,
       greeting: p.greeting,
+      // 009 (E1b): mensaje de cortesía si falla el proveedor de IA.
+      errorReply: p.errorReply,
     },
     // 007: los números del equipo solo los ve quien puede cambiarlos.
     ...(isOrgAdmin(session.role)
@@ -47,6 +49,14 @@ const putSchema = z.object({
   instructions: z.string().max(8000).nullable().optional(),
   escalationRules: z.string().max(4000).nullable().optional(),
   greeting: z.string().max(1000).nullable().optional(),
+  /** 009 (E1b) — Cortesía si falla el proveedor de IA. Vacío → null (apagado). */
+  errorReply: z
+    .string()
+    .trim()
+    .max(1000)
+    .nullable()
+    .optional()
+    .transform((v) => (v === undefined ? undefined : v ? v : null)),
   // 007 — Acceso reservado.
   restrictToAllowlist: z.boolean().optional(),
   /** Texto (un número por línea) o lista; se normaliza y deduplica aquí. */

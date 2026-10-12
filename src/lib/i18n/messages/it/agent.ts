@@ -28,6 +28,10 @@ const messages: typeof base = {
     escalationPlaceholder: "Quando passare la conversazione a un umano…",
     greetingLabel: "Saluto",
     greetingPlaceholder: "Saluto per le nuove conversazioni",
+    errorReplyLabel: "Messaggio se l'IA non è disponibile (facoltativo)",
+    errorReplyPlaceholder: "In questo momento non riesco a rispondere; una persona del team ti scrive a breve.",
+    errorReplyHint:
+      "Se il provider IA fallisce due volte di seguito, la conversazione passa a una persona e il cliente riceve questo messaggio una volta. Vuoto = non si invia nulla.",
     save: "Salva comportamento",
   },
   restricted: {

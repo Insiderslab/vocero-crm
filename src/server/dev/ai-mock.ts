@@ -70,3 +70,26 @@ export function aiMockCompletion(messages: InMessage[]): string {
     text: `Respuesta de prueba sobre: ${eco}`,
   });
 }
+
+/**
+ * 009 (E1) — Proveedor caído, para el self-test. Por el texto del último
+ * mensaje del cliente:
+ * - `mock-proveedor-caido` → el proveedor responde 503 SIEMPRE;
+ * - `mock-proveedor-intermitente` → 503 en las 3 primeras llamadas (un turno
+ *   entero de `chatJson`) y después responde: el segundo intento del agente
+ *   debe contestar.
+ */
+const globalForMock = globalThis as unknown as { __aiMockFailures?: Map<string, number> };
+
+export function aiMockShouldFail(messages: InMessage[]): boolean {
+  const lastUser =
+    [...messages].reverse().find((m) => m.role === "user")?.content ?? "";
+  if (lastUser.includes("mock-proveedor-caido")) return true;
+  if (lastUser.includes("mock-proveedor-intermitente")) {
+    const map = (globalForMock.__aiMockFailures ??= new Map());
+    const seen = map.get(lastUser) ?? 0;
+    map.set(lastUser, seen + 1);
+    return seen < 3;
+  }
+  return false;
+}

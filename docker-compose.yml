@@ -35,6 +35,8 @@ services:
       EXPORT_API_KEY: ${EXPORT_API_KEY:-}
       AUTOMATIONS_TICK_MS: ${AUTOMATIONS_TICK_MS:-}
       AGENT_COALESCE_MS: ${AGENT_COALESCE_MS:-6000}
+      # 009: segundo intento del agente si falla el proveedor de IA (ms; 0 = no).
+      AGENT_RETRY_MS: ${AGENT_RETRY_MS:-}
       # Páginas legales (PR #3): borrador visible hasta LEGAL_TEXTS_REVIEWED=true.
       LEGAL_TEXTS_REVIEWED: ${LEGAL_TEXTS_REVIEWED:-}
       LEGAL_ENTITY_NAME: ${LEGAL_ENTITY_NAME:-}

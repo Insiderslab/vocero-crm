@@ -48,6 +48,9 @@ const envSchema = z.object({
   // crear organizaciones y usuarios desde /admin. Sin ella, no hay super-admin.
   SUPERADMIN_EMAILS: z.string().optional(),
   AGENT_COALESCE_MS: z.coerce.number().int().min(0).default(6000),
+  // 009 (E1): si el proveedor de IA falla, UN segundo intento tras esta espera
+  // antes de pasar la conversación a un humano. 0 = sin segundo intento.
+  AGENT_RETRY_MS: z.coerce.number().int().min(0).max(3_600_000).default(60_000),
   WA_MOCK_ENABLED: z.string().optional(),
   // API key de un cerebro externo que conduzca la conversación por /api/bot/*.
   // Sin ella, toda esa superficie responde 401.

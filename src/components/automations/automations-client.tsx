@@ -22,6 +22,8 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { intlLocale } from "@/lib/i18n";
+import { ListSkeleton } from "@/components/ui/skeleton";
 
 type TemplateDto = {
   id: string;
@@ -62,7 +64,7 @@ export function AutomationsClient({
    */
   onboarding?: { whatsappConnected: boolean; templateApproved: boolean };
 } = {}) {
-  const { t } = useT();
+  const { t, locale } = useT();
   const [rules, setRules] = useState<Rule[]>([]);
   const [tags, setTags] = useState<TagDto[]>([]);
   const [templates, setTemplates] = useState<TemplateDto[]>([]);
@@ -78,12 +80,20 @@ export function AutomationsClient({
   const [runs, setRuns] = useState<Run[]>([]);
   const [running, setRunning] = useState(false);
   const [runResult, setRunResult] = useState<string | null>(null);
+  // 009 (E3): sin respuesta todavía no es "sin reglas".
+  const [loaded, setLoaded] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
 
   const refetch = useCallback(async () => {
     const res = await fetch("/api/automations").catch(() => null);
-    if (!res?.ok) return;
+    if (!res?.ok) {
+      setLoadFailed(true);
+      return;
+    }
+    setLoadFailed(false);
     const data = (await res.json()) as { rules: Rule[] };
     setRules(data.rules);
+    setLoaded(true);
   }, []);
 
   useEffect(() => {
@@ -321,7 +331,18 @@ export function AutomationsClient({
         </div>
       </div>
 
-      {rules.length === 0 ? (
+      {!loaded ? (
+        loadFailed ? (
+          <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed p-8 text-center">
+            <p className="text-sm text-muted-foreground">{t("common.loadError")}</p>
+            <Button size="sm" variant="outline" onClick={() => void refetch()}>
+              {t("common.retry")}
+            </Button>
+          </div>
+        ) : (
+          <ListSkeleton rows={3} />
+        )
+      ) : rules.length === 0 ? (
         <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed p-8 text-center">
           <Zap className="h-6 w-6 text-muted-foreground" />
           <p className="text-sm text-muted-foreground">
@@ -415,7 +436,7 @@ export function AutomationsClient({
                           </Badge>
                           <span className="font-medium">{run.contactName}</span>
                           <span className="text-xs text-muted-foreground">
-                            {new Date(run.createdAt).toLocaleString()}
+                            {new Date(run.createdAt).toLocaleString(intlLocale(locale))}
                             {run.detail ? ` · ${run.detail}` : ""}
                           </span>
                         </li>

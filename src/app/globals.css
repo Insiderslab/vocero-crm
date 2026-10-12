@@ -48,6 +48,11 @@
     --chat-bg: var(--heili-paper);
     --bubble-out: var(--heili-verde-brand);
     --bubble-out-text: #ffffff;
+    /* 009 (E7): hora, insignias y palomitas DENTRO de la burbuja saliente.
+       Antes iban en --text-4 (gris al 70 %): 1,3:1 sobre el verde. El texto
+       de la burbuja da 4,8:1 (AA); la palomita de leído, 4,2:1 (≥ 3:1). */
+    --bubble-out-meta: var(--bubble-out-text);
+    --bubble-out-tick-read: #c7f9ff;
 
     /* Acento (default: WhatsApp; white-label lo sobreescribe) */
     --accent: #25d366;
@@ -117,6 +122,8 @@
     --chat-bg: var(--heili-paper);
     --bubble-out: var(--heili-verde-brand);
     --bubble-out-text: var(--heili-nav);
+    --bubble-out-meta: var(--bubble-out-text);
+    --bubble-out-tick-read: #0a3d6b;
 
     /* Acento: el white-label lo recalcula para fondo oscuro */
     --accent: #4ade80;

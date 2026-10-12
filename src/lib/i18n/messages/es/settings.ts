@@ -121,6 +121,7 @@ const messages = {
     utilityOption: "UTILITY (seguimiento)",
     bodyLabel: "Cuerpo",
     bodyPlaceholder: "Hola {{1}}, te confirmo tu sesión el {{2}} a las {{3}}.",
+    namePlaceholder: "seguimiento_cotizacion",
     variableOne: "1 variable: al enviar pedirá su valor.",
     variableMany: "{{count}} variables: al enviar pedirá los {{count}} valores.",
     createError: "No se pudo crear la plantilla",

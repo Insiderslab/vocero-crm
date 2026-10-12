@@ -102,6 +102,7 @@ const ROWS: Row[] = [
   ["contacts/[id]/start-conversation", ["POST"], "member", "iniciar una conversación con plantilla (trabajo diario)"],
   ["conversations", ["GET"], "member", "bandeja"],
   ["conversations/[id]", ["PATCH"], "member", "estado de la conversación (leído, humano/IA)"],
+  ["conversations/[id]/agent-retry", ["POST"], "member", "«Riprova risposta IA»: como reactivar la IA de la conversación (009 E1)"],
   ["conversations/[id]/messages", ["GET", "POST"], "member", "leer y enviar mensajes: es el trabajo de un miembro"],
   ["conversations/[id]/messages/media", ["POST"], "member", "enviar un adjunto en una conversación"],
   ["conversations/[id]/messages/template", ["POST"], "member", "enviar una plantilla ya aprobada en una conversación"],

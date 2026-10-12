@@ -6,6 +6,7 @@ import { getDb, schema } from "@/lib/db";
 import { newId } from "@/lib/db/ids";
 import { slugify, uniqueSlug } from "@/lib/slug";
 import { provisionOrganization } from "@/server/auth/on-signup";
+import { getLocale } from "@/lib/i18n/server";
 import { withSuperadmin } from "@/server/auth/superadmin";
 
 export const dynamic = "force-dynamic";
@@ -108,6 +109,7 @@ export const POST = withSuperadmin(async (ctx, req: Request) => {
   );
 
   const orgId = newId("organization");
+  const locale = await getLocale();
   await db.transaction(async (tx) => {
     await tx.insert(schema.organization).values({
       id: orgId,
@@ -128,7 +130,8 @@ export const POST = withSuperadmin(async (ctx, req: Request) => {
         role: "owner",
       });
     }
-    await provisionOrganization(tx, orgId);
+    // 009 (E2): etapas y moneda en el idioma de quien la crea.
+    await provisionOrganization(tx, orgId, locale);
   });
 
   return Response.json(

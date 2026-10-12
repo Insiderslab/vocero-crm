@@ -26,6 +26,9 @@ import { LossReasonDialog } from "./loss-reason-dialog";
 import { AmountDialog } from "./amount-dialog";
 import { PriorityBadge } from "./priority-picker";
 import { LeadDrawer } from "./lead-drawer";
+import { stageLabel } from "@/lib/stages";
+import { intlLocale } from "@/lib/i18n";
+import { BoardSkeleton } from "@/components/ui/skeleton";
 
 export type BoardLead = {
   id: string;
@@ -44,6 +47,10 @@ export function PipelineClient() {
   const [stages, setStages] = useState<StageDto[]>([]);
   const [currency, setCurrency] = useState("MXN");
   const [leads, setLeads] = useState<BoardLead[]>([]);
+  // 009 (E3): hasta la primera respuesta el tablero es un esqueleto, no
+  // "cero columnas".
+  const [loaded, setLoaded] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [activeLead, setActiveLead] = useState<BoardLead | null>(null);
   const [managing, setManaging] = useState(false);
   /** Arrastre hacia una etapa perdida, esperando el motivo. */
@@ -68,7 +75,11 @@ export function PipelineClient() {
 
   const refetch = useCallback(async () => {
     const res = await fetch("/api/pipeline/board").catch(() => null);
-    if (!res?.ok) return;
+    if (!res?.ok) {
+      setLoadFailed(true);
+      return;
+    }
+    setLoadFailed(false);
     const data = (await res.json()) as {
       stages: StageDto[];
       leads: BoardLead[];
@@ -77,6 +88,7 @@ export function PipelineClient() {
     if (data.currency) setCurrency(data.currency);
     setStages(data.stages);
     setLeads(data.leads);
+    setLoaded(true);
   }, []);
 
   useEffect(() => {
@@ -184,6 +196,18 @@ export function PipelineClient() {
       {/* El tablero se arrastra en horizontal; en el teléfono cada columna
           se detiene en su sitio (snap) para no quedar a medio camino. */}
       <div className="flex-1 snap-x snap-mandatory overflow-x-auto p-3 sm:snap-none sm:p-4">
+        {!loaded ? (
+          loadFailed ? (
+            <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
+              <p className="text-sm text-muted-foreground">{t("common.loadError")}</p>
+              <Button size="sm" variant="outline" onClick={() => void refetch()}>
+                {t("common.retry")}
+              </Button>
+            </div>
+          ) : (
+            <BoardSkeleton />
+          )
+        ) : (
         <DndContext
           sensors={sensors}
           onDragStart={onDragStart}
@@ -209,6 +233,7 @@ export function PipelineClient() {
             ) : null}
           </DragOverlay>
         </DndContext>
+        )}
       </div>
 
       {managing && (
@@ -304,6 +329,7 @@ function StageColumn({
   onEditAmount: (lead: BoardLead) => void;
   onOpen: (lead: BoardLead) => void;
 }) {
+  const { locale } = useT();
   const { setNodeRef, isOver } = useDroppable({ id: stage.id });
   return (
     <div
@@ -319,7 +345,7 @@ function StageColumn({
           {stage.kind === "lost" && (
             <XCircle className="h-3.5 w-3.5 text-muted-foreground" />
           )}
-          {stage.name}
+          {stageLabel(stage.name, locale)}
         </span>
         <span className="rounded-full bg-secondary px-2 py-0.5 text-xs text-muted-foreground">
           {leads.length}
@@ -341,18 +367,22 @@ function StageColumn({
   );
 }
 
-/** Cuánto dinero hay en esta etapa, y qué quedó fuera de la cuenta. */
-function StageFooter({ leads, currency }: { leads: BoardLead[]; currency: string }) {
-  const { t } = useT();
+/**
+ * Cuánto dinero hay en esta etapa, y qué quedó fuera de la cuenta.
+ *
+ * 009 (E7/E8/E10): sin ningún importo en la columna, el pie NO se pinta. Antes
+ * cada columna repetía «Nessun importo inserito»: cinco veces la misma frase
+ * que no dice nada que la tarjeta («+ importo») no diga ya.
+ */
+export function StageFooter({ leads, currency }: { leads: BoardLead[]; currency: string }) {
+  const { t, locale } = useT();
   const { totalCents, sinMonto, otraMoneda } = totalesDeEtapa(leads, currency);
   const conMonto = leads.length - sinMonto - otraMoneda;
+  if (conMonto === 0 && otraMoneda === 0) return null;
 
   return (
     <div className="border-t px-3 py-2 text-[11px]">
-      {conMonto === 0 ? (
-        // Un "$0.00" aquí se lee como un error del sistema, no como un dato.
-        <p className="text-muted-foreground">{t("pipeline.footer.empty")}</p>
-      ) : (
+      {conMonto === 0 ? null : (
         <div className="flex items-baseline justify-between gap-2">
           <span className="text-muted-foreground">
             {t("pipeline.footer.total")}
@@ -361,7 +391,7 @@ function StageFooter({ leads, currency }: { leads: BoardLead[]; currency: string
               : ""}
           </span>
           <span className="font-semibold tabular-nums">
-            {formatMoneyCents(totalCents, currency)}
+            {formatMoneyCents(totalCents, currency, intlLocale(locale))}
           </span>
         </div>
       )}
@@ -429,7 +459,7 @@ function LeadCard({
   overlay?: boolean;
   onEditAmount?: (lead: BoardLead) => void;
 }) {
-  const { t } = useT();
+  const { t, locale } = useT();
   return (
     <div
       className={cn(
@@ -447,7 +477,7 @@ function LeadCard({
           <p className="text-[11px] text-muted-foreground">
             {lead.lastActivityAt
               ? t("pipeline.card.activity", {
-                  time: formatTime(lead.lastActivityAt),
+                  time: formatTime(lead.lastActivityAt, locale),
                 })
               : t("pipeline.card.noActivity")}
           </p>
@@ -455,6 +485,10 @@ function LeadCard({
         {lead.conversationId && (
           <Link
             href={`/inbox?contact=${lead.contact.id}`}
+            // 009 (E5): una tarjeta por lead, cada una con su URL — con el
+            // prefetch de siempre, abrir el tablero pedía decenas de ?_rsc=
+            // a la vez. Se carga al hacer clic.
+            prefetch={false}
             onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => e.stopPropagation()}
             aria-label={t("pipeline.card.openConversation")}
@@ -484,12 +518,12 @@ function LeadCard({
         >
           {lead.amountCents === null
             ? t("pipeline.card.addAmount")
-            : formatMoneyCents(lead.amountCents, lead.currency ?? currency)}
+            : formatMoneyCents(lead.amountCents, lead.currency ?? currency, intlLocale(locale))}
         </button>
       )}
       {overlay && lead.amountCents !== null && (
         <p className="mt-1.5 text-right text-xs font-semibold tabular-nums">
-          {formatMoneyCents(lead.amountCents, lead.currency ?? currency)}
+          {formatMoneyCents(lead.amountCents, lead.currency ?? currency, intlLocale(locale))}
         </p>
       )}
     </div>

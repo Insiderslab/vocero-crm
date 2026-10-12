@@ -13,6 +13,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PriorityPicker } from "./priority-picker";
 import type { BoardLead } from "./pipeline-client";
+import { stageLabel } from "@/lib/stages";
+import { intlLocale } from "@/lib/i18n";
 
 /**
  * El trato, abierto, sin salir del tablero.
@@ -41,7 +43,7 @@ export function LeadDrawer({
   onAmount: (cents: number | null) => void;
   onPriority: (value: PriorityValue | null) => void;
 }) {
-  const { t } = useT();
+  const { t, locale } = useT();
   const [ficha, setFicha] = useState<FichaDto>({});
   const [monto, setMonto] = useState("");
   const [editandoMonto, setEditandoMonto] = useState(false);
@@ -141,6 +143,7 @@ export function LeadDrawer({
             {lead.conversationId ? (
               <Link
                 href={`/inbox?contact=${lead.contact.id}`}
+                prefetch={false}
                 className="mt-3 flex w-full items-center justify-center gap-2 rounded-md border bg-secondary px-3 py-2 text-sm font-medium hover:bg-accent"
               >
                 <MessageSquareText className="h-4 w-4" />{" "}
@@ -181,7 +184,7 @@ export function LeadDrawer({
                     : montoParseado === null
                       ? t("pipeline.drawer.amountEmpty")
                       : t("pipeline.drawer.amountWillSave", {
-                          amount: formatMoneyCents(montoParseado, moneda) ?? "",
+                          amount: formatMoneyCents(montoParseado, moneda, intlLocale(locale)) ?? "",
                         })}
                 </p>
                 <div className="mt-2 flex gap-1.5">
@@ -217,7 +220,7 @@ export function LeadDrawer({
               >
                 {lead.amountCents === null
                   ? t("pipeline.drawer.noAmount")
-                  : formatMoneyCents(lead.amountCents, moneda)}
+                  : formatMoneyCents(lead.amountCents, moneda, intlLocale(locale))}
               </button>
             )}
           </section>
@@ -243,7 +246,7 @@ export function LeadDrawer({
                     key={s.id}
                     onClick={() => !actual && onMoveStage(s.id)}
                     aria-pressed={actual}
-                    aria-label={t("pipeline.drawer.moveTo", { stage: s.name })}
+                    aria-label={t("pipeline.drawer.moveTo", { stage: stageLabel(s.name, locale) })}
                     className={cn(
                       "rounded-full border px-2.5 py-1 text-xs transition-colors",
                       actual
@@ -251,7 +254,7 @@ export function LeadDrawer({
                         : "border-border text-text-2 hover:bg-accent"
                     )}
                   >
-                    {s.name}
+                    {stageLabel(s.name, locale)}
                   </button>
                 );
               })}

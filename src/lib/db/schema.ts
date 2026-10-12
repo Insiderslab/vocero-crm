@@ -332,6 +332,13 @@ export const conversation = pgTable(
         "manual_reply",
       ],
     }),
+    /**
+     * 009 (E1) — Segundo intento del agente PENDIENTE (persistido): el
+     * proveedor de IA falló, la conversación queda con handoff `error` y aquí
+     * la hora a la que se reintenta. Sobrevive a un reinicio: al arrancar se
+     * reprograma o, si ya pasó, se cierra el handoff. NULL = nada pendiente.
+     */
+    agentRetryAt: timestamp("agent_retry_at"),
     lastInboundAt: timestamp("last_inbound_at"),
     lastMessageAt: timestamp("last_message_at"),
     unreadCount: integer("unread_count").notNull().default(0),
@@ -390,7 +397,9 @@ export const message = pgTable(
      * queda el default y la UI lo ignora.
      */
     origin: text("origin", {
-      enum: ["ai", "operator", "manual", "template"],
+      // 009: `system` = texto automático fijo (cortesía cuando falla la IA),
+      // no una respuesta: las métricas de «primera respuesta» lo excluyen.
+      enum: ["ai", "operator", "manual", "template", "system"],
     })
       .notNull()
       .default("operator"),
@@ -711,6 +720,11 @@ export const agentProfile = pgTable(
       .notNull()
       .default(sql`'{}'`),
     outsiderReply: text("outsider_reply"),
+    /**
+     * 009 (E1) — Mensaje de cortesía cuando el proveedor de IA falla y la
+     * conversación pasa a un humano con motivo `error`. NULL/vacío = apagado.
+     */
+    errorReply: text("error_reply"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },

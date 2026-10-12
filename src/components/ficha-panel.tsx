@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { fichaEntries, fichaLabel, fichaValueText, parseFichaValue } from "@/lib/ficha";
 import type { FichaDto, FichaValue } from "@/lib/types";
+import { useT } from "@/lib/i18n/client";
 
 /**
  * Lo que se sabe del lead, donde se trabaja la conversación.
@@ -24,6 +25,8 @@ export function FichaPanel({
   /** Parche: solo lo que cambia. `null` borra la clave. */
   onSave: (patch: Record<string, FichaValue | null>) => Promise<void>;
 }) {
+  const { t } = useT();
+  const yesNo = { yes: t("inbox.ficha.yes"), no: t("inbox.ficha.no") };
   const [editando, setEditando] = useState<string | null>(null);
   const [borrador, setBorrador] = useState("");
   const [agregando, setAgregando] = useState(false);
@@ -66,7 +69,7 @@ export function FichaPanel({
     <section className="border-b p-4">
       <div className="mb-2 flex items-center justify-between">
         <p className="text-[11px] font-semibold uppercase tracking-wide text-text-3">
-          Ficha
+          {t("inbox.ficha.title")}
         </p>
         {!agregando && (
           <button
@@ -74,15 +77,14 @@ export function FichaPanel({
             className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] text-text-3 hover:bg-accent hover:text-foreground"
           >
             <Plus className="h-3 w-3" />
-            Agregar
+            {t("inbox.ficha.add")}
           </button>
         )}
       </div>
 
       {entradas.length === 0 && !agregando && (
         <p className="text-xs leading-relaxed text-text-3">
-          Todavía vacía. Aquí aparece lo que tu agente va averiguando del lead
-          mientras conversa — y puedes escribirlo tú.
+          {t("inbox.ficha.empty")}
         </p>
       )}
 
@@ -105,18 +107,18 @@ export function FichaPanel({
                         if (e.key === "Escape") setEditando(null);
                       }}
                       className="h-7 py-0 text-xs"
-                      aria-label={`Valor de ${fichaLabel(clave)}`}
+                      aria-label={t("inbox.ficha.valueOf", { label: fichaLabel(clave) })}
                     />
                     <button
                       onClick={() => void confirmarEdicion(clave)}
-                      aria-label="Guardar"
+                      aria-label={t("inbox.ficha.save")}
                       className="rounded p-1 text-text-3 hover:bg-accent hover:text-foreground"
                     >
                       <Check className="h-3.5 w-3.5" />
                     </button>
                     <button
                       onClick={() => setEditando(null)}
-                      aria-label="Cancelar"
+                      aria-label={t("inbox.ficha.cancel")}
                       className="rounded p-1 text-text-3 hover:bg-accent hover:text-foreground"
                     >
                       <X className="h-3.5 w-3.5" />
@@ -127,17 +129,20 @@ export function FichaPanel({
                     <button
                       onClick={() => {
                         setEditando(clave);
-                        setBorrador(fichaValueText(valor));
+                        setBorrador(fichaValueText(valor, yesNo));
                       }}
                       className="min-w-0 flex-1 break-words rounded px-1 py-1 text-left hover:bg-accent"
-                      aria-label={`Editar ${fichaLabel(clave)}`}
+                      aria-label={t("inbox.ficha.edit", { label: fichaLabel(clave) })}
                     >
-                      {fichaValueText(valor)}
+                      {fichaValueText(valor, yesNo)}
                     </button>
                     <span className="flex opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
                       <button
-                        onClick={() => setEditando(clave)}
-                        aria-label={`Editar ${fichaLabel(clave)}`}
+                        onClick={() => {
+                          setEditando(clave);
+                          setBorrador(fichaValueText(valor, yesNo));
+                        }}
+                        aria-label={t("inbox.ficha.edit", { label: fichaLabel(clave) })}
                         className="rounded p-1 text-text-3 hover:bg-accent hover:text-foreground"
                       >
                         <Pencil className="h-3 w-3" />
@@ -145,7 +150,7 @@ export function FichaPanel({
                       <button
                         disabled={guardando}
                         onClick={() => void guardar({ [clave]: null })}
-                        aria-label={`Quitar ${fichaLabel(clave)}`}
+                        aria-label={t("inbox.ficha.remove", { label: fichaLabel(clave) })}
                         className="rounded p-1 text-text-3 hover:bg-accent hover:text-danger"
                       >
                         <Trash2 className="h-3 w-3" />
@@ -165,9 +170,9 @@ export function FichaPanel({
             autoFocus
             value={claveNueva}
             onChange={(e) => setClaveNueva(e.target.value)}
-            placeholder="Qué dato (ej. presupuesto)"
+            placeholder={t("inbox.ficha.keyPlaceholder")}
             className="h-7 py-0 text-xs"
-            aria-label="Nombre del dato"
+            aria-label={t("inbox.ficha.keyAria")}
           />
           <Input
             value={valorNuevo}
@@ -176,9 +181,9 @@ export function FichaPanel({
               if (e.key === "Enter") void agregar();
               if (e.key === "Escape") setAgregando(false);
             }}
-            placeholder="Valor"
+            placeholder={t("inbox.ficha.valuePlaceholder")}
             className="h-7 py-0 text-xs"
-            aria-label="Valor del dato"
+            aria-label={t("inbox.ficha.valueAria")}
           />
           <div className="flex gap-1.5">
             <Button
@@ -187,7 +192,7 @@ export function FichaPanel({
               disabled={!claveNueva.trim() || !valorNuevo.trim() || guardando}
               onClick={() => void agregar()}
             >
-              Agregar
+              {t("inbox.ficha.add")}
             </Button>
             <Button
               size="sm"
@@ -198,7 +203,7 @@ export function FichaPanel({
                 setValorNuevo("");
               }}
             >
-              Cancelar
+              {t("inbox.ficha.cancel")}
             </Button>
           </div>
         </div>

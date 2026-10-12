@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { intlLocale } from "@/lib/i18n";
 
 /**
  * Claves de servicio de la organización activa para un ámbito: `bot` (vbk_,
@@ -179,7 +180,7 @@ export function KeyList({ list, onRevoke }: { list: KeyListState; onRevoke: (k: 
     return <p className="text-sm text-muted-foreground">{t("settings.apiKeys.empty")}</p>;
   }
   const date = (iso: string) =>
-    new Date(iso).toLocaleString(locale, { dateStyle: "medium", timeStyle: "short" });
+    new Date(iso).toLocaleString(intlLocale(locale), { dateStyle: "medium", timeStyle: "short" });
   return list.keys.map((k) => (
     <div key={k.id} className="flex items-center gap-3 rounded-lg border bg-card px-4 py-3">
       <div className="min-w-0 flex-1">

@@ -2,6 +2,7 @@ import { and, eq, inArray, isNotNull, notExists, sql } from "drizzle-orm";
 import type { getDb } from "@/lib/db";
 import { schema } from "@/lib/db";
 import { newId } from "@/lib/db/ids";
+import { defaultStageKeyOf } from "@/lib/stages";
 import {
   type DbExecutor,
   insertWhatsappIdentity,
@@ -284,6 +285,18 @@ export async function seedDemo(
     .from(schema.pipelineStage)
     .where(eq(schema.pipelineStage.organizationId, organizationId));
   const stageByName = new Map(stages.map((s) => [s.name, s.id]));
+  // 009 (E2): una organización sembrada en italiano o inglés tiene las etapas
+  // de fábrica con otro nombre; la demo (escrita en español) las encuentra
+  // por su clave de fábrica.
+  const stageByDefaultKey = new Map<string, string>();
+  for (const s of stages) {
+    const key = defaultStageKeyOf(s.name);
+    if (key && !stageByDefaultKey.has(key)) stageByDefaultKey.set(key, s.id);
+  }
+  const stageIdFor = (name: string): string | undefined => {
+    const key = defaultStageKeyOf(name);
+    return stageByName.get(name) ?? (key ? stageByDefaultKey.get(key) : undefined);
+  };
   const fallbackStage = stages[0]?.id;
   if (!fallbackStage) throw new Error("La organización no tiene etapas");
 
@@ -349,7 +362,7 @@ export async function seedDemo(
       id: newId("lead"),
       organizationId,
       contactId,
-      stageId: stageByName.get(demo.stage) ?? fallbackStage,
+      stageId: stageIdFor(demo.stage) ?? fallbackStage,
       position: position++,
       lastActivityAt: new Date(now - lastMessage * HOURS),
     });

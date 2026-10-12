@@ -3,6 +3,8 @@ import { cookies } from "next/headers";
 import { Instrument_Sans, Rubik, Geist_Mono } from "next/font/google";
 import { accentCssVariables, DEFAULT_BRANDING } from "@/lib/branding";
 import { faviconHref } from "@/lib/favicon";
+import { CLICK_REPLAY_SCRIPT } from "@/lib/click-replay";
+import { HydrationMark } from "@/components/hydration-mark";
 import { LOCALE_COOKIE, normalizeLocale } from "@/lib/i18n";
 import { I18nProvider } from "@/lib/i18n/client";
 import { getT } from "@/lib/i18n/server";
@@ -32,9 +34,11 @@ export const dynamic = "force-dynamic";
 export async function generateMetadata(): Promise<Metadata> {
   const branding = await getBranding().catch(() => DEFAULT_BRANDING);
   const { t } = await getT();
+  // Las llaves viven en el módulo `common` del diccionario: sin el prefijo,
+  // `t()` no las encontraba y la pestaña enseñaba la llave cruda (E9).
   return {
-    title: `${branding.name} — ${t("meta.titleSuffix")}`,
-    description: t("meta.description"),
+    title: `${branding.name} — ${t("common.meta.titleSuffix")}`,
+    description: t("common.meta.description"),
     // El `?v=` cambia con la marca: los navegadores guardan el favicon con una
     // insistencia notable y, sin eso, el logo nuevo tarda días en aparecer.
     icons: { icon: faviconHref(branding) },
@@ -57,6 +61,8 @@ export default async function RootLayout({
       data-theme={theme}
     >
       <head>
+        {/* 009 (E6): clics anteriores a la hidratación (ver lib/click-replay). */}
+        <script dangerouslySetInnerHTML={{ __html: CLICK_REPLAY_SCRIPT }} />
         {/* Acento white-label inyectado en SSR: sin flash de tema */}
         <style
           dangerouslySetInnerHTML={{ __html: accentCssVariables(branding.accent) }}
@@ -64,6 +70,7 @@ export default async function RootLayout({
       </head>
       <body className="font-sans">
         <I18nProvider locale={locale}>{children}</I18nProvider>
+        <HydrationMark />
       </body>
     </html>
   );

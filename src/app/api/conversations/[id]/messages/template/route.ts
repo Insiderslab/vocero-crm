@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { apiError, parseBody, withAuth } from "@/lib/api";
 import { SendError } from "@/server/inbox/send";
+import { clearAgentRetryOnHumanReply } from "@/server/ai/pipeline";
 import {
   sendTemplate,
   TemplateError,
@@ -32,6 +33,7 @@ export const POST = withAuth(async (session, req: Request, ctx: Params) => {
         body.data.variables ??
         (body.data.variable === undefined ? undefined : [body.data.variable]),
     });
+    await clearAgentRetryOnHumanReply(session.organizationId, id);
     return Response.json({ messageId: result.messageId });
   } catch (err) {
     if (err instanceof TemplateError) {

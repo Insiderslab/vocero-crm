@@ -9,6 +9,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useT } from "@/lib/i18n/client";
+import { CardsSkeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
 import {
   createLatestGate,
   initServerForm,
@@ -24,6 +26,8 @@ type Profile = {
   instructions: string | null;
   escalationRules: string | null;
   greeting: string | null;
+  /** 009 (E1b): cortesía si falla el proveedor de IA. */
+  errorReply: string | null;
 };
 
 type Restriction = {
@@ -50,6 +54,7 @@ function behaviorOf(p: Profile): BehaviorForm {
     instructions: p.instructions,
     escalationRules: p.escalationRules,
     greeting: p.greeting,
+    errorReply: p.errorReply ?? null,
   };
 }
 
@@ -69,6 +74,7 @@ export function AgentClient() {
   const [toggleError, setToggleError] = useState<string | null>(null);
   // Un segundo clic con el primer PUT en vuelo mandaría el mismo valor viejo.
   const [toggling, setToggling] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
 
   // Solo la respuesta del ÚLTIMO refetch se aplica (las viejas se ignoran).
   const refetchGate = useRef(createLatestGate());
@@ -82,10 +88,12 @@ export function AgentClient() {
     ]).catch(() => [null, null, null]);
     if (!refetchGate.current.isLatest(ticket)) return;
     if (p) {
+      setLoadFailed(false);
       setProfile(p.profile);
       setRestriction(p.restriction ?? null);
       setAiConfigured(p.aiConfigured);
     }
+    if (!p) setLoadFailed(true);
     if (kb) setEntries(kb.entries);
     if (size) setKbSize(size);
   }, []);
@@ -95,9 +103,21 @@ export function AgentClient() {
   }, [refetch]);
 
   if (!profile) {
-    return (
-      <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-        {t("agent.loading")}
+    // 009 (E3): esqueleto con la forma de la página; si la carga falla, se
+    // dice (antes quedaba "Caricamento…" para siempre).
+    return loadFailed ? (
+      <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
+        <p className="text-sm text-muted-foreground">{t("common.loadError")}</p>
+        <Button size="sm" variant="outline" onClick={() => void refetch()}>
+          {t("common.retry")}
+        </Button>
+      </div>
+    ) : (
+      <div className="h-full overflow-y-auto">
+        <header className="flex items-center justify-between border-b px-4 py-3 sm:px-6 sm:py-4">
+          <h2 className="font-semibold">{t("agent.title")}</h2>
+        </header>
+        <CardsSkeleton cards={2} className="p-4 sm:p-6 lg:grid-cols-2" />
       </div>
     );
   }
@@ -136,25 +156,25 @@ export function AgentClient() {
         <div className="flex items-center gap-3">
           {saved && <span className="text-xs text-primary">{t("agent.saved")}</span>}
           {toggleError && <span className="text-xs text-destructive">{toggleError}</span>}
-          <span className="text-sm text-muted-foreground">
+          {/* 009 (E10): interruptor de verdad (manopola visible, estado en
+              texto y en aria-checked), en vez de una píldora sin manopola. */}
+          <span
+            id="agent-enabled-state"
+            className={
+              profile.enabled
+                ? "text-sm font-medium text-brand-text"
+                : "text-sm text-muted-foreground"
+            }
+          >
             {profile.enabled ? t("agent.statusOn") : t("agent.statusOff")}
           </span>
-          <button
-            role="switch"
-            aria-checked={profile.enabled}
-            aria-label={t("agent.toggleLabel")}
+          <Switch
+            checked={profile.enabled}
+            label={t("agent.toggleLabel")}
+            describedBy="agent-enabled-state"
             disabled={!aiConfigured || toggling}
-            onClick={() => void toggleEnabled()}
-            className={`relative h-6 w-11 rounded-full transition-colors disabled:opacity-40 ${
-              profile.enabled ? "bg-primary" : "bg-secondary"
-            }`}
-          >
-            <span
-              className={`absolute top-0.5 h-5 w-5 rounded-full bg-knob transition-transform ${
-                profile.enabled ? "translate-x-5" : "translate-x-0.5"
-              }`}
-            />
-          </button>
+            onCheckedChange={() => void toggleEnabled()}
+          />
         </div>
       </header>
 
@@ -275,6 +295,19 @@ export function ProfileSection({
             disabled={saving}
             onChange={(e) => edit({ greeting: e.target.value })}
           />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="agent-error-reply">{t("agent.behavior.errorReplyLabel")}</Label>
+          <Textarea
+            id="agent-error-reply"
+            rows={2}
+            maxLength={1000}
+            placeholder={t("agent.behavior.errorReplyPlaceholder")}
+            value={form.errorReply ?? ""}
+            disabled={saving}
+            onChange={(e) => edit({ errorReply: e.target.value })}
+          />
+          <p className="text-xs text-muted-foreground">{t("agent.behavior.errorReplyHint")}</p>
         </div>
         {state.dirty && !error && (
           <p className="text-xs text-muted-foreground">{t("agent.unsaved")}</p>

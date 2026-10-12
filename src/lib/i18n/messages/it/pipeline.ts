@@ -3,6 +3,18 @@
 /** Dizionario IT — pipeline. Specchio tipizzato della forma ES. */
 const messages: typeof base = {
   manageStages: "Gestisci fasi",
+  /**
+   * 009 (E2) — Nombres de las etapas sembradas. Sirven para sembrar una
+   * organización nueva en su idioma y para TRADUCIR al mostrar una etapa que
+   * conserva exactamente su nombre de fábrica (en cualquier idioma).
+   */
+  defaultStages: {
+    new: "Nuovo",
+    talking: "In conversazione",
+    interested: "Interessato",
+    won: "Cliente",
+    lost: "Perso",
+  },
   priority: {
     alta: "Alta",
     media: "Media",
@@ -17,7 +29,6 @@ const messages: typeof base = {
     addAmount: "+ importo",
   },
   footer: {
-    empty: "Nessun importo inserito",
     total: "Totale",
     withoutAmount: "{{count}} senza importo",
     otherCurrency: "{{count}} in un'altra valuta, fuori dal totale",
@@ -44,6 +55,7 @@ const messages: typeof base = {
   },
   stages: {
     title: "Fasi della pipeline",
+    nameAria: "Nome della fase {{name}}",
     won: "vinta",
     lost: "persa",
     delete: "Elimina fase",

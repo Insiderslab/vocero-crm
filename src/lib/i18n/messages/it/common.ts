@@ -7,6 +7,8 @@ const messages: typeof base = {
   cancel: "Annulla",
   close: "Chiudi",
   loading: "Caricamento…",
+  loadError: "Impossibile caricare. Controlla la connessione.",
+  retry: "Riprova",
   create: "Crea",
   creating: "Creazione…",
   edit: "Modifica",
@@ -19,6 +21,11 @@ const messages: typeof base = {
   password: "Password",
   tempPassword: "Password temporanea",
   minChars: "minimo 8 caratteri",
+  /** 009 (E2): nombre inicial de la organización del primer registro. */
+  defaultOrg: {
+    named: "Attività di {{name}}",
+    unnamed: "La mia attività",
+  },
   meta: {
     titleSuffix: "WhatsApp",
     description:

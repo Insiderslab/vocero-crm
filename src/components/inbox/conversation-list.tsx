@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Search, Sparkles, Trash2, UserRound, X } from "lucide-react";
+import { AlertTriangle, RotateCcw, Search, Sparkles, Trash2, UserRound, X } from "lucide-react";
 import type { ConversationDto } from "@/lib/types";
 import { matchesQuery } from "@/lib/search";
 import { useT } from "@/lib/i18n/client";
@@ -10,15 +10,31 @@ import { cn } from "@/lib/utils";
 import { ContactAvatar } from "@/components/avatar";
 import { useRole } from "@/components/role-context";
 import { Button } from "@/components/ui/button";
-import { formatTime, previewText } from "./helpers";
+import { defaultStageKeyOf, stageLabel, type DefaultStageKey } from "@/lib/stages";
+import { ListSkeleton } from "@/components/ui/skeleton";
+import {
+  formatTime,
+  handoffLabel,
+  matchesInboxFilter,
+  needsHuman,
+  previewText,
+  sortHandoffFirst,
+  type InboxFilter,
+} from "./helpers";
 
-const STAGE_DOT: Record<string, string> = {
-  Nuevo: "#9ca3af",
-  "En conversación": "#7b93b3",
-  Interesado: "#b08b5e",
-  Cliente: "#5f8f74",
-  Perdido: "#a2504c",
+/** Color del punto de cada etapa de fábrica (por clave: vale en los tres idiomas). */
+const STAGE_DOT: Record<DefaultStageKey, string> = {
+  new: "#9ca3af",
+  talking: "#7b93b3",
+  interested: "#b08b5e",
+  won: "#5f8f74",
+  lost: "#a2504c",
 };
+
+function stageDot(name: string): string {
+  const key = defaultStageKeyOf(name);
+  return key ? STAGE_DOT[key] : "#9ca3af";
+}
 
 function EmptyState({ onSeeded }: { onSeeded: () => void }) {
   const { t } = useT();
@@ -130,15 +146,18 @@ export function ConversationList({
   selectedId,
   onSelect,
   onSeeded,
+  loadFailed = false,
 }: {
   conversations: ConversationDto[] | null;
   selectedId: string | null;
   onSelect: (id: string) => void;
   onSeeded: () => void;
+  /** 009 (E3): la primera carga falló (la lista sigue en `null`). */
+  loadFailed?: boolean;
 }) {
-  const { t } = useT();
+  const { t, locale } = useT();
   const [query, setQuery] = useState("");
-  const [filter, setFilter] = useState<"all" | "unread">("all");
+  const [filter, setFilter] = useState<InboxFilter>("all");
   const [stage, setStage] = useState<string>("all");
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -168,8 +187,11 @@ export function ConversationList({
       }) && (stage === "all" || c.stageName === stage)
   );
   const unreadCount = searched.filter((c) => c.unreadCount > 0).length;
-  const visible =
-    filter === "unread" ? searched.filter((c) => c.unreadCount > 0) : searched;
+  const handoffCount = searched.filter(needsHuman).length;
+  // 009 (E1c): lo que espera a una persona va arriba, en cualquier filtro.
+  const visible = sortHandoffFirst(
+    searched.filter((c) => matchesInboxFilter(c, filter))
+  );
 
   // Etapas presentes en la bandeja, en el orden en que llegan del pipeline.
   const stages: string[] = [];
@@ -212,11 +234,12 @@ export function ConversationList({
         </div>
       </header>
 
-      <div className="flex items-center gap-1.5 border-b px-4 py-2.5">
+      <div className="flex flex-wrap items-center gap-1.5 border-b px-4 py-2.5">
         {(
           [
             { id: "all", label: t("inbox.filters.all"), count: searched.length },
             { id: "unread", label: t("inbox.filters.unread"), count: unreadCount },
+            { id: "handoff", label: t("inbox.filters.handoff"), count: handoffCount },
           ] as const
         ).map((f) => (
           <button
@@ -256,7 +279,7 @@ export function ConversationList({
             <option value="all">{t("inbox.filters.allStages")}</option>
             {stages.map((s) => (
               <option key={s} value={s}>
-                {s}
+                {stageLabel(s, locale)}
               </option>
             ))}
           </select>
@@ -267,7 +290,16 @@ export function ConversationList({
 
       <div className="flex-1 overflow-y-auto">
         {loading ? (
-          <p className="p-6 text-center text-xs text-text-3">{t("inbox.loading")}</p>
+          loadFailed ? (
+            <div className="flex flex-col items-center gap-2 p-6 text-center">
+              <p className="text-xs text-text-3">{t("common.loadError")}</p>
+              <Button size="sm" variant="outline" onClick={onSeeded}>
+                {t("common.retry")}
+              </Button>
+            </div>
+          ) : (
+            <ListSkeleton rows={7} />
+          )
         ) : conversations.length === 0 ? (
           <EmptyState onSeeded={onSeeded} />
         ) : visible.length === 0 ? (
@@ -313,7 +345,7 @@ export function ConversationList({
                             unread ? "font-semibold text-brand" : "text-text-3"
                           )}
                         >
-                          {formatTime(c.lastMessageAt)}
+                          {formatTime(c.lastMessageAt, locale)}
                         </span>
                       </span>
                       <span className="mt-0.5 flex items-center justify-between gap-2">
@@ -337,16 +369,40 @@ export function ConversationList({
                             <span
                               className="h-[7px] w-[7px] rounded-full"
                               style={{
-                                background: STAGE_DOT[c.stageName] ?? "#9ca3af",
+                                background: stageDot(c.stageName),
                               }}
                             />
-                            {c.stageName}
+                            {stageLabel(c.stageName, locale)}
                           </span>
                         )}
-                        {c.handoffAt && (
-                          <span className="inline-flex items-center gap-1 rounded-full border border-warning-soft bg-warning-tint px-2 py-0.5 text-[11px] text-warning-text">
-                            <UserRound className="h-3 w-3" strokeWidth={1.7} />
-                            {t("inbox.handoff")}
+                        {c.agentRetryAt ? (
+                          // 009 (E1): el agente reintentará solo; aún no es
+                          // trabajo para una persona.
+                          <span
+                            data-retry-pending=""
+                            className="inline-flex min-w-0 items-center gap-1 rounded-full border border-info-soft bg-info-tint px-2 py-0.5 text-[11px] text-info-text"
+                          >
+                            <RotateCcw className="h-3 w-3 shrink-0" strokeWidth={1.8} />
+                            <span className="truncate">{t("inbox.retryPending")}</span>
+                          </span>
+                        ) : c.handoffAt && (
+                          // 009 (E1c): el motivo a la vista; un fallo del
+                          // proveedor de IA se distingue en rojo.
+                          <span
+                            title={t("inbox.handoff")}
+                            className={cn(
+                              "inline-flex min-w-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[11px]",
+                              c.handoffReason === "error"
+                                ? "border-danger-soft bg-danger-tint text-danger-text"
+                                : "border-warning-soft bg-warning-tint text-warning-text"
+                            )}
+                          >
+                            {c.handoffReason === "error" ? (
+                              <AlertTriangle className="h-3 w-3 shrink-0" strokeWidth={1.8} />
+                            ) : (
+                              <UserRound className="h-3 w-3 shrink-0" strokeWidth={1.7} />
+                            )}
+                            <span className="truncate">{handoffLabel(c.handoffReason, t)}</span>
                           </span>
                         )}
                       </span>
