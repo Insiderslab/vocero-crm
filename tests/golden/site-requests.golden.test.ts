@@ -7,7 +7,10 @@ import { revokeSiteKey, rotateSiteKey, setAllowedOrigins } from "@/server/site-r
 import { MAX_BODY_BYTES, SITE_IP_LIMIT } from "@/server/site-requests/validation";
 import { API_KEY_SCOPES } from "@/server/api-keys";
 import { waFixture } from "./fixtures/whatsapp";
-import { aiWillReply, conversationIdOf, postWebhook, recordedRequests, settle } from "./harness";
+import { aiWillFail, aiWillReply, conversationIdOf, postWebhook, recordedRequests, settle } from "./harness";
+import { getDashboardSummary } from "@/server/dashboard/summary";
+import { pendingAgentRetries } from "@/server/ai/pipeline";
+import { setTimeout as sleep } from "node:timers/promises";
 import { ORG_A, ORG_B } from "./setup";
 
 // IA configurada (proveedor sintético) y sin espera de coalesce, como
@@ -16,6 +19,7 @@ vi.hoisted(() => {
   process.env.OPENROUTER_API_TOKEN = "sk-or-golden-synthetic-token";
   process.env.OPENROUTER_MODEL = "golden/modelo-sintetico";
   process.env.AGENT_COALESCE_MS = "0";
+  process.env.AGENT_RETRY_MS = "300";
 });
 
 /**
@@ -658,5 +662,61 @@ describe("008 export de mensajes", () => {
     ).text();
     expect(csv.split("\n")[0]).toContain("canal");
     expect(csv).toContain("web");
+  });
+});
+
+describe("008 Sintesi: las solicitudes web no entran en las métricas de WhatsApp", () => {
+  const ago = (m: number) => new Date(Date.now() - m * 60_000).toISOString();
+  async function msg(id: string, cv: string, direction: "in" | "out", minutesAgo: number, channel: "web" | "whatsapp") {
+    await sql()`
+      insert into message (id, organization_id, conversation_id, direction, created_at, channel, status)
+      values (${id}, ${ORG_A}, ${cv}, ${direction}, ${ago(minutesAgo)}::timestamp, ${channel}, 'sent')`;
+  }
+
+  it("primera respuesta, IA/persona y andamento solo con WhatsApp", async () => {
+    for (const k of ["s1", "s2"]) {
+      await sql()`insert into contact (id, organization_id, wa_identity, name) values (${`ct_${k}`}, ${ORG_A}, ${`5800000${k}`}, ${k})`;
+      await sql()`insert into conversation (id, organization_id, contact_id) values (${`cv_${k}`}, ${ORG_A}, ${`ct_${k}`})`;
+    }
+    // s1: solicitud web (-60), luego WhatsApp (-30), persona contesta (-20) → 10 min, no 40.
+    await msg("m1", "cv_s1", "in", 60, "web");
+    await msg("m2", "cv_s1", "in", 30, "whatsapp");
+    await msg("m3", "cv_s1", "out", 20, "whatsapp");
+    // s2: solo solicitud web (-120); el equipo escribe con plantilla (-10): no es «primera respuesta».
+    await msg("m4", "cv_s2", "in", 120, "web");
+    await msg("m5", "cv_s2", "out", 10, "whatsapp");
+
+    const s = await getDashboardSummary(ORG_A, 7);
+    expect(s.firstResponse).toEqual({ medianMinutes: 10, p90Minutes: 10, answered: 1 });
+    expect(s.outgoing).toEqual({ ai: 0, human: 2 });
+    const total = s.daily.reduce((a, d) => ({ in: a.in + d.inbound, out: a.out + d.outbound }), { in: 0, out: 0 });
+    expect(total).toEqual({ in: 1, out: 2 });
+  });
+});
+
+describe("008 + 009: una solicitud web durante la espera del segundo intento", () => {
+  it("no anula el segundo intento: el cliente de WhatsApp recibe UNA respuesta", async () => {
+    await sql()`
+      insert into agent_profile (id, organization_id, enabled, name, error_reply)
+      values ('agp_site_retry', ${ORG_A}, true, 'Asistente', 'Ahora mismo no puedo responder.')`;
+    aiWillFail(3);
+    aiWillReply('{"action":"reply","text":"¡Hola Ana! Ya estoy de vuelta."}');
+    await postWebhook(waFixture("inbound-text-mx"));
+    const cv = await conversationIdOf(ORG_A, ANA);
+    expect(pendingAgentRetries()).toEqual([cv]);
+
+    expect((await send(form({ phone: "+52 1 55 1234 5678", message: "WEB-DURANTE-ESPERA" }))).status).toBe(202);
+
+    await sleep(350);
+    for (let i = 0; i < 200 && pendingAgentRetries().length > 0; i++) await sleep(10);
+    await settle();
+    const texts = graphCalls()
+      .filter((r) => r.method === "POST" && /\/messages$/.test(r.path))
+      .map((r) => (r.body as { text?: { body?: string } }).text?.body ?? null);
+    expect(texts).toEqual(["¡Hola Ana! Ya estoy de vuelta."]);
+    expect(JSON.stringify(aiCalls().map((c) => c.body))).not.toContain("WEB-DURANTE-ESPERA");
+    const [c] = await sql()<{ handoff_at: Date | null; agent_retry_at: Date | null }[]>`
+      select handoff_at, agent_retry_at from conversation where id = ${cv}`;
+    expect(c).toEqual({ handoff_at: null, agent_retry_at: null });
   });
 });

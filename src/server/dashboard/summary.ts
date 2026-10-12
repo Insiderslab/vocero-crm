@@ -19,6 +19,15 @@ import { scoped } from "@/lib/db/tenant";
  * segunda posición: quedan anotados como candidatos en el registro de trabajo;
  * aquí no se crea ninguna migración.
  *
+ * 008 — Las solicitudes del formulario del sitio (`message.channel = 'web'`)
+ * NO entran en estas métricas: son métricas de la conversación de WhatsApp.
+ * Una solicitud web no abre la ventana de 24 h y el equipo la contesta muchas
+ * veces fuera del CRM (teléfono, email): contarla como «primer entrante»
+ * adelantaría el inicio del reloj de la primera respuesta del cliente que
+ * luego escribe por WhatsApp, y en el andamento mezclaría dos canales en la
+ * misma línea de «entrantes». IA/persona solo cuenta salientes (nunca `web`):
+ * el filtro es simétrico y a prueba de futuro.
+ *
  * Zona horaria: las columnas son `timestamp` sin zona y Drizzle guarda la hora
  * UTC; el período se compara en UTC y el andamento se agrupa por día UTC.
  */
@@ -120,6 +129,7 @@ export async function getDashboardSummary(
           join message
             on message.conversation_id = conversation.id
            and message.direction = 'in'
+           and message.channel <> 'web'
           where ${conversationScope}
             and ${messageScope}
             and message.created_at >= ${sinceSql}::timestamp
@@ -131,6 +141,7 @@ export async function getDashboardSummary(
           join message
             on message.conversation_id = first_in.id
            and message.direction = 'out'
+           and message.channel <> 'web'
            and message.status <> 'failed'
            -- 009: la cortesía automática (origin = 'system') no es una respuesta.
            and message.origin <> 'system'
@@ -163,6 +174,7 @@ export async function getDashboardSummary(
         where ${conversationScope}
           and ${messageScope}
           and message.direction = 'out'
+          and message.channel <> 'web'
           and message.created_at >= ${sinceSql}::timestamp
         group by message.ai_generated
       `),
@@ -196,6 +208,7 @@ export async function getDashboardSummary(
         join conversation on conversation.id = message.conversation_id
         where ${conversationScope}
           and ${messageScope}
+          and message.channel <> 'web'
           and message.created_at >= ${sinceSql}::timestamp
         group by 1
         order by 1

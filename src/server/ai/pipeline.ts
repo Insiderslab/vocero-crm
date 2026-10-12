@@ -283,13 +283,17 @@ export async function fireAgentRetry(
   const conversation = rows[0];
   if (!conversation?.agentRetryAt) return "nothing";
 
+  // 008: una solicitud del sitio (`web`) no es un entrante de WhatsApp ni una
+  // respuesta: no invalida el segundo intento (si contara como «entrante
+  // distinto», el segundo intento no hablaría y nadie respondería al cliente).
   const newest = await db
     .select({ id: schema.message.id, direction: schema.message.direction })
     .from(schema.message)
     .where(
       and(
         eq(schema.message.organizationId, conversation.organizationId),
-        eq(schema.message.conversationId, conversationId)
+        eq(schema.message.conversationId, conversationId),
+        ne(schema.message.channel, "web")
       )
     )
     .orderBy(...MESSAGE_CHRONOLOGY_DESC)
