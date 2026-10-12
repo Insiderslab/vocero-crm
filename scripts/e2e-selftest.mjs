@@ -1069,8 +1069,17 @@ async function usabilitySection() {
   // (a) Proveedor intermitente: el turno falla, el SEGUNDO intento responde.
   const FLAKY = "393470009001";
   await inbound(FLAKY, "Intermitente E2E", "mock-proveedor-intermitente ciao", "wamid.e2e.009.flaky.1");
-  await sleep(2500);
-  const flakyPending = await convOf(FLAKY);
+  // Se espera al PRIMER fallo (handoff provisional) en vez de un tiempo fijo:
+  // con `next dev` una ruta descartada por inactividad se recompila (varios
+  // segundos) y 2,5 s fijos no bastaban (visto al añadir 008). El segundo
+  // intento llega AGENT_RETRY_MS (4 s) DESPUÉS del fallo, así que mirar en
+  // cuanto aparece la marca sigue probando «aún sin respuesta».
+  let flakyPending = null;
+  for (let i = 0; i < 40; i++) {
+    await sleep(250);
+    flakyPending = await convOf(FLAKY);
+    if (flakyPending?.handoffReason === "error") break;
+  }
   ok(
     "tras el primer fallo: aún sin respuesta; handoff provisional con segundo intento pendiente",
     (await outboxTo(FLAKY)).length === 0 && flakyPending?.handoffReason === "error" && Boolean(flakyPending?.agentRetryAt),
