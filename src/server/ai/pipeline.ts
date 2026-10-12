@@ -408,10 +408,12 @@ export async function runAgentTurn(
   // pendiente. Un turno normal (entrante nuevo) o manual se queda con él —
   // reclamando la marca de forma atómica — y responde.
   if (!conversation.aiEnabled) return;
+  let retryAlreadyPending = false;
   if (conversation.handoffAt) {
     if (!conversation.agentRetryAt || mode === "retry") return;
     cancelAgentRetry(conversationId);
     if (!(await claimAgentRetry(conversationId))) return;
+    retryAlreadyPending = true;
     conversation.handoffAt = null;
     conversation.handoffReason = null;
     conversation.agentRetryAt = null;
@@ -513,6 +515,7 @@ export async function runAgentTurn(
       mode,
       isTest: conversation.isTest,
       retryDelayMs: getEnv().AGENT_RETRY_MS,
+      retryAlreadyPending,
     });
     if (decision === "retry_later" && (await armAgentRetry(conversation, lastInbound.id))) {
       console.warn(

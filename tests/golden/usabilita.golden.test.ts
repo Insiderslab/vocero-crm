@@ -239,6 +239,26 @@ describe("E1a — segundo intento (persistido)", () => {
     expect(c.agent_retry_at).toBeNull();
   });
 
+  it("escenario C: falla otra vez con el segundo intento pendiente → escala YA, sin rearmar", async () => {
+    await agentProfile({ errorReply: ERROR_REPLY });
+    aiWillFail(6);
+    await postWebhook(waFixture("inbound-text-mx"));
+    const cv = await conversationIdOf(ORG_A, ANA);
+    expect(pendingAgentRetries()).toEqual([cv]);
+
+    // El cliente insiste durante la espera y el proveedor sigue caído.
+    await postWebhook(waFixture("inbound-text-mx-again"));
+    expect(pendingAgentRetries()).toEqual([]);
+    const c = await conv(cv);
+    expect(c.handoff_reason).toBe("error");
+    expect(c.agent_retry_at).toBeNull();
+    expect(graphTexts()).toEqual([ERROR_REPLY]);
+    expect(recordedSse().filter((e) => e.type === "conversation.handoff")).toHaveLength(1);
+
+    await waitRetries();
+    expect(aiCalls()).toHaveLength(6); // ningún turno más
+  });
+
   it("el operador contesta desde la bandeja durante la espera: fuera la marca, el handoff se queda, el agente no habla", async () => {
     await agentProfile({ errorReply: ERROR_REPLY });
     aiWillFail(3);

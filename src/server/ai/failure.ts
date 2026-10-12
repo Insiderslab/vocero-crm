@@ -31,8 +31,15 @@ export function decideOnFailure(input: {
   mode: TurnMode;
   isTest: boolean;
   retryDelayMs: number;
+  /**
+   * El turno empezó con un segundo intento YA pendiente (lo reclamó al llegar
+   * un entrante nuevo): volver a armar otro aplazaría la escalada con cada
+   * mensaje del cliente, para siempre.
+   */
+  retryAlreadyPending?: boolean;
 }): "retry_later" | "handoff" {
   if (input.error !== "provider_error") return "handoff";
+  if (input.retryAlreadyPending) return "handoff";
   if (input.mode !== "normal") return "handoff";
   if (input.isTest) return "handoff";
   if (input.retryDelayMs <= 0) return "handoff";

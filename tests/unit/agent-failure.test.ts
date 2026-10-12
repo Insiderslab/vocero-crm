@@ -28,6 +28,10 @@ describe("decideOnFailure", () => {
     expect(decideOnFailure({ ...base, isTest: true })).toBe("handoff");
   });
 
+  it("con un segundo intento ya pendiente, otro fallo escala YA (no se rearma)", () => {
+    expect(decideOnFailure({ ...base, retryAlreadyPending: true })).toBe("handoff");
+  });
+
   it("AGENT_RETRY_MS=0 apaga el segundo intento", () => {
     expect(decideOnFailure({ ...base, retryDelayMs: 0 })).toBe("handoff");
   });
