@@ -2,13 +2,13 @@
 
 > Personalizzazione sul fork pubblicato su crm.heili.cloud.
 > **Stato: ✅ IMPLEMENTATA (con una parte bloccata, vedi D1)** (2026-10-11),
-> branch locale `site-leads`, ribasato su `origin/main` @ `0bc731e` (dopo la
-> PR #8, 007).
-> **Corsia: COMPLETA** — migrazione nuova `drizzle/0015_*.sql` (tabella
+> branch locale `site-leads`, ribasato su `origin/main` @ `65f06f3` (dopo le
+> PR #8, #11 e #12).
+> **Corsia: COMPLETA** — migrazione nuova (tabella
 > `site_request_config`, colonna `contact.email`, indice univoco parziale
 > `bot_api_key_site_active_uq`, valore `web` nel CHECK di
-> `message.channel`), rigenerata dopo il merge della PR #8: discende dallo
-> snapshot `0014_bitter_sway`. Registro: `docs/lavoro/2026-10-11-richieste-dal-sito.md`.
+> `message.channel`): **`drizzle/0016_richieste_sito.sql`**, rigenerata dopo il
+> merge della PR #12: discende dallo snapshot `0015_agent_error_reply`. Registro: `docs/lavoro/2026-10-11-richieste-dal-sito.md`.
 
 **Constitution Check**: nessuna dipendenza nuova (II ✔️ — il modulo del sito
 chiama il CRM, il CRM non chiama nessuno); segreti (I ✔️ — della chiave si
@@ -260,6 +260,22 @@ La pagina «Sito web» mostra un modulo HTML e uno script `fetch` da copiare.
   revoked_at IS NULL`), così non arrivano richieste nuove; le richieste già
   presenti restano come testo.
 
+## Sintesi (010) e secondo intento dell'agente (009)
+
+- **Sintesi** (`src/server/dashboard/summary.ts`): le richieste web sono
+  **escluse** da prima risposta, IA/persona e andamento. Motivo: sono
+  metriche della conversazione WhatsApp. Una richiesta web non apre la
+  finestra e spesso si risponde fuori dal CRM (telefono, email): contarla
+  come «primo entrante» anticiperebbe l'orologio della prima risposta del
+  cliente che poi scrive su WhatsApp, e nell'andamento mescolerebbe due
+  canali nella stessa linea. IA/persona conta solo uscenti (mai `web`):
+  filtro simmetrico. Un contatore «richieste dal sito» nella Sintesi è un
+  possibile seguito (non fatto).
+- **Secondo intento (009)**: `fireAgentRetry` e «Riprova» ignorano i
+  messaggi web. Senza, una richiesta web arrivata durante l'attesa contava
+  come «entrante diverso» e il secondo intento non rispondeva più al
+  cliente di WhatsApp.
+
 ## Decisioni aperte
 
 - **D1 — Richieste solo email (BLOCCATA).** Un contatto che non ha telefono
@@ -302,6 +318,6 @@ La pagina «Sito web» mostra un modulo HTML e uno script `fetch` da copiare.
 - E2E (`scripts/e2e-selftest.mjs`, sezione «008-sito»).
 - Sabotaggi: una per guardia (23, tutti visti; elenco nel registro).
 
-**Esito (2026-10-11, dopo il rebase su `0bc731e`):** unità 1167/1167, golden
-132/132 (107 di `main` invariati + 25), E2E 193/193, `tsc`, `eslint`,
+**Esito (2026-10-12, dopo il rebase su `65f06f3`):** unità 1305/1305, golden
+185/185 (148 di `main` + 37 di 008), E2E 226/226, `tsc`, `eslint`,
 `next build` verdi.

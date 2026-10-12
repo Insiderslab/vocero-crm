@@ -154,3 +154,37 @@ Nota di metodo: durante il sabotaggio della correzione 1 un `git checkout` ha ri
 - Il nome verificato sostituisce anche un nome messo dall'operatore **prima** del primo WhatsApp di un contatto `sito` (scelta voluta: il nome del modulo non è affidabile).
 - Il limite per IP vale solo dietro un proxy che riscrive `X-Forwarded-For` (spec, US3 AC4).
 - La cache del preflight è per processo: con più repliche un cambio di origini si vede negli altri processi entro 30 s.
+
+## Aggiornamento — rebase su `65f06f3` (PR #11 Sintesi/Primi passi, PR #12 usabilità)
+
+**Rebase** di `site-leads` (era `e18a76c`; copia locale `backup/site-leads-e18a76c`) su `origin/main` = `65f06f3`. Conflitti risolti:
+1. `drizzle/meta/_journal.json` e `drizzle/meta/0015_snapshot.json` (add/add con la `0015_agent_error_reply` della PR #12), due volte: nel commit `feat(008)` e nel commit dell'indice parziale. In entrambi presi journal e snapshot di `main`, tolta la mia migrazione e **rigenerata come `0016_richieste_sito`** (`drizzle-kit generate --name richieste_sito`): `when` nuovo e maggiore di quello della 0015, `prevId` dello snapshot 0016 = id dello snapshot 0015, journal `0014 → 0015 → 0016`. Riapplicati a mano `SET LOCAL lock_timeout`, lo scambio NOT VALID del CHECK e (nel secondo) l'indice `bot_api_key_site_active_uq`. Un secondo `generate`: «No schema changes». La `0015_agent_error_reply` è identica a quella di `main`.
+2. `src/lib/types.ts`: `origin` di `main` con `"system"` + il mio `channel?: "web"`.
+3. `src/server/ai/pipeline.ts`: import uniti; la query della cronologia tiene `ne(channel, 'web')` **e** l'ordine deterministico `MESSAGE_CHRONOLOGY_DESC` della PR #12. Restano la lista di accesso (007), l'esclusione web prima del LIMIT, il secondo filtro sull'ultimo entrante e la logica di secondo intento/marca (`retryStillValid`, `answeredSinceLastInbound`).
+
+**Dopo il rebase (commit nuovi):**
+- `fix(008): … Sintesi e secondo intento`:
+  - `summary.ts`: `channel <> 'web'` in primo entrante e uscente della prima risposta, IA/persona e andamento (decisione e motivazione nella spec, § «Sintesi (010) e secondo intento»);
+  - **trovato nel rebase:** `fireAgentRetry` leggeva l'ultimo messaggio senza escludere i web. Una richiesta dal sito durante l'attesa contava come «entrante diverso»: il secondo intento non rispondeva più e la marca restava. Ora esclude i web, come «Riprova» (`manual-retry.ts`).
+  - Golden: Sintesi (web −60, WhatsApp −30, persona −20 → 10 min, non 40; una conversazione solo-web non conta; andamento con 1 entrante); secondo intento con una richiesta web nel mezzo → una risposta, marca e handoff puliti.
+- `fix(008): etichette … chiavi i18n complete`: il test `i18n-keys` della PR #12 vieta le chiavi relative in `t("…")`; ora il formattatore usa `t("inbox.siteRequest.title")` ecc.
+- `test(e2e): 009 aspetta il primo fallimento`. Il controllo E1 di 009 (dopo 2,5 s fissi) falliva sul branch 4 volte su 4; su `origin/main` alla stessa ora passava (200/200). Il log mostra che `next dev` scartava e ricompilava il webhook e l'ai-mock proprio lì (4–7 s): con le rotte nuove di 008 il buffer delle pagine compilate gira di più. Spostare la sezione 008 dopo la 009 non bastava. Ora si aspetta la comparsa della marca, in modo attivo, fino a 10 s. Il controllo è lo stesso: nessuna risposta e handoff provvisorio; il secondo intento arriva 4 s dopo il fallimento.
+
+**Gate:**
+- `tsc` ed `eslint`: verdi
+- unità: **1305/1305** (82 file)
+- golden su base nuova `vocero_golden_web5`: **185/185** (148 di `main` + 37 di 008); `git diff origin/main -- tests/golden/__golden__` vuoto
+- `next build`: verde
+- E2E su base nuova `vocero_web_e2e8`: **226/226** (008-sito 26/26); poi V1–V6 = 0, runner riavviato V1–V7 = 0, nessuna «doppia scrittura … fallita» e nessuna `vsk_` nel log
+
+**Sabotaggi (tutti ripristinati, albero pulito):**
+
+| Sabotaggio | Risultato |
+|---|---|
+| lista di accesso tolta | golden 007: 4 rossi |
+| guardia web tolta (query + `find`) | golden 008: 3 rossi |
+| Sintesi senza esclusione web nel primo entrante | golden 008: 1 rosso |
+| Sintesi senza esclusione web nell'andamento | golden 008: 1 rosso |
+| `fireAgentRetry` senza esclusione web | golden 008: 1 rosso |
+
+**Incidente da segnalare:** la cartella scratch della sessione è condivisa con un altro agente, che aveva riscritto il mio `e2e.env`. Una volta il runner di migrazione è partito con quel file e ha applicato la mia `0016` a **`vocero_ux_e2e_r2`**, una base E2E locale e usa e getta dell'altro lavoro (nessun dato reale, nessuna base di produzione). Da lì in poi ho usato un file mio (`site008/site-e2e.env`).
