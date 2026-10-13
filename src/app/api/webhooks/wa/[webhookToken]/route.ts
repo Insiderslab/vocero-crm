@@ -7,6 +7,7 @@ import {
 import {
   checkSignature,
   isValidWebhookToken,
+  readBodyCapped,
   safeEqual,
   type WebhookPayload,
 } from "@/server/inbox/webhook";
@@ -83,7 +84,10 @@ export async function POST(req: Request, { params }: Params) {
   const missing = secretMissingResponse(env.META_APP_SECRET);
   if (missing) return missing;
 
-  const rawBody = await req.text();
+  // Bytes crudos con tope (413) ANTES del HMAC; la firma se calcula sobre
+  // esos bytes y solo después se decodifican como UTF-8 (sin BOM) para el JSON.
+  const rawBody = await readBodyCapped(req);
+  if (!rawBody) return new Response(null, { status: 413 });
   const check = checkSignature(
     rawBody,
     req.headers.get("x-hub-signature-256"),
@@ -97,7 +101,7 @@ export async function POST(req: Request, { params }: Params) {
 
   let payload: WebhookPayload;
   try {
-    payload = JSON.parse(rawBody) as WebhookPayload;
+    payload = JSON.parse(new TextDecoder("utf-8").decode(rawBody)) as WebhookPayload;
   } catch {
     // body ilegible: 200 igualmente (Meta reintenta y termina desactivando)
     return Response.json({ received: true });

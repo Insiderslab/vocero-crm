@@ -386,3 +386,95 @@ describe("handshake GET: verify token comparado en tiempo constante", () => {
     expect(get).not.toMatch(/env\.META_WEBHOOK_VERIFY_TOKEN\s*[!=]==?\s*token/);
   });
 });
+
+describe("cuerpo: tope de 5 MB antes del HMAC y firma sobre los bytes crudos", () => {
+  const MB = 1024 * 1024;
+
+  function postStream(
+    routes: Awaited<ReturnType<typeof loadRoutes>>,
+    body: ReadableStream<Uint8Array>,
+    headers: Record<string, string> = {}
+  ) {
+    return routes.webhook.POST(
+      new Request(`https://crm.example.com/api/webhooks/wa/${VERIFY_TOKEN}`, {
+        method: "POST",
+        headers: { "content-type": "application/json", ...headers },
+        body,
+        duplex: "half",
+      } as RequestInit),
+      { params: Promise.resolve({ webhookToken: VERIFY_TOKEN }) }
+    );
+  }
+
+  it("content-length declarado > 5 MB → 413 sin leer ni un byte", async () => {
+    const routes = await loadRoutes({ nodeEnv: "production", secret: APP_SECRET });
+    let pulls = 0;
+    const body = new ReadableStream<Uint8Array>({
+      pull(c) {
+        pulls++;
+        c.enqueue(new TextEncoder().encode(payloadParaB));
+        c.close();
+      },
+    });
+    const res = await postStream(routes, body, {
+      "content-length": String(5 * MB + 1),
+      "x-hub-signature-256": sign(payloadParaB, APP_SECRET),
+    });
+    await settled();
+    expect(res.status).toBe(413);
+    expect(pulls).toBeLessThanOrEqual(1); // el stream puede pre-cargar un trozo, nunca leerse entero
+    expect(state.ingested).toEqual([]);
+  });
+
+  it("sin content-length (chunked) se corta al pasar los 5 MB: un stream infinito no cuelga → 413", async () => {
+    const routes = await loadRoutes({ nodeEnv: "production", secret: APP_SECRET });
+    let pulled = 0;
+    let cancelled = false;
+    const body = new ReadableStream<Uint8Array>({
+      pull(c) {
+        pulled += MB;
+        c.enqueue(new Uint8Array(MB).fill(0x20));
+      },
+      cancel() {
+        cancelled = true;
+      },
+    });
+    const res = await postStream(routes, body, { "x-hub-signature-256": "sha256=00" });
+    await settled();
+    expect(res.status).toBe(413);
+    expect(cancelled).toBe(true);
+    expect(pulled).toBeLessThanOrEqual(8 * MB);
+    expect(state.ingested).toEqual([]);
+  });
+
+  it("BOM al inicio: la firma de Meta sobre los bytes crudos verifica y el JSON se lee → 200", async () => {
+    const routes = await loadRoutes({ nodeEnv: "production", secret: APP_SECRET });
+    const bytes = Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from(payloadParaB, "utf8")]);
+    const signature = `sha256=${createHmac("sha256", APP_SECRET).update(bytes).digest("hex")}`;
+    const body = new ReadableStream<Uint8Array>({
+      start(c) {
+        c.enqueue(new Uint8Array(bytes));
+        c.close();
+      },
+    });
+    const res = await postStream(routes, body, { "x-hub-signature-256": signature });
+    await settled();
+    expect(res.status).toBe(200);
+    expect(state.ingested).toHaveLength(1);
+  });
+
+  it("BOM al inicio firmado sobre el texto SIN BOM (no lo que llegó) → 401", async () => {
+    const routes = await loadRoutes({ nodeEnv: "production", secret: APP_SECRET });
+    const bytes = Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from(payloadParaB, "utf8")]);
+    const body = new ReadableStream<Uint8Array>({
+      start(c) {
+        c.enqueue(new Uint8Array(bytes));
+        c.close();
+      },
+    });
+    const res = await postStream(routes, body, { "x-hub-signature-256": sign(payloadParaB, APP_SECRET) });
+    await settled();
+    expect(res.status).toBe(401);
+    expect(state.ingested).toEqual([]);
+  });
+});

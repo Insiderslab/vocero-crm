@@ -27,15 +27,19 @@ export function isValidWebhookToken(
  * del gate de pruebas), nunca esta primitiva.
  */
 export function isValidSignature(
-  rawBody: string,
+  rawBody: string | Uint8Array,
   signatureHeader: string | null,
   appSecret: string | undefined
 ): boolean {
   if (!appSecret?.trim()) return false;
   if (!signatureHeader?.startsWith("sha256=")) return false;
-  const expected = createHmac("sha256", appSecret)
-    .update(rawBody, "utf8")
-    .digest("hex");
+  // Meta firma los BYTES tal cual llegan: la ruta pasa el Buffer crudo (un
+  // BOM o un byte no UTF-8 cambiarían el resultado si se firmara el texto ya
+  // decodificado). Un string se firma como UTF-8.
+  const hmac = createHmac("sha256", appSecret);
+  if (typeof rawBody === "string") hmac.update(rawBody, "utf8");
+  else hmac.update(rawBody);
+  const expected = hmac.digest("hex");
   return safeEqual(signatureHeader.slice("sha256=".length), expected);
 }
 
@@ -60,7 +64,7 @@ export type SignatureCheck =
  * `allowUnsigned` llega como argumento para que el módulo siga puro.
  */
 export function checkSignature(
-  rawBody: string,
+  rawBody: string | Uint8Array,
   signatureHeader: string | null,
   appSecret: string | undefined,
   allowUnsigned: boolean
@@ -71,6 +75,42 @@ export function checkSignature(
   return isValidSignature(rawBody, signatureHeader, appSecret)
     ? { ok: true }
     : { ok: false, reason: "invalid_signature" };
+}
+
+/**
+ * Tope del cuerpo del webhook, aplicado ANTES de calcular el HMAC: sin él,
+ * cualquiera que conozca la URL podía hacer leer y firmar cuerpos enormes.
+ * Los lotes de Meta pesan KB; el historial de coexistence algo más, muy por
+ * debajo de 5 MB. Caddy corta antes, a 10 MB.
+ */
+export const MAX_WEBHOOK_BODY_BYTES = 5 * 1024 * 1024;
+
+/**
+ * Lee el cuerpo crudo con tope. `null` = demasiado grande (→ 413): por un
+ * `content-length` declarado mayor que el tope (sin leer nada) o, si no hay
+ * cabecera (chunked), en cuanto lo leído la supera (se cancela el stream).
+ */
+export async function readBodyCapped(
+  req: Request,
+  max: number = MAX_WEBHOOK_BODY_BYTES
+): Promise<Buffer | null> {
+  const declared = req.headers.get("content-length");
+  if (declared !== null && Number(declared) > max) return null;
+  if (!req.body) return Buffer.alloc(0);
+  const reader = req.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > max) {
+      await reader.cancel().catch(() => {});
+      return null;
+    }
+    chunks.push(value);
+  }
+  return Buffer.concat(chunks, total);
 }
 
 /* ---------- Tipos del payload de Meta (subconjunto soportado) ---------- */

@@ -1,6 +1,13 @@
 # HTTPS automático con el dominio de la variable DOMAIN.
 # Para pruebas locales usa DOMAIN=localhost (certificado interno).
 {$DOMAIN} {
+	# Webhooks públicos: tope del cuerpo en el proxy (la app corta a 5 MB
+	# antes de calcular la firma; esto frena antes los abusos groseros).
+	@webhooks path /api/webhooks/*
+	request_body @webhooks {
+		max_size 10MB
+	}
+
 	reverse_proxy app:3000 {
 		# SSE: sin buffering ni timeouts cortos en el proxy
 		flush_interval -1

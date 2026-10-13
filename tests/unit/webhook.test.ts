@@ -97,3 +97,25 @@ describe("safeEqual", () => {
     expect(safeEqual("a", "aa")).toBe(false);
   });
 });
+
+describe("readBodyCapped", () => {
+  const req = (body: string, headers: Record<string, string> = {}) =>
+    new Request("https://x.test/", { method: "POST", body, headers });
+
+  it("hasta el tope exacto devuelve los bytes; un byte más → null", async () => {
+    const { readBodyCapped } = await import("@/server/inbox/webhook");
+    expect((await readBodyCapped(req("0123456789"), 10))?.toString()).toBe("0123456789");
+    expect(await readBodyCapped(req("0123456789A"), 10)).toBeNull();
+  });
+
+  it("content-length declarado mayor que el tope → null aunque el cuerpo sea corto", async () => {
+    const { readBodyCapped } = await import("@/server/inbox/webhook");
+    expect(await readBodyCapped(req("abc", { "content-length": "11" }), 10)).toBeNull();
+  });
+
+  it("devuelve bytes crudos (BOM incluido)", async () => {
+    const { readBodyCapped } = await import("@/server/inbox/webhook");
+    const out = await readBodyCapped(req("﻿{}"), 100);
+    expect([...out!.subarray(0, 3)]).toEqual([0xef, 0xbb, 0xbf]);
+  });
+});
