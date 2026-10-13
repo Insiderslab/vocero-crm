@@ -28,6 +28,21 @@ export type Currency = (typeof CURRENCIES)[number];
 
 export const DEFAULT_CURRENCY: Currency = "MXN";
 
+/**
+ * 009 (E2) — Moneda con la que nace una organización según el idioma de
+ * quien la crea. Solo lo que es razonable deducir: italiano → euro. El resto
+ * conserva el default de la instancia. Es un dato de la organización (se
+ * guarda al crearla y se cambia en Ajustes → Marca): NUNCA depende del idioma
+ * de quien mira, o el mismo tablero sumaría distinto en cada pantalla.
+ */
+const CURRENCY_BY_LOCALE: Partial<Record<string, Currency>> = {
+  it: "EUR",
+};
+
+export function defaultCurrencyFor(locale: string | null | undefined): Currency {
+  return (locale && CURRENCY_BY_LOCALE[locale]) || DEFAULT_CURRENCY;
+}
+
 export function isCurrency(v: unknown): v is Currency {
   return typeof v === "string" && (CURRENCIES as readonly string[]).includes(v);
 }

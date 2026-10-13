@@ -58,3 +58,40 @@ export function nextLocale(current: Locale): Locale {
   const i = LOCALES.indexOf(current);
   return LOCALES[(i + 1) % LOCALES.length]!;
 }
+
+/**
+ * 009 (E2) — Idioma de una petición SIN `next/headers` (p. ej. un hook de
+ * Better Auth, que recibe las cabeceras a mano): cookie de idioma válida;
+ * si no, Accept-Language; si no, default. Nunca lanza.
+ */
+export function localeFromHeaders(headers: Headers | null | undefined): Locale {
+  if (!headers) return DEFAULT_LOCALE;
+  const cookie = headers.get("cookie") ?? "";
+  for (const part of cookie.split(";")) {
+    const [name, ...rest] = part.trim().split("=");
+    if (name !== LOCALE_COOKIE) continue;
+    let value = rest.join("=");
+    try {
+      value = decodeURIComponent(value);
+    } catch {
+      // valor mal codificado: se ignora
+    }
+    if ((LOCALES as readonly string[]).includes(value)) return value as Locale;
+  }
+  return negotiateLocale(headers.get("accept-language"));
+}
+
+/**
+ * 009 (E2) — Etiqueta BCP 47 para `Intl` (fechas, horas, dinero) en el idioma
+ * de la interfaz. Antes las fechas iban cableadas a "es-MX" ("9 de octubre"
+ * en una interfaz en italiano).
+ */
+export const INTL_LOCALES: Record<Locale, string> = {
+  es: "es-MX",
+  en: "en-US",
+  it: "it-IT",
+};
+
+export function intlLocale(locale: Locale): string {
+  return INTL_LOCALES[locale] ?? INTL_LOCALES[DEFAULT_LOCALE];
+}

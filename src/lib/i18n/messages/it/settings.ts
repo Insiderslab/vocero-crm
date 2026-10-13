@@ -123,6 +123,7 @@ const messages: typeof base = {
     utilityOption: "UTILITY (follow-up)",
     bodyLabel: "Corpo",
     bodyPlaceholder: "Ciao {{1}}, ti confermo la tua sessione il {{2}} alle {{3}}.",
+    namePlaceholder: "conferma_appuntamento",
     variableOne: "1 variabile: all'invio ne verrà chiesto il valore.",
     variableMany: "{{count}} variabili: all'invio verranno chiesti i {{count}} valori.",
     createError: "Impossibile creare il modello",

@@ -22,6 +22,15 @@ const messages: typeof base = {
   report: "Report",
   failed: "L'esecuzione è fallita: {{error}}. Riprova.",
   unknownError: "errore sconosciuto",
+  /** 009 (E2): nombre de cada persona en el idioma de la interfaz. */
+  personas: {
+    comprador_decidido: "Acquirente deciso",
+    pregunton_precios: "Cacciatore di prezzi",
+    cliente_enojado: "Cliente arrabbiato",
+    fuera_de_kb: "Domanda fuori dalla conoscenza",
+    pide_humano: "Chiede una persona",
+    errores_modismos: "Errori e modi di dire",
+  },
   verdicts: {
     verde: "Verdi",
     amarillo: "Gialli",

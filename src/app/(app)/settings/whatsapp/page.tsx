@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { WapiKeyCard } from "@/components/settings/wapi-key-card";
 import { WhatsappWizard } from "@/components/settings/whatsapp-wizard";
 import { getSessionOrNull } from "@/lib/auth/session";
@@ -9,8 +10,8 @@ export const dynamic = "force-dynamic";
 export default async function WhatsappSettingsPage() {
   // La API ya exige owner/admin; aquí además no se pinta nada para el resto.
   const session = await getSessionOrNull();
+  const { t } = await getT();
   if (!session || !canManageWhatsapp(session.role)) {
-    const { t } = await getT();
     return (
       <p className="max-w-2xl text-sm text-muted-foreground">
         {t("settings.whatsapp.forbidden")}
@@ -21,6 +22,16 @@ export default async function WhatsappSettingsPage() {
     <div className="max-w-3xl space-y-6">
       <WhatsappWizard />
       <WapiKeyCard />
+      {/* 010 — reabrir la checklist «Primi passi» cuando ya está completa. */}
+      <p className="text-sm text-muted-foreground">
+        {t("onboarding.reopenDescription")}{" "}
+        <Link
+          href="/dashboard?primi-passi=1"
+          className="font-medium text-brand-text underline-offset-2 hover:underline"
+        >
+          {t("onboarding.reopen")}
+        </Link>
+      </p>
     </div>
   );
 }

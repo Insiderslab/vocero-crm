@@ -7,6 +7,8 @@ export type ConversationDto = {
   aiEnabled: boolean;
   handoffAt: string | null;
   handoffReason: string | null;
+  /** 009 (E1): el agente reintentará a esta hora (handoff `error` provisional). */
+  agentRetryAt?: string | null;
   lastInboundAt: string | null;
   lastMessageAt: string | null;
   unreadCount: number;
@@ -46,7 +48,7 @@ export type MessageDto = {
   error: string | null;
   aiGenerated: boolean;
   /** 008 — Origen del saliente (en entrantes viene 'operator' y se ignora). */
-  origin: "ai" | "operator" | "manual" | "template";
+  origin: "ai" | "operator" | "manual" | "template" | "system";
   media: MessageMediaDto | null;
   createdAt: string;
 };

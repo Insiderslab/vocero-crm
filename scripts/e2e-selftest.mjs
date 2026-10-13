@@ -958,6 +958,12 @@ async function main() {
 
   await webhookSignatureSection();
 
+  await sintesiSection();
+
+  await teamAssistantSection();
+
+  await usabilitySection();
+
   // Al final a propósito: el Embedded Signup cambia el número de la org.
   await coexistenceSection();
 
@@ -1025,6 +1031,384 @@ async function webhookSignatureSection() {
   await sleep(1200);
   convs = (await api("/api/conversations")).json?.conversations ?? [];
   ok("el evento firmado sí llega a la bandeja", convs.some((c) => c.contact.name === "Firmado E2E"));
+}
+
+/**
+ * 010 — Sintesi (specs/custom-heili/010-sintesi-e-primo-avvio.md): la rotta de
+ * agregados con la sesión del operador (organización A, que a esta altura ya
+ * tiene mensajes de las secciones anteriores), el período en lista blanca y sin
+ * sesión 401. El rol member y «Primi passi» se prueban en la sección 007, con
+ * las cuentas de B.
+ */
+async function sintesiSection() {
+  console.log("\n== 010: Sintesi ==");
+  const s30 = await api("/api/dashboard/summary?days=30");
+  const j = s30.json;
+  ok(
+    "010: GET summary 30 días → 200 con todos los bloques",
+    s30.res.ok &&
+      j?.days === 30 &&
+      Array.isArray(j?.stages) &&
+      Array.isArray(j?.handoffs) &&
+      Array.isArray(j?.daily) &&
+      typeof j?.outgoing?.ai === "number" &&
+      typeof j?.conversions?.won === "number" &&
+      "medianMinutes" in (j?.firstResponse ?? {}),
+    JSON.stringify(j)
+  );
+  const inbound = (j?.daily ?? []).reduce((n, p) => n + p.inbound, 0);
+  ok("010: el andamento ve los entrantes de esta corrida (> 0)", inbound > 0, JSON.stringify(j?.daily));
+  ok(
+    "010: los días vienen como YYYY-MM-DD (UTC) y en orden",
+    (j?.daily ?? []).every((p, i, a) => /^\d{4}-\d{2}-\d{2}$/.test(p.date) && (i === 0 || a[i - 1].date < p.date)),
+    JSON.stringify(j?.daily)
+  );
+  ok("010: sin days → 30 por defecto", (await api("/api/dashboard/summary")).json?.days === 30);
+  for (const bad of ["8", "0", "abc", "30%3B%20drop%20table%20message", "-30", "1e9"]) {
+    const r = await api(`/api/dashboard/summary?days=${bad}`);
+    ok(`010: days=${decodeURIComponent(bad)} → 422`, r.res.status === 422 && r.json?.error?.code === "invalid_days", JSON.stringify(r.json));
+  }
+  const anon = await fetch(`${BASE}/api/dashboard/summary?days=30`, { headers: { origin: BASE } });
+  ok("010: summary sin sesión → 401", anon.status === 401);
+}
+
+/**
+ * 009 — Usabilidad P1 (specs/custom-heili/009-usabilita-p1.md).
+ * E1: proveedor de IA caído (ai-mock con «mock-proveedor-*»): segundo intento,
+ * handoff `error`, cortesía una vez, evento SSE `conversation.handoff` y
+ * «Riprova risposta IA». E2: la organización del registro nace en el idioma
+ * de quien se registra (sin cookie ni Accept-Language → default `it`).
+ * E4: orden del hilo. E9: título de la pestaña.
+ * Necesita AGENT_RETRY_MS corto (p. ej. 4000) para no esperar el minuto.
+ * Deja el agente apagado y sin texto de cortesía, como estaba.
+ */
+async function usabilitySection() {
+  console.log("\n== 009: usabilità — E9 título, E2 idioma de la organización ==");
+  const loginHtml = await (await fetch(`${BASE}/login`)).text();
+  const title = /<title>([^<]*)<\/title>/.exec(loginHtml)?.[1] ?? "";
+  ok("E9: el título de la pestaña ya no es la llave cruda", title.endsWith("— WhatsApp") && !title.includes("meta."), title);
+
+  const board = (await api("/api/pipeline/board")).json;
+  const stageNames = (board?.stages ?? []).map((s) => s.name);
+  ok(
+    "E2: el registro sin idioma explícito siembra las etapas en el default (it)",
+    JSON.stringify(stageNames) === JSON.stringify(["Nuovo", "In conversazione", "Interessato", "Cliente", "Perso"]),
+    JSON.stringify(stageNames)
+  );
+  ok("E2: moneda de la organización nueva = EUR (italiano)", board?.currency === "EUR", String(board?.currency));
+
+  console.log("\n== 009: E1 — proveedor de IA caído ==");
+  const ERROR_REPLY = "Al momento non riesco a rispondere; ti scrive una persona del team (e2e).";
+  const prof = (body) => api("/api/agent/profile", { method: "PUT", body: JSON.stringify(body) });
+  const put = await prof({ enabled: true, errorReply: `  ${ERROR_REPLY}  ` });
+  ok("cortesía guardada (recortada) y agente encendido", put.res.ok, JSON.stringify(put.json));
+  const got = (await api("/api/agent/profile")).json;
+  ok("GET del perfil devuelve errorReply", got?.profile?.errorReply === ERROR_REPLY, JSON.stringify(got?.profile));
+
+  // SSE: se escucha el canal de la organización mientras pasa todo.
+  const sse = { text: "" };
+  const sseAbort = new AbortController();
+  void fetch(`${BASE}/api/events`, { headers: { cookie }, signal: sseAbort.signal })
+    .then(async (res) => {
+      const reader = res.body.getReader();
+      const dec = new TextDecoder();
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        sse.text += dec.decode(value);
+      }
+    })
+    .catch(() => null);
+  await sleep(300);
+
+  await api("/api/dev/wa-mock/outbox", { method: "DELETE" });
+  const inbound = (from, name, text, id) =>
+    api("/api/dev/wa-mock/inbound", {
+      method: "POST",
+      body: JSON.stringify({ phoneNumberId: PN, from, name, text, waMessageId: id }),
+    });
+  const outboxTo = async (to) =>
+    ((await api("/api/dev/wa-mock/outbox")).json?.outbox ?? []).filter((o) => o.to === to);
+  const convOf = async (phone) =>
+    ((await api("/api/conversations")).json?.conversations ?? []).find((c) => c.contact.phone === phone);
+
+  // (a) Proveedor intermitente: el turno falla, el SEGUNDO intento responde.
+  const FLAKY = "393470009001";
+  await inbound(FLAKY, "Intermitente E2E", "mock-proveedor-intermitente ciao", "wamid.e2e.009.flaky.1");
+  await sleep(2500);
+  const flakyPending = await convOf(FLAKY);
+  ok(
+    "tras el primer fallo: aún sin respuesta; handoff provisional con segundo intento pendiente",
+    (await outboxTo(FLAKY)).length === 0 && flakyPending?.handoffReason === "error" && Boolean(flakyPending?.agentRetryAt),
+    JSON.stringify(flakyPending)
+  );
+  const handoffEvents = () =>
+    sse.text.split("\n\n").filter((b) => b.startsWith("event: conversation.handoff"));
+  ok("…y sin aviso todavía", !handoffEvents().some((b) => b.includes(`"conversationId":"${flakyPending?.id}"`)));
+  for (let i = 0; i < 40 && (await outboxTo(FLAKY)).length === 0; i++) await sleep(500);
+  await sleep(1500);
+  const flakyOut = await outboxTo(FLAKY);
+  ok(
+    "el segundo intento responde UNA vez (sin cortesía ni handoff)",
+    flakyOut.length === 1 && flakyOut[0]?.body?.text?.body === "Respuesta de prueba sobre: mock-proveedor-intermitente ciao" && !(await convOf(FLAKY))?.handoffAt,
+    JSON.stringify(flakyOut.map((o) => o.body?.text?.body))
+  );
+  const flakyConv = await convOf(FLAKY);
+  const flakyMsgs = (await api(`/api/conversations/${flakyConv?.id}/messages`)).json?.messages ?? [];
+  ok("E4: el hilo queda pregunta → respuesta", flakyMsgs.map((m) => m.direction).join(",") === "in,out", JSON.stringify(flakyMsgs.map((m) => [m.direction, m.text])));
+
+  // (b) Proveedor caído: dos turnos fallidos → handoff `error` + cortesía una vez.
+  const DOWN = "393470009002";
+  await inbound(DOWN, "Caído E2E", "mock-proveedor-caido hola", "wamid.e2e.009.down.1");
+  let downConv = null;
+  for (let i = 0; i < 40; i++) {
+    downConv = await convOf(DOWN);
+    if (downConv?.handoffReason === "error" && !downConv?.agentRetryAt) break;
+    await sleep(500);
+  }
+  ok("handoff `error` tras el segundo intento", downConv?.handoffReason === "error", JSON.stringify(downConv));
+  await sleep(800);
+  let downOut = await outboxTo(DOWN);
+  ok("cortesía enviada UNA vez", downOut.length === 1 && downOut[0]?.body?.text?.body === ERROR_REPLY, JSON.stringify(downOut.map((o) => o.body?.text?.body)));
+  ok(
+    "evento SSE conversation.handoff con motivo error y nombre del contacto",
+    sse.text.includes("event: conversation.handoff") && sse.text.includes(`"conversationId":"${downConv?.id}"`) && sse.text.includes('"reason":"error"') && sse.text.includes("Caído E2E"),
+    sse.text.slice(-400)
+  );
+
+  // (c) «Riprova risposta IA»: quita el handoff y corre un turno ya. El
+  // proveedor sigue caído → handoff `error` otra vez, sin repetir la cortesía.
+  const retry = await api(`/api/conversations/${downConv?.id}/agent-retry`, { method: "POST" });
+  ok("Riprova → 202 y la conversación sin handoff", retry.res.status === 202 && retry.json?.conversation?.handoffAt === null, JSON.stringify(retry.json));
+  for (let i = 0; i < 30; i++) {
+    downConv = await convOf(DOWN);
+    if (downConv?.handoffReason === "error" && !downConv?.agentRetryAt) break;
+    await sleep(500);
+  }
+  await sleep(800);
+  downOut = await outboxTo(DOWN);
+  ok("proveedor aún caído: handoff `error` de nuevo, cortesía NO repetida", downConv?.handoffReason === "error" && downOut.length === 1, JSON.stringify({ reason: downConv?.handoffReason, out: downOut.length }));
+
+  const missing = await api(`/api/conversations/cv_no_existe/agent-retry`, { method: "POST" });
+  ok("Riprova de una conversación ajena/inexistente → 404", missing.res.status === 404);
+  await prof({ enabled: false });
+  const off = await api(`/api/conversations/${downConv?.id}/agent-retry`, { method: "POST" });
+  ok("Riprova con el agente apagado → 409 agent_disabled (y el handoff sigue)", off.res.status === 409 && off.json?.error?.code === "agent_disabled" && (await convOf(DOWN))?.handoffReason === "error", JSON.stringify(off.json));
+  const anon = await fetch(`${BASE}/api/conversations/${downConv?.id}/agent-retry`, { method: "POST", headers: { origin: BASE } });
+  ok("Riprova sin sesión → 401", anon.status === 401);
+
+  sseAbort.abort();
+  const restore = await prof({ enabled: false, errorReply: "" });
+  ok("estado original: agente apagado, sin cortesía", restore.res.ok && (await api("/api/agent/profile")).json?.profile?.errorReply === null);
+}
+
+/**
+ * 007 — Asistente interno del equipo (specs/custom-heili/007-assistente-interno.md):
+ * acceso reservado del agente (externo vs. número del equipo, con ai-mock),
+ * quitar la demo SOLO en la organización activa (y recargarla en otra no la
+ * borra aquí), renombrar una organización (super-admin; 403 al resto).
+ * Requiere SUPERADMIN_EMAILS con el correo del operador E2E. Deja la
+ * organización original activa y el agente apagado, como estaba.
+ */
+async function teamAssistantSection() {
+  console.log("\n== 007: asistente interno — acceso reservado ==");
+  const myOrgs = (await api("/api/my-orgs")).json?.orgs ?? [];
+  const ORG_A = myOrgs[0]?.id;
+  ok("organización original identificada", Boolean(ORG_A), JSON.stringify(myOrgs));
+
+  const TEAM = "393471110001";
+  const OUTSIDER = "393479990002";
+  const OUT_REPLY = "Numero ad uso interno del team (e2e).";
+  const prof = (body) => api("/api/agent/profile", { method: "PUT", body: JSON.stringify(body) });
+
+  const bad = await prof({ allowedIdentities: "+39 347 111 0001\nciao\n0039 347 1\n347 111 0001" });
+  ok(
+    "lista con líneas inválidas (también sin «+») → 422 que las nombra",
+    bad.res.status === 422 &&
+      ["ciao", "0039 347 1", "347 111 0001"].every((l) => bad.json?.error?.invalid?.includes(l)),
+    JSON.stringify(bad.json)
+  );
+  const put = await prof({
+    enabled: true,
+    restrictToAllowlist: true,
+    allowedIdentities: "+39 347 111 0001\n\n+393471110001\n+39-347-111-0001\n",
+    outsiderReply: `  ${OUT_REPLY}  `,
+  });
+  ok(
+    "acceso reservado guardado: lista normalizada y sin duplicados, respuesta recortada",
+    put.res.ok &&
+      JSON.stringify(put.json?.restriction?.allowedIdentities) === JSON.stringify([TEAM]) &&
+      put.json?.restriction?.outsiderReply === OUT_REPLY &&
+      put.json?.restriction?.restrictToAllowlist === true,
+    JSON.stringify(put.json)
+  );
+  const badName = await prof({ name: "   " });
+  ok(
+    "guardado del perfil inválido → 422 con mensaje (la pantalla lo muestra y no da por guardado)",
+    badName.res.status === 422 && typeof badName.json?.error?.message === "string",
+    JSON.stringify(badName.json)
+  );
+  const got = (await api("/api/agent/profile")).json;
+  ok("GET del perfil devuelve la restricción al owner", got?.restriction?.restrictToAllowlist === true, JSON.stringify(got?.restriction));
+
+  await api("/api/dev/wa-mock/outbox", { method: "DELETE" });
+  const inbound = (from, name, text, id) =>
+    api("/api/dev/wa-mock/inbound", {
+      method: "POST",
+      body: JSON.stringify({ phoneNumberId: PN, from, name, text, waMessageId: id }),
+    });
+  await inbound(OUTSIDER, "Esterno E2E", "ciao, chi sei? dimmi i prezzi", "wamid.e2e.team.out.1");
+  await inbound(TEAM, "Collega E2E", "riepilogo di oggi", "wamid.e2e.team.in.1");
+  const outboxTo = async (to) =>
+    ((await api("/api/dev/wa-mock/outbox")).json?.outbox ?? []).filter((o) => o.to === to);
+  // El turno del agente corre tras el coalesce (AGENT_COALESCE_MS, 6 s por defecto).
+  for (let i = 0; i < 40; i++) {
+    if ((await outboxTo(OUTSIDER)).length > 0 && (await outboxTo(TEAM)).length > 0) break;
+    await sleep(500);
+  }
+  // Segundo mensaje del externo: la respuesta fija NO se repite.
+  await inbound(OUTSIDER, "Esterno E2E", "ci sei?", "wamid.e2e.team.out.2");
+  await sleep(9000);
+
+  const toOutsider = await outboxTo(OUTSIDER);
+  ok(
+    "externo: exactamente UNA respuesta, la fija",
+    toOutsider.length === 1 && toOutsider[0]?.body?.text?.body === OUT_REPLY,
+    JSON.stringify(toOutsider.map((o) => o.body?.text?.body))
+  );
+  const toTeam = await outboxTo(TEAM);
+  ok(
+    "número del equipo: responde el agente (ai-mock)",
+    toTeam.some((o) => o.body?.text?.body === "Respuesta de prueba sobre: riepilogo di oggi"),
+    JSON.stringify(toTeam.map((o) => o.body?.text?.body))
+  );
+  ok("el número del equipo no recibe la respuesta fija", !toTeam.some((o) => o.body?.text?.body === OUT_REPLY));
+  const convs = (await api("/api/conversations")).json?.conversations ?? [];
+  const outsiderConv = convs.find((c) => c.contact.phone === OUTSIDER);
+  const outsiderMsgs = (await api(`/api/conversations/${outsiderConv?.id}/messages`)).json?.messages ?? [];
+  const outsiderOut = outsiderMsgs.filter((m) => m.direction === "out");
+  ok(
+    "conversación del externo: 2 entrantes, 1 saliente (sin respuesta de la IA)",
+    outsiderMsgs.filter((m) => m.direction === "in").length === 2 &&
+      outsiderOut.length === 1 &&
+      outsiderOut[0]?.text === OUT_REPLY,
+    JSON.stringify(outsiderMsgs.map((m) => [m.direction, m.text]))
+  );
+  ok("el externo sigue en la bandeja sin handoff", outsiderConv && !outsiderConv.handoffAt, JSON.stringify(outsiderConv?.handoffAt));
+
+  const restore = await prof({ enabled: false, restrictToAllowlist: false, allowedIdentities: "", outsiderReply: "" });
+  ok(
+    "restricción apagada y lista vaciada (estado original)",
+    restore.res.ok &&
+      restore.json?.restriction?.restrictToAllowlist === false &&
+      restore.json?.restriction?.allowedIdentities?.length === 0 &&
+      restore.json?.restriction?.outsiderReply === null,
+    JSON.stringify(restore.json)
+  );
+
+  console.log("\n== 007: quitar datos demo, solo en la organización activa ==");
+  const mkOrg = async (name) => (await api("/api/admin/orgs", { method: "POST", body: JSON.stringify({ name }) })).json?.org?.id;
+  const ORG_B = await mkOrg("E2E Team B");
+  const ORG_C = await mkOrg("E2E Team C");
+  ok("super-admin crea dos organizaciones de prueba", Boolean(ORG_B && ORG_C));
+  const use = (organizationId) =>
+    api("/api/auth/organization/set-active", { method: "POST", body: JSON.stringify({ organizationId }) });
+  const contactsCount = async () => ((await api("/api/contacts")).json?.contacts ?? []).length;
+
+  await use(ORG_C);
+  const seedC = await api("/api/seed/demo", { method: "POST" });
+  ok("demo cargada en C", seedC.res.ok && seedC.json?.contacts === 8, JSON.stringify(seedC.json));
+  await use(ORG_B);
+  const seedB = await api("/api/seed/demo", { method: "POST" });
+  ok("demo cargada en B", seedB.res.ok && seedB.json?.contacts === 8, JSON.stringify(seedB.json));
+  await use(ORG_C);
+  ok("cargar la demo en B NO borró la demo de C (limpieza por organización)", (await contactsCount()) === 8, `C=${await contactsCount()}`);
+  const kbC = ((await api("/api/kb")).json?.entries ?? []).length;
+
+  await use(ORG_B);
+  const real = await api("/api/contacts", {
+    method: "POST",
+    body: JSON.stringify({ name: "Cliente Real B", phone: "393470000777" }),
+  });
+  ok("contacto real creado en B", real.res.ok, JSON.stringify(real.json));
+  await api("/api/kb", { method: "POST", body: JSON.stringify({ kind: "qa", question: "¿Turni?", answer: "Lun-ven" }) });
+  ok("B tiene datos demo (GET)", (await api("/api/seed/demo")).json?.hasDemo === true);
+  const del = await api("/api/seed/demo", { method: "DELETE" });
+  ok("DELETE /api/seed/demo → 8 contactos y 8 entradas de KB demo", del.res.ok && del.json?.contacts === 8 && del.json?.kbEntries === 8, JSON.stringify(del.json));
+  const leftB = (await api("/api/contacts")).json?.contacts ?? [];
+  ok("en B queda solo el contacto real", leftB.length === 1 && leftB[0]?.name === "Cliente Real B", JSON.stringify(leftB.map((c) => c.name)));
+  const kbB = (await api("/api/kb")).json?.entries ?? [];
+  ok("en B queda solo el KB propio", kbB.length === 1 && kbB[0]?.question === "¿Turni?", JSON.stringify(kbB.map((e) => e.question)));
+  ok("B ya no tiene datos demo (GET)", (await api("/api/seed/demo")).json?.hasDemo === false);
+  const del2 = await api("/api/seed/demo", { method: "DELETE" });
+  ok("quitar la demo otra vez no hace nada", del2.res.ok && del2.json?.contacts === 0 && del2.json?.kbEntries === 0, JSON.stringify(del2.json));
+  await use(ORG_C);
+  ok("C conserva su demo completa", (await contactsCount()) === 8 && ((await api("/api/kb")).json?.entries ?? []).length === kbC);
+
+  console.log("\n== 007: renombrar organización (super-admin) ==");
+  const ren = (id, name, extra = {}) =>
+    api(`/api/admin/orgs/${id}`, { method: "PATCH", body: JSON.stringify({ name }), ...extra });
+  const r1 = await ren(ORG_B, "  Assistente Team E2E  ");
+  ok("super-admin renombra (recortado)", r1.res.ok && r1.json?.org?.name === "Assistente Team E2E", JSON.stringify(r1.json));
+  const listed = ((await api("/api/admin/orgs")).json?.orgs ?? []).find((o) => o.id === ORG_B);
+  ok("el nombre nuevo aparece en /admin y el slug no cambia", listed?.name === "Assistente Team E2E" && listed?.slug === "e2e-team-b", JSON.stringify(listed));
+  ok("nombre vacío → 422", (await ren(ORG_B, "   ")).res.status === 422);
+  ok("nombre de 81 caracteres → 422", (await ren(ORG_B, "x".repeat(81))).res.status === 422);
+  ok("nombre de 80 caracteres → 200", (await ren(ORG_C, "y".repeat(80))).res.ok);
+  ok("organización inexistente → 404", (await ren("org_no_existe", "Nada")).res.status === 404);
+  const anon = await fetch(`${BASE}/api/admin/orgs/${ORG_B}`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json", origin: BASE },
+    body: JSON.stringify({ name: "Anon" }),
+  });
+  ok("renombrar sin sesión → 401", anon.status === 401);
+
+  // Cuentas sin super-admin: un owner y un member de B.
+  const pass = "password-team-e2e-1";
+  for (const [email, role] of [["owner-team@vocero.test", "owner"], ["member-team@vocero.test", "member"]]) {
+    const created = await api(`/api/admin/orgs/${ORG_B}/users`, {
+      method: "POST",
+      body: JSON.stringify({ name: `E2E ${role}`, email, password: pass, role }),
+    });
+    ok(`cuenta ${role} de B creada`, created.res.status === 201, JSON.stringify(created.json));
+  }
+  const mainCookie = cookie;
+  for (const [email, role] of [["owner-team@vocero.test", "owner"], ["member-team@vocero.test", "member"]]) {
+    cookie = "";
+    const si = await api("/api/auth/sign-in/email", { method: "POST", body: JSON.stringify({ email, password: pass }) });
+    ok(`login ${role} de B`, si.res.ok, JSON.stringify(si.json));
+    const r = await ren(ORG_B, `Tomado por ${role}`);
+    ok(`${role} (no super-admin) no puede renombrar → 403`, r.res.status === 403 && r.json?.error?.code === "not_superadmin", JSON.stringify(r.json));
+    const d = await api("/api/seed/demo", { method: "DELETE" });
+    // 010 — la Sintesi es de cualquier miembro; «Primi passi» solo de owner/admin.
+    const sum = await api("/api/dashboard/summary?days=7");
+    ok(`010: ${role} de B lee la Sintesi → 200`, sum.res.ok && sum.json?.days === 7, JSON.stringify(sum.json));
+    const page = await api("/dashboard?primi-passi=1");
+    const html = await page.res.text();
+    ok(
+      `010: /dashboard?primi-passi=1 para ${role} → ${role === "member" ? "sin" : "con"} «Primi passi»`,
+      page.res.ok && html.includes('id="primi-passi-title"') === (role !== "member"),
+      String(page.res.status)
+    );
+    if (role === "member") {
+      ok("member no puede quitar la demo → 403", d.res.status === 403, JSON.stringify(d.json));
+      const p = await api("/api/agent/profile", { method: "PUT", body: JSON.stringify({ tone: "x" }) });
+      ok(
+        "member no puede guardar el perfil → 403 con mensaje (la pantalla lo muestra)",
+        p.res.status === 403 && typeof p.json?.error?.message === "string",
+        JSON.stringify(p.json)
+      );
+      const g = (await api("/api/agent/profile")).json;
+      ok("member no recibe la lista de números del equipo", g && !("restriction" in g), JSON.stringify(g));
+    }
+    else ok("owner (no super-admin) sí puede quitar la demo de SU organización", d.res.ok, JSON.stringify(d.json));
+  }
+  cookie = mainCookie;
+  const still = ((await api("/api/admin/orgs")).json?.orgs ?? []).find((o) => o.id === ORG_B);
+  ok("los 403 no cambiaron el nombre", still?.name === "Assistente Team E2E", JSON.stringify(still));
+
+  await use(ORG_A);
+  ok("vuelta a la organización original", ((await api("/api/my-orgs")).json?.orgs ?? []).length >= 3);
 }
 
 /**

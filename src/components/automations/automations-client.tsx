@@ -22,6 +22,8 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { intlLocale } from "@/lib/i18n";
+import { ListSkeleton } from "@/components/ui/skeleton";
 
 type TemplateDto = {
   id: string;
@@ -53,8 +55,16 @@ type Run = {
   createdAt: string;
 };
 
-export function AutomationsClient() {
-  const { t } = useT();
+export function AutomationsClient({
+  onboarding,
+}: {
+  /**
+   * Pasos 1–2 de «Primi passi» (ya calculados por el servidor con la misma
+   * función): si faltan, «Crea regola» lo dice en vez de quedarse gris.
+   */
+  onboarding?: { whatsappConnected: boolean; templateApproved: boolean };
+} = {}) {
+  const { t, locale } = useT();
   const [rules, setRules] = useState<Rule[]>([]);
   const [tags, setTags] = useState<TagDto[]>([]);
   const [templates, setTemplates] = useState<TemplateDto[]>([]);
@@ -70,12 +80,20 @@ export function AutomationsClient() {
   const [runs, setRuns] = useState<Run[]>([]);
   const [running, setRunning] = useState(false);
   const [runResult, setRunResult] = useState<string | null>(null);
+  // 009 (E3): sin respuesta todavía no es "sin reglas".
+  const [loaded, setLoaded] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
 
   const refetch = useCallback(async () => {
     const res = await fetch("/api/automations").catch(() => null);
-    if (!res?.ok) return;
+    if (!res?.ok) {
+      setLoadFailed(true);
+      return;
+    }
+    setLoadFailed(false);
     const data = (await res.json()) as { rules: Rule[] };
     setRules(data.rules);
+    setLoaded(true);
   }, []);
 
   useEffect(() => {
@@ -178,6 +196,20 @@ export function AutomationsClient() {
     );
   }
 
+  // Qué falta para poder crear, con los pasos 1–2 de «Primi passi» incluidos:
+  // el botón deshabilitado nunca queda mudo.
+  const missing: string[] = [];
+  if (onboarding && !onboarding.whatsappConnected) {
+    missing.push(t("onboarding.steps.whatsapp.title"));
+  }
+  if (onboarding && !onboarding.templateApproved) {
+    missing.push(t("onboarding.steps.template.title"));
+  }
+  if (!name.trim()) missing.push(t("admin.automations.ruleName"));
+  if (!tagId) missing.push(t("admin.automations.tag"));
+  if (!templateId) missing.push(t("admin.automations.template"));
+  if (!Number(intervalDays)) missing.push(t("admin.automations.interval"));
+
   return (
     <div className="max-w-3xl space-y-6">
       <Card>
@@ -269,6 +301,11 @@ export function AutomationsClient() {
               ? t("admin.automations.creating")
               : t("admin.automations.createSubmit")}
           </Button>
+          {missing.length > 0 && (
+            <p className="text-xs text-muted-foreground">
+              {t("admin.automations.missing", { items: missing.join(", ") })}
+            </p>
+          )}
         </CardContent>
       </Card>
 
@@ -294,7 +331,18 @@ export function AutomationsClient() {
         </div>
       </div>
 
-      {rules.length === 0 ? (
+      {!loaded ? (
+        loadFailed ? (
+          <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed p-8 text-center">
+            <p className="text-sm text-muted-foreground">{t("common.loadError")}</p>
+            <Button size="sm" variant="outline" onClick={() => void refetch()}>
+              {t("common.retry")}
+            </Button>
+          </div>
+        ) : (
+          <ListSkeleton rows={3} />
+        )
+      ) : rules.length === 0 ? (
         <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed p-8 text-center">
           <Zap className="h-6 w-6 text-muted-foreground" />
           <p className="text-sm text-muted-foreground">
@@ -388,7 +436,7 @@ export function AutomationsClient() {
                           </Badge>
                           <span className="font-medium">{run.contactName}</span>
                           <span className="text-xs text-muted-foreground">
-                            {new Date(run.createdAt).toLocaleString()}
+                            {new Date(run.createdAt).toLocaleString(intlLocale(locale))}
                             {run.detail ? ` · ${run.detail}` : ""}
                           </span>
                         </li>

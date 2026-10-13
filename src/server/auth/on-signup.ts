@@ -1,15 +1,11 @@
-import { and, count, eq, sql } from "drizzle-orm";
+import { and, count, eq, isNull, sql } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { newId } from "@/lib/db/ids";
-
-/** Etapas sembradas del pipeline (US2). */
-const SEED_STAGES: { name: string; kind: "open" | "won" | "lost" }[] = [
-  { name: "Nuevo", kind: "open" },
-  { name: "En conversación", kind: "open" },
-  { name: "Interesado", kind: "open" },
-  { name: "Cliente", kind: "won" },
-  { name: "Perdido", kind: "lost" },
-];
+import { DEFAULT_LOCALE, type Locale } from "@/lib/i18n";
+import { messagesFor } from "@/lib/i18n/messages";
+import { translate } from "@/lib/i18n/t";
+import { defaultCurrencyFor } from "@/lib/money";
+import { seedStages } from "@/lib/stages";
 
 /** Transacción de Drizzle sobre nuestra conexión (la que entrega db.transaction). */
 export type DbTx = Parameters<
@@ -21,10 +17,18 @@ export type DbTx = Parameters<
  * del agente. La usan el primer registro de la instancia y el panel admin
  * (custom multi-org). NO crea la org ni la membresía — eso lo hace el caller
  * en la misma transacción.
+ *
+ * 009 (E2): `locale` es el idioma de quien la crea. Las etapas nacen en ese
+ * idioma y la moneda de la marca se deduce de él (italiano → EUR); antes
+ * todo nacía en español y en pesos mexicanos.
  */
-export async function provisionOrganization(tx: DbTx, orgId: string) {
+export async function provisionOrganization(
+  tx: DbTx,
+  orgId: string,
+  locale: Locale = DEFAULT_LOCALE
+) {
   await tx.insert(schema.pipelineStage).values(
-    SEED_STAGES.map((s, i) => ({
+    seedStages(locale).map((s, i) => ({
       id: newId("stage"),
       organizationId: orgId,
       name: s.name,
@@ -36,6 +40,15 @@ export async function provisionOrganization(tx: DbTx, orgId: string) {
     id: newId("agentProfile"),
     organizationId: orgId,
   });
+  // La moneda es un dato de la organización: se fija al nacer y se cambia en
+  // Ajustes → Marca. Solo se escribe en una organización recién creada (sin
+  // metadata), nunca encima de una marca ya guardada.
+  await tx
+    .update(schema.organization)
+    .set({
+      metadata: JSON.stringify({ branding: { currency: defaultCurrencyFor(locale) } }),
+    })
+    .where(and(eq(schema.organization.id, orgId), isNull(schema.organization.metadata)));
 }
 
 /**
@@ -46,7 +59,11 @@ export async function provisionOrganization(tx: DbTx, orgId: string) {
  * el propietario y reciben su membresía explícita). Un advisory lock evita que
  * dos registros simultáneos en instancia vacía creen dos organizaciones.
  */
-export async function onUserCreated(userId: string, userName: string) {
+export async function onUserCreated(
+  userId: string,
+  userName: string,
+  locale: Locale = DEFAULT_LOCALE
+) {
   const db = getDb();
   await db.transaction(async (tx) => {
     // Lock transaccional de "primer arranque" (clave arbitraria fija):
@@ -60,7 +77,7 @@ export async function onUserCreated(userId: string, userName: string) {
     const orgId = newId("organization");
     await tx.insert(schema.organization).values({
       id: orgId,
-      name: userName ? `Negocio de ${userName}` : "Mi negocio",
+      name: defaultOrgName(userName, locale),
       slug: "principal",
     });
     await tx.insert(schema.member).values({
@@ -69,8 +86,16 @@ export async function onUserCreated(userId: string, userName: string) {
       userId,
       role: "owner",
     });
-    await provisionOrganization(tx, orgId);
+    await provisionOrganization(tx, orgId, locale);
   });
+}
+
+/** Nombre inicial de la organización, en el idioma de quien se registra. */
+export function defaultOrgName(userName: string, locale: Locale): string {
+  const messages = messagesFor(locale) as Record<string, unknown>;
+  return userName
+    ? translate(messages, "common.defaultOrg.named", { name: userName })
+    : translate(messages, "common.defaultOrg.unnamed");
 }
 
 /** Organización activa de un usuario (su primera membresía). */

@@ -5,6 +5,8 @@ const messages: typeof base = {
   loading: "Caricamento…",
   title: "Agente IA",
   saved: "Salvato ✓",
+    saveError: "Salvataggio non riuscito; le tue modifiche sono ancora nel modulo",
+    unsaved: "Modifiche non salvate",
   statusOn: "Acceso",
   statusOff: "Spento",
   toggleLabel: "Agente attivo",
@@ -26,7 +28,26 @@ const messages: typeof base = {
     escalationPlaceholder: "Quando passare la conversazione a un umano…",
     greetingLabel: "Saluto",
     greetingPlaceholder: "Saluto per le nuove conversazioni",
+    errorReplyLabel: "Messaggio se l'IA non è disponibile (facoltativo)",
+    errorReplyPlaceholder: "In questo momento non riesco a rispondere; una persona del team ti scrive a breve.",
+    errorReplyHint:
+      "Se il provider IA fallisce due volte di seguito, la conversazione passa a una persona e il cliente riceve questo messaggio una volta. Vuoto = non si invia nulla.",
     save: "Salva comportamento",
+  },
+  restricted: {
+    title: "Accesso riservato",
+    description:
+      "Trasforma l'agente in un assistente interno del team: risponde solo ai numeri della lista. Agli altri non risponde l'IA e non vedono la conoscenza.",
+    toggle: "Rispondi solo ai numeri della lista",
+    listLabel: "Numeri autorizzati (uno per riga, con «+» e prefisso internazionale)",
+    listPlaceholder: "+39 347 123 4567\n+39 02 1234 5678",
+    outsiderLabel: "Risposta per i numeri non autorizzati (facoltativa)",
+    outsiderPlaceholder: "Questo numero è a uso interno del team.",
+    outsiderHint: "Inviata una sola volta per conversazione. Vuota = nessuna risposta.",
+    save: "Salva accesso riservato",
+    invalid: "Numeri non validi: {{lines}}. Scrivi ogni numero con «+» e il prefisso internazionale, es. +39 347 123 4567.",
+    saveError: "Impossibile salvare l'accesso riservato",
+    count: "{{count}} numeri autorizzati",
   },
   kb: {
     title: "Knowledge base",
@@ -43,6 +64,7 @@ const messages: typeof base = {
     blockPlaceholder: "Orari, indirizzi, politiche…",
     addBlock: "Aggiungi blocco",
     removeEntry: "Elimina voce",
+    saveError: "Impossibile salvare la voce; quello che hai scritto è ancora qui",
     empty: "Nessuna voce ancora: aggiungi ciò che l'agente deve sapere.",
   },
 };

@@ -107,7 +107,9 @@ async function callProvider(
         Authorization: `Bearer ${env.OPENROUTER_API_TOKEN}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ model, messages }),
+      // max_tokens explícito: sin él el proveedor reserva el máximo del
+      // modelo y una cuenta con poco crédito recibe 402 en cada turno.
+      body: JSON.stringify({ model, messages, max_tokens: env.OPENROUTER_MAX_TOKENS }),
       signal: controller.signal,
     });
     if (!res.ok) {

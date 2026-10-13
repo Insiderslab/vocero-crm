@@ -31,6 +31,26 @@ export async function cleanupOrphanRuns(): Promise<void> {
 }
 
 /**
+ * 009 (E1) — Segundos intentos del agente que quedaron pendientes al
+ * reiniciar (`conversation.agent_retry_at`): se reprograma lo que falta o, si
+ * ya venció, se cierra el handoff `error` (aviso + cortesía). Nunca bloquea el
+ * arranque.
+ */
+export async function recoverPendingAgentRetries(): Promise<void> {
+  try {
+    const { recoverAgentRetries } = await import("@/server/ai/pipeline");
+    const { rescheduled, finalized } = await recoverAgentRetries();
+    if (rescheduled + finalized > 0) {
+      console.log(
+        `[boot] segundos intentos del agente: ${rescheduled} reprogramado(s), ${finalized} cerrado(s) como handoff`
+      );
+    }
+  } catch (err) {
+    console.error("[boot] recuperación de segundos intentos falló:", err);
+  }
+}
+
+/**
  * Scheduler de automatizaciones (custom heili.cloud): corre el motor cada
  * AUTOMATIONS_TICK_MS (default 30 min). In-process como todo el trabajo en
  * segundo plano del proyecto (constitución II: sin colas externas). La

@@ -7,6 +7,7 @@ import { insertContactIfAbsent } from "@/server/channels/dual-write";
 import { renderKb } from "@/server/ai/prompts";
 import { computeScore, judgeCase } from "@/server/lab/judge";
 import { PERSONAS, type Persona } from "@/server/lab/personas";
+import { MESSAGE_CHRONOLOGY } from "@/server/inbox/queries";
 
 /**
  * Runner del Laboratorio (FR-030/FR-034): corrida en segundo plano DENTRO del
@@ -220,7 +221,7 @@ async function runConversation(
     .select()
     .from(schema.message)
     .where(eq(schema.message.conversationId, convId))
-    .orderBy(asc(schema.message.createdAt));
+    .orderBy(...MESSAGE_CHRONOLOGY);
 
   return {
     conversationId: convId,

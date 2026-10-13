@@ -1,5 +1,5 @@
 import { mockGuard } from "@/lib/dev-guard";
-import { aiMockCompletion } from "@/server/dev/ai-mock";
+import { aiMockCompletion, aiMockShouldFail } from "@/server/dev/ai-mock";
 
 export const dynamic = "force-dynamic";
 
@@ -10,6 +10,12 @@ export async function POST(req: Request) {
   const body = (await req.json().catch(() => ({}))) as {
     messages?: { role: string; content: string }[];
   };
+  if (aiMockShouldFail(body.messages ?? [])) {
+    return Response.json(
+      { error: { message: "ai-mock: proveedor no disponible (simulado)" } },
+      { status: 503 }
+    );
+  }
   const content = aiMockCompletion(body.messages ?? []);
   return Response.json({
     id: "aimock",

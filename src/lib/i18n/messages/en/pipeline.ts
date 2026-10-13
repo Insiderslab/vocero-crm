@@ -3,6 +3,18 @@
 /** EN dictionary — pipeline. Typed mirror of the ES shape. */
 const messages: typeof base = {
   manageStages: "Manage stages",
+  /**
+   * 009 (E2) — Nombres de las etapas sembradas. Sirven para sembrar una
+   * organización nueva en su idioma y para TRADUCIR al mostrar una etapa que
+   * conserva exactamente su nombre de fábrica (en cualquier idioma).
+   */
+  defaultStages: {
+    new: "New",
+    talking: "In conversation",
+    interested: "Interested",
+    won: "Customer",
+    lost: "Lost",
+  },
   priority: {
     alta: "High",
     media: "Medium",
@@ -17,7 +29,6 @@ const messages: typeof base = {
     addAmount: "+ amount",
   },
   footer: {
-    empty: "No amounts captured",
     total: "Total",
     withoutAmount: "{{count}} without an amount",
     otherCurrency: "{{count}} in another currency, excluded from the total",
@@ -44,6 +55,7 @@ const messages: typeof base = {
   },
   stages: {
     title: "Pipeline stages",
+    nameAria: "Name of stage {{name}}",
     won: "won",
     lost: "lost",
     delete: "Delete stage",

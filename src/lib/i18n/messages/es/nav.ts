@@ -1,6 +1,7 @@
 /** Diccionario ES — barra lateral y navegación. Fuente de la forma. */
 const messages = {
   subtitle: "WhatsApp",
+  dashboard: "Síntesis",
   inbox: "Bandeja",
   pipeline: "Pipeline",
   contacts: "Contactos",
@@ -12,8 +13,12 @@ const messages = {
   openMenu: "Abrir el menú",
   closeMenu: "Cerrar el menú",
   activeOrg: "Empresa activa",
+  theme: "Tema: {{label}} (clic para cambiar)",
+  themeLight: "Claro",
+  themeDark: "Oscuro",
   owner: "Propietario",
   member: "Equipo",
+  roleAdmin: "Administrador",
   online: "En línea",
   signOut: "Cerrar sesión",
   language: "Idioma",

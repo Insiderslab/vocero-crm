@@ -7,6 +7,8 @@ const messages: typeof base = {
   cancel: "Cancel",
   close: "Close",
   loading: "Loading…",
+  loadError: "Could not load. Check your connection.",
+  retry: "Retry",
   create: "Create",
   creating: "Creating…",
   edit: "Edit",
@@ -19,6 +21,11 @@ const messages: typeof base = {
   password: "Password",
   tempPassword: "Temporary password",
   minChars: "at least 8 characters",
+  /** 009 (E2): nombre inicial de la organización del primer registro. */
+  defaultOrg: {
+    named: "{{name}}'s business",
+    unnamed: "My business",
+  },
   meta: {
     titleSuffix: "WhatsApp",
     description: "The WhatsApp CRM with an AI agent and a self-testing Lab",

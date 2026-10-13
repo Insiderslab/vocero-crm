@@ -40,11 +40,17 @@ const envSchema = z.object({
   OPENROUTER_BASE_URL: z.string().url().default("https://openrouter.ai/api"),
   OPENROUTER_MODEL: z.string().optional(),
   OPENROUTER_JUDGE_MODEL: z.string().optional(),
+  // Tope de tokens de salida por llamada. Sin él OpenRouter reserva el máximo
+  // del modelo (p. ej. 64 000) y con poco crédito responde 402 a cada turno.
+  OPENROUTER_MAX_TOKENS: z.coerce.number().int().min(1).max(200_000).default(2048),
   ALLOW_SIGNUP: z.string().optional(),
   // Correos (separados por coma) con poderes de super-admin de la instancia:
   // crear organizaciones y usuarios desde /admin. Sin ella, no hay super-admin.
   SUPERADMIN_EMAILS: z.string().optional(),
   AGENT_COALESCE_MS: z.coerce.number().int().min(0).default(6000),
+  // 009 (E1): si el proveedor de IA falla, UN segundo intento tras esta espera
+  // antes de pasar la conversación a un humano. 0 = sin segundo intento.
+  AGENT_RETRY_MS: z.coerce.number().int().min(0).max(3_600_000).default(60_000),
   WA_MOCK_ENABLED: z.string().optional(),
   // API key de un cerebro externo que conduzca la conversación por /api/bot/*.
   // Sin ella, toda esa superficie responde 401.

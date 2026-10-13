@@ -3,9 +3,9 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 
 /**
- * Lateral de la app: las entradas de configuración (automatizaciones, agente,
- * Laboratorio) solo para owner/admin; el miembro ve bandeja, pipeline y
- * contactos. Es solo navegación: las páginas y la API exigen el mismo rol.
+ * Lateral de la app: «Sintesi» la ve cualquier miembro y va PRIMERO; las
+ * entradas de configuración (automatizaciones, agente, Laboratorio) solo para
+ * owner/admin. Es solo navegación: las páginas y la API exigen el mismo rol.
  */
 
 vi.mock("next/navigation", () => ({
@@ -27,7 +27,7 @@ const html = (role: string) =>
   );
 
 const ADMIN = ['href="/automations"', 'href="/agent"', 'href="/lab"'];
-const DIARIO = ['href="/inbox"', 'href="/pipeline"', 'href="/contacts"'];
+const DIARIO = ['href="/dashboard"', 'href="/inbox"', 'href="/pipeline"', 'href="/contacts"'];
 
 describe("AppNav", () => {
   it.each(["owner", "admin"])("%s ve todo", (role) => {
@@ -36,11 +36,18 @@ describe("AppNav", () => {
   });
 
   it.each(["member", "", "Owner", "viewer"])(
-    "rol %j: solo bandeja, pipeline y contactos",
+    "rol %j: solo la navegación diaria",
     (role) => {
       const out = html(role);
       for (const href of ADMIN) expect(out).not.toContain(href);
       for (const href of DIARIO) expect(out).toContain(href);
     }
   );
+
+  it("«Sintesi» es la primera entrada del menú", () => {
+    const out = html("member");
+    const dashboard = out.indexOf('href="/dashboard"');
+    expect(dashboard).toBeGreaterThanOrEqual(0);
+    expect(dashboard).toBeLessThan(out.indexOf('href="/inbox"'));
+  });
 });

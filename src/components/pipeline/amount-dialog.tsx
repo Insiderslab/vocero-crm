@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PriorityPicker } from "./priority-picker";
 import type { PriorityValue } from "@/lib/types";
+import { intlLocale } from "@/lib/i18n";
 
 /**
  * Monto y prioridad de un trato: los dos datos que el dueño ajusta desde el
@@ -35,7 +36,7 @@ export function AmountDialog({
   onCancel: () => void;
   onSave: (cents: number | null) => void;
 }) {
-  const { t } = useT();
+  const { t, locale } = useT();
   const [texto, setTexto] = useState(
     amountCents === null ? "" : (amountCents / 100).toFixed(2)
   );
@@ -74,7 +75,7 @@ export function AmountDialog({
             {parsed === null
               ? t("pipeline.amount.empty")
               : t("pipeline.amount.willSave", {
-                  amount: formatMoneyCents(parsed, currency) ?? "",
+                  amount: formatMoneyCents(parsed, currency, intlLocale(locale)) ?? "",
                 })}
           </p>
         )}

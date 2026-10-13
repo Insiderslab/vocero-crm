@@ -21,6 +21,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useT } from "@/lib/i18n/client";
+import { intlLocale } from "@/lib/i18n";
+import { CardsSkeleton } from "@/components/ui/skeleton";
 
 type Run = {
   id: string;
@@ -48,6 +50,23 @@ type Case = {
   transcript: { role: "cliente" | "agente"; text: string }[];
 };
 
+/** Personas con nombre traducido (`lab.personas.*`); otra, la etiqueta del servidor. */
+const PERSONA_KEYS = new Set([
+  "comprador_decidido",
+  "pregunton_precios",
+  "cliente_enojado",
+  "fuera_de_kb",
+  "pide_humano",
+  "errores_modismos",
+]);
+
+export function personaName(
+  c: Pick<Case, "persona" | "personaLabel">,
+  t: (key: string) => string
+): string {
+  return PERSONA_KEYS.has(c.persona) ? t(`lab.personas.${c.persona}`) : c.personaLabel;
+}
+
 const TIPO_KEYS: Record<Hallazgo["tipo"], string> = {
   alucinacion: "lab.findings.alucinacion",
   fuera_de_kb: "lab.findings.fuera_de_kb",
@@ -64,12 +83,20 @@ export function LabClient() {
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [launching, setLaunching] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // 009 (E3): hasta la primera respuesta no se dice "sin corridas".
+  const [loaded, setLoaded] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
 
   const refetchRuns = useCallback(async () => {
     const res = await fetch("/api/lab/runs").catch(() => null);
-    if (!res?.ok) return;
+    if (!res?.ok) {
+      setLoadFailed(true);
+      return;
+    }
+    setLoadFailed(false);
     const data = (await res.json()) as { runs: Run[]; aiConfigured: boolean };
     setRuns(data.runs);
+    setLoaded(true);
     setAiConfigured(data.aiConfigured);
     if (!selectedRunId && data.runs[0]) setSelectedRunId(data.runs[0].id);
   }, [selectedRunId]);
@@ -116,6 +143,24 @@ export function LabClient() {
     setSelectedRunId(data.runId);
     setProgress({ done: 0, total: 6 });
     void refetchRuns();
+  }
+
+  if (!loaded) {
+    return (
+      <div className="flex h-full flex-col">
+        <Header running={false} launching={false} onLaunch={() => {}} disabled />
+        {loadFailed ? (
+          <div className="m-6 flex flex-col items-center gap-2 text-center">
+            <p className="text-sm text-muted-foreground">{t("common.loadError")}</p>
+            <Button size="sm" variant="outline" onClick={() => void refetchRuns()}>
+              {t("common.retry")}
+            </Button>
+          </div>
+        ) : (
+          <CardsSkeleton cards={2} className="p-4 sm:p-6 lg:grid-cols-[280px_1fr]" />
+        )}
+      </div>
+    );
   }
 
   if (!aiConfigured) {
@@ -261,7 +306,7 @@ function HistoryList({
             )}
           </div>
           <p className="mt-1 text-[11px] text-muted-foreground">
-            {new Date(run.startedAt).toLocaleString(locale, {
+            {new Date(run.startedAt).toLocaleString(intlLocale(locale), {
               day: "numeric",
               month: "short",
               hour: "2-digit",
@@ -362,7 +407,7 @@ function CaseCard({ testCase, onApplied }: { testCase: Case; onApplied: () => vo
         >
           <span className="flex items-center gap-2 text-sm font-semibold">
             {icon}
-            {c.personaLabel}
+            {personaName(c, t)}
             {c.status === "judge_failed" && (
               <Badge variant="secondary">{t("lab.noVerdict")}</Badge>
             )}

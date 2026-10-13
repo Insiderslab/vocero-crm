@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Check, ChevronRight, Sparkles, UserRound } from "lucide-react";
+import { AlertTriangle, Check, ChevronRight, RotateCcw, Sparkles, UserRound } from "lucide-react";
 import type {
   ConversationDto,
   FichaDto,
@@ -15,13 +15,34 @@ import { ContactAvatar } from "@/components/avatar";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { FichaPanel } from "@/components/ficha-panel";
+import { handoffLabel } from "./helpers";
+import { stageLabel } from "@/lib/stages";
+import { Switch } from "@/components/ui/switch";
+import { intlLocale } from "@/lib/i18n";
 
-const HANDOFF_KEYS = ["cliente", "modelo", "error", "ventana", "manual_reply"];
+/** Resultado de «Riprova risposta IA»: `null` = lanzado; si no, el código. */
+export type RetryAiResult =
+  | null
+  | "ai_not_configured"
+  | "agent_disabled"
+  | "not_retryable"
+  | "already_answered"
+  | "retry_cooldown"
+  | "failed";
+
+export const RETRY_AI_CODES = [
+  "ai_not_configured",
+  "agent_disabled",
+  "not_retryable",
+  "already_answered",
+  "retry_cooldown",
+] as const;
 
 export function ContactPanel({
   conversation,
   refreshKey = 0,
   onPatchConversation,
+  onRetryAi,
   onClose,
 }: {
   conversation: ConversationDto;
@@ -31,9 +52,11 @@ export function ContactPanel({
     aiEnabled?: boolean;
     reactivate?: boolean;
   }) => Promise<void>;
+  /** 009 (E1c): quita el handoff y lanza un turno del agente ya. */
+  onRetryAi?: () => Promise<RetryAiResult>;
   onClose: () => void;
 }) {
-  const { t } = useT();
+  const { t, locale } = useT();
   const [notes, setNotes] = useState("");
   const [ficha, setFicha] = useState<FichaDto>({});
   const [notesLoaded, setNotesLoaded] = useState(false);
@@ -45,8 +68,28 @@ export function ContactPanel({
   // cuando el agente aún no se ha configurado/encendido.
   const [agentEnabled, setAgentEnabled] = useState(false);
   const [aiConfigured, setAiConfigured] = useState(false);
+  const [retrying, setRetrying] = useState(false);
+  const [retryNote, setRetryNote] = useState<{ ok: boolean; text: string } | null>(null);
 
   const contactId = conversation.contact.id;
+
+  // El aviso de «Riprova» es de ESTA conversación: al cambiar, se va.
+  useEffect(() => {
+    setRetryNote(null);
+  }, [conversation.id]);
+
+  async function retryAi() {
+    if (!onRetryAi) return;
+    setRetrying(true);
+    setRetryNote(null);
+    const result = await onRetryAi();
+    setRetrying(false);
+    setRetryNote(
+      result === null
+        ? { ok: true, text: t("inbox.panel.retryStarted") }
+        : { ok: false, text: t(`inbox.panel.retryErrors.${result}`) }
+    );
+  }
 
   const agentReady = aiConfigured && agentEnabled;
   // El control es la FUENTE DE VERDAD de la conversación: el agente in-process
@@ -179,25 +222,109 @@ export function ContactPanel({
             </div>
           </div>
 
-          {conversation.handoffAt && (
-            <div className="mt-3 rounded-md border border-warning-soft bg-warning-tint p-3">
-              <p className="flex items-center gap-1.5 text-[13px] font-medium text-warning-text">
-                <UserRound className="h-4 w-4" strokeWidth={1.7} /> {t("inbox.handoff")}
+          {conversation.agentRetryAt && (
+            // 009 (E1): handoff provisional — el agente reintentará solo.
+            <div
+              data-retry-pending=""
+              className="mt-3 rounded-md border border-info-soft bg-info-tint p-3"
+            >
+              <p className="flex items-center gap-1.5 text-[13px] font-medium text-info-text">
+                <RotateCcw className="h-4 w-4" strokeWidth={1.7} /> {t("inbox.retryPending")}
               </p>
-              <p className="mt-1 text-xs text-warning-text opacity-80">
-                {HANDOFF_KEYS.includes(conversation.handoffReason ?? "")
-                  ? t(`inbox.handoffReasons.${conversation.handoffReason}`)
+              <p className="mt-1 text-xs text-info-text opacity-80">
+                {t("inbox.retryPendingHint", {
+                  time: new Date(conversation.agentRetryAt).toLocaleTimeString(intlLocale(locale), {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  }),
+                })}
+              </p>
+              {onRetryAi && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="mt-2 w-full"
+                  disabled={retrying}
+                  onClick={() => void retryAi()}
+                >
+                  <RotateCcw className="h-3.5 w-3.5" strokeWidth={1.8} />
+                  {retrying ? t("inbox.panel.retrying") : t("inbox.panel.retryAi")}
+                </Button>
+              )}
+            </div>
+          )}
+          {conversation.handoffAt && !conversation.agentRetryAt && (
+            <div
+              className={cn(
+                "mt-3 rounded-md border p-3",
+                conversation.handoffReason === "error"
+                  ? "border-danger-soft bg-danger-tint"
+                  : "border-warning-soft bg-warning-tint"
+              )}
+            >
+              <p
+                className={cn(
+                  "flex items-center gap-1.5 text-[13px] font-medium",
+                  conversation.handoffReason === "error"
+                    ? "text-danger-text"
+                    : "text-warning-text"
+                )}
+              >
+                {conversation.handoffReason === "error" ? (
+                  <AlertTriangle className="h-4 w-4" strokeWidth={1.7} />
+                ) : (
+                  <UserRound className="h-4 w-4" strokeWidth={1.7} />
+                )}{" "}
+                {t("inbox.handoff")}
+              </p>
+              <p
+                className={cn(
+                  "mt-1 text-xs opacity-80",
+                  conversation.handoffReason === "error"
+                    ? "text-danger-text"
+                    : "text-warning-text"
+                )}
+              >
+                {conversation.handoffReason
+                  ? handoffLabel(conversation.handoffReason, t)
                   : t("inbox.handoffReasons.default")}
               </p>
+              {onRetryAi && conversation.handoffReason === "error" && (
+                // 009 (E1c): volver a intentar la respuesta de la IA AHORA.
+                // Solo para un fallo del proveedor: con otro motivo (el
+                // cliente pidió una persona, se contestó desde el teléfono…)
+                // la IA no debe volver sola; para eso está «Riattiva IA».
+                <Button
+                  size="sm"
+                  className="mt-2 w-full"
+                  disabled={retrying}
+                  onClick={() => void retryAi()}
+                >
+                  <RotateCcw className="h-3.5 w-3.5" strokeWidth={1.8} />
+                  {retrying ? t("inbox.panel.retrying") : t("inbox.panel.retryAi")}
+                </Button>
+              )}
               <Button
                 size="sm"
                 variant="outline"
                 className="mt-2 w-full"
+                disabled={retrying}
                 onClick={() => void onPatchConversation({ reactivate: true })}
               >
                 {t("inbox.panel.reactivate")}
               </Button>
             </div>
+          )}
+          {retryNote && (
+            <p
+              role="status"
+              className={cn(
+                "mt-2 text-xs",
+                retryNote.ok ? "text-text-2" : "text-danger-text"
+              )}
+            >
+              {retryNote.text}
+            </p>
           )}
 
           <div className="mt-3 rounded-md border bg-secondary/50 px-3 py-2.5">
@@ -205,7 +332,9 @@ export function ContactPanel({
               <div className="min-w-0">
                 <p className="text-[13px] font-medium">{t("inbox.panel.aiTitle")}</p>
                 <p className="text-[11px] text-text-3">
-                  {conversation.handoffAt
+                  {conversation.agentRetryAt
+                    ? t("inbox.retryPending")
+                    : conversation.handoffAt
                     ? t("inbox.panel.stateHandoff")
                     : !conversation.aiEnabled
                       ? t("inbox.panel.statePaused")
@@ -214,27 +343,16 @@ export function ContactPanel({
                         : t("inbox.panel.stateEnabled")}
                 </p>
               </div>
-              <button
-                role="switch"
-                aria-checked={aiActive}
-                aria-label={t("inbox.panel.aiTitle")}
-                onClick={() => {
+              <Switch
+                size="sm"
+                checked={aiActive}
+                label={t("inbox.panel.aiTitle")}
+                onCheckedChange={() => {
                   void onPatchConversation({
                     aiEnabled: !conversation.aiEnabled,
                   });
                 }}
-                className={cn(
-                  "relative inline-flex h-5 w-9 shrink-0 items-center rounded-full px-0.5 transition-colors",
-                  aiActive ? "bg-brand" : "bg-border-strong"
-                )}
-              >
-                <span
-                  className={cn(
-                    "h-4 w-4 rounded-full bg-knob shadow-sm transition-transform",
-                    aiActive ? "translate-x-4" : "translate-x-0"
-                  )}
-                />
-              </button>
+              />
             </div>
 
             {!agentReady && (
@@ -283,7 +401,7 @@ export function ContactPanel({
                     )}
                     <button
                       onClick={() => void moveToStage(s.id)}
-                      aria-label={t("inbox.panel.moveTo", { name: s.name })}
+                      aria-label={t("inbox.panel.moveTo", { name: stageLabel(s.name, locale) })}
                       className={cn(
                         "relative z-10 mt-0.5 flex h-[15px] w-[15px] shrink-0 items-center justify-center rounded-full transition-colors",
                         done && "bg-brand text-brand-fg",
@@ -300,7 +418,7 @@ export function ContactPanel({
                         current ? "font-[650] text-brand-text" : "text-text-2 hover:text-foreground"
                       )}
                     >
-                      {s.name}
+                      {stageLabel(s.name, locale)}
                     </button>
                   </li>
                 );

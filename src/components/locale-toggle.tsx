@@ -36,7 +36,7 @@ export function LocaleToggle({
       aria-label="Language / Idioma / Lingua"
       title="Language / Idioma / Lingua"
       className={cn(
-        "rounded px-1 py-0.5 text-[11px] font-bold uppercase tracking-wide text-text-3 transition-colors hover:text-foreground",
+        "rounded border px-1.5 py-0.5 text-[11px] font-bold uppercase tracking-wide text-text-3 transition-colors hover:text-foreground",
         className
       )}
     >

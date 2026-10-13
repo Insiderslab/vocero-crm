@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   FlaskConical,
   Inbox,
   Kanban,
+  LayoutDashboard,
   LogOut,
   Settings,
   ShieldCheck,
@@ -23,12 +24,14 @@ import type { ThemePreference } from "@/lib/theme";
 import { cn, initials } from "@/lib/utils";
 import { HeiliMark } from "@/components/heili-mark";
 import { authClient, signOut } from "@/lib/auth/client";
-import { useEvents } from "@/components/use-events";
+import { resetEvents, useEvents } from "@/components/use-events";
 import { LocaleToggle } from "@/components/locale-toggle";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { APP_VERSION, BUILD_COMMIT, versionLabel } from "@/lib/version";
+import { createIntentPrefetcher } from "@/lib/intent-prefetch";
 
 const NAV = [
+  { href: "/dashboard", key: "dashboard", icon: LayoutDashboard },
   { href: "/inbox", key: "inbox", icon: Inbox, badge: true },
   { href: "/pipeline", key: "pipeline", icon: Kanban },
   { href: "/contacts", key: "contacts", icon: Users },
@@ -36,6 +39,13 @@ const NAV = [
   { href: "/agent", key: "agent", icon: Sparkles, adminOnly: true },
   { href: "/lab", key: "lab", icon: FlaskConical, adminOnly: true },
 ] as const;
+
+/** Rol en el pie del lateral: antes un admin aparecía como «Team». */
+export function roleLabel(role: string, t: (key: string) => string): string {
+  if (role === "owner") return t("nav.owner");
+  if (role === "admin") return t("nav.roleAdmin");
+  return t("nav.member");
+}
 
 export function AppNav({
   branding,
@@ -73,6 +83,17 @@ export function AppNav({
   const router = useRouter();
   const { t } = useT();
   const [unread, setUnread] = useState(0);
+  // 009 (E5/E6): precarga por intención, una petición cada vez (ver lib).
+  const prefetchOnIntent = useMemo(
+    () => createIntentPrefetcher((href) => router.prefetch(href)),
+    [router]
+  );
+  const intent = (href: string) => ({
+    prefetch: false as const,
+    onMouseEnter: () => prefetchOnIntent(href),
+    onFocus: () => prefetchOnIntent(href),
+    onTouchStart: () => prefetchOnIntent(href),
+  });
 
   async function refetchUnread() {
     const res = await fetch("/api/conversations").catch(() => null);
@@ -145,6 +166,9 @@ export function AppNav({
               await authClient.organization.setActive({
                 organizationId: e.target.value,
               });
+              // El canal SSE es por organización: el viejo seguiría
+              // entregando eventos de la anterior.
+              resetEvents();
               router.refresh();
             }}
             className="w-full rounded-md border bg-background px-2 py-1.5 text-[13px] font-medium text-foreground"
@@ -166,6 +190,7 @@ export function AppNav({
             <Link
               key={item.href}
               href={item.href}
+              {...intent(item.href)}
               className={cn(
                 "flex items-center gap-[11px] rounded-sm px-2.5 py-2.5 text-sm font-medium transition-colors lg:py-2",
                 active
@@ -198,6 +223,7 @@ export function AppNav({
       {isSuperadmin && (
         <Link
           href="/admin"
+          {...intent("/admin")}
           className={cn(
             "mb-0.5 flex items-center gap-[11px] rounded-sm px-2.5 py-2 text-sm font-medium transition-colors",
             pathname.startsWith("/admin")
@@ -218,6 +244,7 @@ export function AppNav({
 
       <Link
         href="/settings"
+        {...intent("/settings")}
         className={cn(
           "flex items-center gap-[11px] rounded-sm px-2.5 py-2 text-sm font-medium transition-colors",
           pathname.startsWith("/settings")
@@ -235,30 +262,39 @@ export function AppNav({
         {t("nav.settings")}
       </Link>
 
-      <div className="mt-1 flex items-center gap-2.5 rounded-sm px-2.5 py-2 hover:bg-accent">
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-soft text-xs font-semibold text-brand-text">
-          {initials(userName)}
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="block truncate text-[13px] font-semibold">{userName}</span>
-          <span className="block text-[11px] text-text-3">
-            {role === "owner" ? t("nav.owner") : t("nav.member")} · {t("nav.online")}
+      {/* 009 (E8): dos renglones. En uno solo (avatar + nombre + rol + idioma
+          + tema + salir) en 224 px, el botón del idioma pisaba «Proprietario»
+          y el nombre se cortaba a las pocas letras. */}
+      <div data-user-footer="" className="mt-1 rounded-sm px-2.5 py-2">
+        <div className="flex items-center gap-2.5">
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-soft text-xs font-semibold text-brand-text">
+            {initials(userName)}
           </span>
-        </span>
-        <LocaleToggle initial={locale} />
-        <ThemeToggle initial={theme} />
-        <button
-          aria-label={t("nav.signOut")}
-          title={t("nav.signOut")}
-          className="rounded p-1 text-text-3 hover:text-foreground"
-          onClick={async () => {
-            await signOut();
-            router.push("/login");
-            router.refresh();
-          }}
-        >
-          <LogOut className="h-4 w-4" strokeWidth={1.7} />
-        </button>
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-[13px] font-semibold" title={userName}>
+              {userName}
+            </span>
+            <span className="block truncate text-[11px] text-text-3">
+              {roleLabel(role, t)} · {t("nav.online")}
+            </span>
+          </span>
+        </div>
+        <div className="mt-1.5 flex items-center justify-end gap-1">
+          <LocaleToggle initial={locale} />
+          <ThemeToggle initial={theme} />
+          <button
+            aria-label={t("nav.signOut")}
+            title={t("nav.signOut")}
+            className="rounded p-1 text-text-3 hover:text-foreground"
+            onClick={async () => {
+              await signOut();
+              router.push("/login");
+              router.refresh();
+            }}
+          >
+            <LogOut className="h-4 w-4" strokeWidth={1.7} />
+          </button>
+        </div>
       </div>
 
       {/* Qué versión está corriendo. Discreta pero siempre visible: la duda

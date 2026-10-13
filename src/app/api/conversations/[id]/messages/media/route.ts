@@ -2,6 +2,7 @@ import { apiError, withAuth } from "@/lib/api";
 import { getConversation } from "@/server/inbox/queries";
 import { SendError, sendMediaMessage } from "@/server/inbox/send";
 import { MediaValidationError } from "@/server/whatsapp/media";
+import { clearAgentRetryOnHumanReply } from "@/server/ai/pipeline";
 
 export const dynamic = "force-dynamic";
 
@@ -55,6 +56,7 @@ export const POST = withAuth(async (session, req: Request, ctx: Params) => {
       },
       caption,
     });
+    await clearAgentRetryOnHumanReply(session.organizationId, id);
     return Response.json({ messageId: result.messageId }, { status: 201 });
   } catch (err) {
     if (err instanceof MediaValidationError) {

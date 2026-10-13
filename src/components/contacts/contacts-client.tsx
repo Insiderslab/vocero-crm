@@ -25,11 +25,16 @@ import { PriorityBadge } from "@/components/pipeline/priority-picker";
 import { NewContactDialog } from "./new-contact-dialog";
 import { StartConversation } from "./start-conversation";
 import { TagEditor } from "./tag-editor";
+import { stageLabel } from "@/lib/stages";
+import { ListSkeleton } from "@/components/ui/skeleton";
 
 export function ContactsClient() {
-  const { t } = useT();
+  const { t, locale } = useT();
   const router = useRouter();
-  const [contacts, setContacts] = useState<ContactDto[]>([]);
+  // 009 (E3): `null` = aún no llegó la primera respuesta. Antes arrancaba en
+  // `[]` y la pantalla decía "Nessun contatto" mientras cargaba.
+  const [contacts, setContacts] = useState<ContactDto[] | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [query, setQuery] = useState("");
   const [stage, setStage] = useState("all");
   const [stages, setStages] = useState<string[]>([]);
@@ -76,7 +81,11 @@ export function ContactsClient() {
     if (tagFilter !== "all") params.set("tag", tagFilter);
     if (showArchived) params.set("archived", "true");
     const res = await fetch(`/api/contacts?${params}`).catch(() => null);
-    if (!res?.ok) return;
+    if (!res?.ok) {
+      setLoadFailed(true);
+      return;
+    }
+    setLoadFailed(false);
     const data = (await res.json()) as { contacts: ContactDto[] };
     // A quién llamar primero: alta arriba, sin prioridad al final. El orden lo
     // decide esta lista, no el servidor, porque es una preferencia de trabajo y
@@ -132,7 +141,7 @@ export function ContactsClient() {
               <option value="all">{t("contacts.allStages")}</option>
               {stages.map((s) => (
                 <option key={s} value={s}>
-                  {s}
+                  {stageLabel(s, locale)}
                 </option>
               ))}
             </select>
@@ -167,7 +176,18 @@ export function ContactsClient() {
       </header>
 
       <div className="flex-1 overflow-y-auto p-4 sm:p-6">
-        {contacts.length === 0 ? (
+        {contacts === null ? (
+          loadFailed ? (
+            <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
+              <p className="text-sm text-muted-foreground">{t("common.loadError")}</p>
+              <Button size="sm" variant="outline" onClick={() => void refetch()}>
+                {t("common.retry")}
+              </Button>
+            </div>
+          ) : (
+            <ListSkeleton rows={8} />
+          )
+        ) : contacts.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
             {query.trim() || stage !== "all" ? (
               <>
@@ -178,13 +198,13 @@ export function ContactsClient() {
                   {query.trim() && stage !== "all"
                     ? t("contacts.empty.filteredBoth", {
                         query: query.trim(),
-                        stage,
+                        stage: stageLabel(stage, locale),
                       })
                     : query.trim()
                       ? t("contacts.empty.filteredQuery", {
                           query: query.trim(),
                         })
-                      : t("contacts.empty.filteredStage", { stage })}
+                      : t("contacts.empty.filteredStage", { stage: stageLabel(stage, locale) })}
                 </p>
               </>
             ) : (
@@ -213,7 +233,7 @@ export function ContactsClient() {
                     </span>
                     {c.priority && <PriorityBadge value={c.priority} />}
                     {c.stageName && (
-                      <Badge variant="outline">{c.stageName}</Badge>
+                      <Badge variant="outline">{stageLabel(c.stageName, locale)}</Badge>
                     )}
                     {c.archivedAt && (
                       <Badge variant="secondary">{t("contacts.archived")}</Badge>
@@ -265,7 +285,8 @@ export function ContactsClient() {
                   >
                     <Send className="h-4 w-4" />
                   </Button>
-                  <Link href={`/inbox?contact=${c.id}`}>
+                  {/* 009 (E5): sin prefetch — uno por fila sería una ráfaga de ?_rsc=. */}
+                  <Link href={`/inbox?contact=${c.id}`} prefetch={false}>
                     <Button
                       variant="ghost"
                       size="icon"
