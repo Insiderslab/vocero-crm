@@ -1031,6 +1031,15 @@ async function webhookSignatureSection() {
   await sleep(1200);
   convs = (await api("/api/conversations")).json?.conversations ?? [];
   ok("el evento firmado sí llega a la bandeja", convs.some((c) => c.contact.name === "Firmado E2E"));
+
+  // Configuración → WhatsApp ve lo que pasó de verdad, no solo «hay secreto».
+  const st = (await api("/api/settings/webhook")).json?.signatureStats;
+  ok(
+    "contadores: firma verificada reciente y los 2 rechazos contados",
+    Boolean(st?.lastVerifiedAt) && Boolean(st?.lastInvalidAt) && st?.invalidSinceBoot >= 2,
+    JSON.stringify(st)
+  );
+  ok("contadores sin el secreto", !JSON.stringify(st ?? {}).includes(secret));
 }
 
 /**
