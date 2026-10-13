@@ -965,3 +965,42 @@ export const waAddressBookEntry = pgTable(
     ),
   ]
 );
+
+/* ============================================================
+ * 012 — Ronda del team (POST /api/bot/team-broadcast)
+ * ============================================================ */
+
+/**
+ * Una riga per ronda inviata (mai per un `dryRun`). Serve tre cose con una
+ * tabella sola: idempotenza (`Idempotency-Key` UNIQUE per organizzazione,
+ * valida 36 h), limite orario (righe dell'ultima ora) e la riga «ultima
+ * ronda» della pagina Agente IA. I parametri NON si salvano: il testo inviato
+ * sta già nei messaggi; `result` è la risposta già mascherata (ultime 3 cifre).
+ */
+export const teamBroadcast = pgTable(
+  "team_broadcast",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    idempotencyKey: text("idempotency_key").notNull(),
+    templateName: text("template_name").notNull(),
+    language: text("language").notNull(),
+    status: text("status", { enum: ["running", "done"] })
+      .notNull()
+      .default("running"),
+    total: integer("total").notNull().default(0),
+    sent: integer("sent").notNull().default(0),
+    failed: integer("failed").notNull().default(0),
+    skipped: integer("skipped").notNull().default(0),
+    result: jsonb("result"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    finishedAt: timestamp("finished_at"),
+  },
+  (t) => [
+    uniqueIndex("team_broadcast_org_key_uq").on(t.organizationId, t.idempotencyKey),
+    index("team_broadcast_org_created_idx").on(t.organizationId, t.createdAt),
+    check("team_broadcast_status_ck", sql`${t.status} in ('running', 'done')`),
+  ]
+);
