@@ -175,6 +175,22 @@ Embedded Signup. Hay dos formas de obtenerlo:
 
 ### Modo agencia (Tech Provider) — para agencias
 
+> ⛔ **Hoy NO está soportado.** Con la firma `x-hub-signature-256`
+> obligatoria, el override de callback (abajo) no funciona: Meta firma cada
+> evento con el **App Secret de la app de la agencia** (la app dueña de la
+> suscripción), y la instancia del cliente solo podría verificarlo teniendo
+> ese secreto. **No copies el App Secret de la agencia en los servidores de
+> los clientes**: no es un secreto «del webhook», da control a nivel de la
+> app (con `APP_ID|APP_SECRET` se obtiene el token de la app y se gestionan
+> sus suscripciones de webhooks, se inspeccionan los tokens de TODOS los
+> clientes, etc.), así que el compromiso de un solo cliente comprometería a
+> todos. Sin ese secreto la instancia rechaza los eventos (503 sin
+> `META_APP_SECRET`, 401 con otro secreto): es el comportamiento buscado
+> (fail-closed). El modo agencia volverá cuando exista un **reenvío firmado**
+> (el backend de la agencia verifica la firma de Meta y reenvía firmando con
+> un secreto propio de cada instancia). Mientras tanto, usa el modo directo
+> (la app de Meta del propio cliente). Lo que sigue queda como referencia.
+
 Tu plataforma de agencia ya hace el Embedded Signup y guarda los tokens de tus
 clientes; la instancia de Vocero del cliente solo recibe su token. El webhook
 del cliente se conecta con el **override de callback por WABA**:
@@ -226,10 +242,11 @@ del cliente se conecta con el **override de callback por WABA**:
 
 > ⚠️ **Seguridad**: la URL del webhook contiene el verify token como segmento
 > secreto — trátala como una contraseña (no la publiques ni la mandes por
-> canales inseguros). Además, la firma `x-hub-signature-256` es **obligatoria**:
-> en modo agencia Meta firma con la app de la agencia, así que la instancia
-> necesita `META_APP_SECRET` = App Secret de esa app (sin él, el webhook
-> rechaza todos los eventos con 503).
+> canales inseguros). Además, la firma `x-hub-signature-256` es **obligatoria**
+> y en modo agencia Meta firma con la app de la agencia: por eso este modo no
+> está soportado hasta que exista un reenvío firmado (ver el aviso al inicio
+> de esta sección). Nunca pongas el App Secret de la agencia en la instancia
+> de un cliente.
 >
 > ℹ️ **Limitación conocida de Meta**: los eventos de estado de PLANTILLAS
 > (`message_template_status_update`) no siguen el override de callback — van a

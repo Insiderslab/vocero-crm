@@ -173,7 +173,7 @@ const messages: typeof base = {
     originAgency1:
       "Your agency runs the Embedded Signup on THEIR platform and its backend obtains the client's token; it hands it to you to paste here. The webhook connects via the ",
     originAgencyWaba: "per-WABA override",
-    originAgency2: " (5-step checklist in the README).",
+    originAgency2: " (README). Currently NOT supported: with mandatory signatures it would need the agency's App Secret on this server, which must never be shared.",
     wabaPlaceholder: "WhatsApp Business account ID",
     phoneIdPlaceholder: "Phone number ID",
     tokenLabel: "Access token",
@@ -207,7 +207,7 @@ const messages: typeof base = {
     signatureRejected:
       "{{count}} events rejected since restart (last {{when}}): the signature is invalid — if none arrive verified, the secret does not match the app that signs.",
     signatureMissing:
-      "META_APP_SECRET is missing: the signature is mandatory, so the webhook REJECTS every event (503) and no message reaches the inbox. Add the App Secret of the Meta app that sends the webhooks (in agency mode, the agency app's; behind Wapi, the endpoint secret) to the instance and restart.",
+      "META_APP_SECRET is missing: the signature is mandatory, so the webhook REJECTS every event (503) and no message reaches the inbox. Add the App Secret of the Meta app that sends the webhooks (your own app's — agency mode with a callback override is not supported with mandatory signatures, never copy the agency's App Secret here; behind Wapi, the endpoint secret) to the instance and restart.",
     signatureTestMode:
       "Test environment (mocks enabled): without META_APP_SECRET unsigned events are accepted. In production the signature is always mandatory.",
     wapi: {

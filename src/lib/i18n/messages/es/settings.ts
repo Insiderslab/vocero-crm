@@ -172,7 +172,7 @@ const messages = {
     originAgency1:
       "Tu agencia hace el Embedded Signup en SU plataforma y su backend obtiene el token del cliente; te lo entrega para pegarlo aquí. El webhook se conecta con el ",
     originAgencyWaba: "override por WABA",
-    originAgency2: " (checklist de 5 pasos en el README).",
+    originAgency2: " (README). Hoy NO está soportado: con la firma obligatoria haría falta el App Secret de la agencia en este servidor, y ese secreto nunca se comparte.",
     wabaPlaceholder: "ID de la cuenta de WhatsApp Business",
     phoneIdPlaceholder: "ID del número de teléfono",
     tokenLabel: "Token de acceso",
@@ -208,7 +208,7 @@ const messages = {
     signatureRejected:
       "{{count}} eventos rechazados desde el arranque (último {{when}}): la firma no es válida — si no llega ninguno verificado, el secreto no coincide con la app que firma.",
     signatureMissing:
-      "Falta META_APP_SECRET: la firma es obligatoria, así que el webhook RECHAZA todos los eventos (503) y no llega ningún mensaje a la bandeja. Agrega a la instancia el App Secret de la app de Meta que envía los webhooks (en modo agencia, el de la app de la agencia; detrás de Wapi, el secreto del endpoint) y reinicia.",
+      "Falta META_APP_SECRET: la firma es obligatoria, así que el webhook RECHAZA todos los eventos (503) y no llega ningún mensaje a la bandeja. Agrega a la instancia el App Secret de la app de Meta que envía los webhooks (el de tu propia app — el modo agencia con override de callback no está soportado con la firma obligatoria, nunca copies aquí el App Secret de la agencia; detrás de Wapi, el secreto del endpoint) y reinicia.",
     signatureTestMode:
       "Entorno de pruebas (mocks activos): sin META_APP_SECRET se aceptan eventos sin firma. En producción la firma es siempre obligatoria.",
     wapi: {
