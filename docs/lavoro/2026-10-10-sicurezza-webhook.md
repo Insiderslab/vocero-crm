@@ -85,3 +85,38 @@ Finché la si usa: vale solo con UNA organizzazione (con due o più → 401 `ins
 1. **Modo agenzia** (override del callback): Meta firma con l'App Secret dell'app dell'agenzia, quindi ogni istanza cliente ora deve avere quel segreto. Prima era «lascialo vuoto». Se non è accettabile condividerlo, serve un'altra soluzione (es. un inoltro firmato con un segreto per istanza, come fa Wapi): non implementata.
 2. **Wapi**: il segreto dell'endpoint configurato in Wapi deve coincidere con `META_APP_SECRET` del CRM, altrimenti tutto → 401.
 3. La chiave d'istanza ereditata resta valida con una sola organizzazione (scelta di C2); toglierla del tutto è una decisione di prodotto.
+
+## 2026-10-13 — Allineamento con `main` (merge, non rebase)
+
+`origin/main` @ `65f06f3` (PR #12: 009 usabilità P1, più 007 assistente interno e 010 Sintesi) unito nel branch con un **commit di merge**: la storia della PR non è riscritta.
+
+**Conflitti (3), tenute entrambe le intenzioni:**
+- `src/app/api/export/messages/route.ts`: `scoped()` sul JOIN di `conversation` e sul WHERE (questa PR) + ordine `MESSAGE_CHRONOLOGY` di E4 (main). Import ridotti a `eq`/`gte`.
+- `src/instrumentation.ts`: all'avvio `warnWebhookSignatureConfig()` (questa PR) **e** `recoverPendingAgentRetries()` (main, E1).
+- `scripts/e2e-selftest.mjs`: sezione «seguridad» dopo i controlli Wapi, poi 010 → 007 → 009 → coexistence.
+
+**Controllo semantico oltre i conflitti:**
+- Webhook: nessun nuovo percorso di ingestione su `main`; tutto l'inbound dell'E2E (anche 007/009/010 e `e2e-usabilita.mjs`) passa dal wa-mock, che firma con `META_APP_SECRET` quando c'è. Le nuove route (`agent-retry`, `dashboard/summary`, `admin/orgs/[orgId]`) sono dietro sessione; l'ai-mock resta dietro `mockGuard()`.
+- Export: su `main` l'export dei messaggi **non** ha un campo `channel` nuovo; cambia solo l'ordine. `origin` (già esportato) ora può valere `system` (cortesia automatica): nessun dato di altre organizzazioni, nessuna modifica necessaria.
+- Golden: i nuovi file di `main` (team-assistant, usabilita, dashboard-summary, onboarding-checklist) usano tutti `postWebhook` e quindi sono firmati dal segreto sintetico di `env.ts`. Unico cambio: `postWebhook` in modalità «auto» senza segreto ora **lancia** invece di mandare un POST che finirebbe in 503 in silenzio (provato: togliendo il segreto da `env.ts`, 16 casi di `usabilita` falliscono con il messaggio chiaro). **Istantanee invariate.**
+
+**Prove (dopo il merge):**
+
+| Comando (`./node_modules/.bin/*`) | Esito |
+|---|---|
+| `tsc --noEmit` · `eslint .` · `next build` | ok |
+| `vitest run` | 83 file, **1238** test verdi |
+| golden su base nuova (`vocero_sec9_merge_golden2`) | 14 file, **148/148**, istantanee invariate |
+| E2E `e2e-selftest.mjs` (`next dev` + mock, `META_APP_SECRET` sintetico, base `vocero_sec9_merge_e2e`) | **179/179** (8 della sezione «seguridad»); coexistence SKIP come prima |
+| E2E browser `e2e-usabilita.mjs` sulla stessa app | 36/36 |
+| `channels_legacy_check()` dopo l'E2E | V1–V6 = 0 |
+
+**Sabotaggi (uno alla volta, ripristinati):**
+
+| # | Sabotaggio | Esito |
+|---|---|---|
+| M1 | POST del webhook senza controllo della firma | rosso (5, `webhook-route.test.ts`) |
+| M2 | JOIN di `conversation` senza `scoped()` nell'export dei messaggi (il file del conflitto) | rosso (3, `export-routes-scoped.test.ts`) |
+| M3 | `unsignedWebhookAllowed()` sempre vero (eventi non firmati fuori dal gate dei mock) | rosso (12, `dev-guard` + `webhook-route`) |
+
+Nota per il deploy: invariata rispetto a sopra (`META_APP_SECRET` obbligatorio nel runtime), ma con 007 il mittente WhatsApp decide anche chi è «del team» per l'assistente interno: la firma obbligatoria impedisce di fingersi un collega con la sola URL. Con il merge arrivano anche le migrazioni 0014–0015 di `main`.
