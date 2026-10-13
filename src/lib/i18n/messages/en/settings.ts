@@ -202,6 +202,10 @@ const messages: typeof base = {
     copiedToken: "Copied ✓",
     signatureActive:
       "Signature verification active (META_APP_SECRET configured): every event is validated with x-hub-signature-256.",
+    signatureLastVerified: "Last verified signed event: {{when}}.",
+    signatureNoneVerified: "No verified signed event has arrived since the last restart.",
+    signatureRejected:
+      "{{count}} events rejected since restart (last {{when}}): the signature is invalid — if none arrive verified, the secret does not match the app that signs.",
     signatureMissing:
       "META_APP_SECRET is missing: the signature is mandatory, so the webhook REJECTS every event (503) and no message reaches the inbox. Add the App Secret of the Meta app that sends the webhooks (in agency mode, the agency app's; behind Wapi, the endpoint secret) to the instance and restart.",
     signatureTestMode:

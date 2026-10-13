@@ -202,6 +202,11 @@ const messages = {
     copiedToken: "Copiado ✓",
     signatureActive:
       "Verificación de firma activa (META_APP_SECRET configurado): cada evento se valida con x-hub-signature-256.",
+    signatureLastVerified: "Último evento firmado verificado: {{when}}.",
+    signatureNoneVerified:
+      "Aún no ha llegado ningún evento firmado verificado desde el último arranque.",
+    signatureRejected:
+      "{{count}} eventos rechazados desde el arranque (último {{when}}): la firma no es válida — si no llega ninguno verificado, el secreto no coincide con la app que firma.",
     signatureMissing:
       "Falta META_APP_SECRET: la firma es obligatoria, así que el webhook RECHAZA todos los eventos (503) y no llega ningún mensaje a la bandeja. Agrega a la instancia el App Secret de la app de Meta que envía los webhooks (en modo agencia, el de la app de la agencia; detrás de Wapi, el secreto del endpoint) y reinicia.",
     signatureTestMode:

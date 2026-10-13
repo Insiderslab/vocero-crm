@@ -6,7 +6,6 @@ import {
   CheckCircle2,
   Copy,
   Info,
-  ShieldCheck,
 } from "lucide-react";
 import { useT } from "@/lib/i18n/client";
 import { Badge } from "@/components/ui/badge";
@@ -15,6 +14,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { CoexistenceConnect } from "@/components/settings/coexistence-connect";
+import {
+  WebhookSignatureStatus,
+  type SignatureStats,
+} from "@/components/settings/webhook-signature-status";
 
 type Connection = {
   wabaId: string;
@@ -36,6 +39,8 @@ type WebhookInfo = {
   signatureLayer: boolean;
   /** Firma obligatoria (todo entorno salvo el gate de pruebas). */
   signatureRequired: boolean;
+  /** Lo que pasó desde el arranque (firmas verificadas / rechazadas). */
+  signatureStats?: SignatureStats;
 };
 
 export function WhatsappWizard() {
@@ -309,7 +314,7 @@ function ConnectForm({
 }
 
 function WebhookCard({ webhook }: { webhook: WebhookInfo }) {
-  const { t } = useT();
+  const { t, locale } = useT();
   const [copied, setCopied] = useState<string | null>(null);
 
   function copy(text: string, which: string) {
@@ -380,9 +385,7 @@ function WebhookCard({ webhook }: { webhook: WebhookInfo }) {
           </div>
         </div>
         {webhook.signatureLayer ? (
-          <p className="flex items-center gap-2 text-xs text-success">
-            <ShieldCheck className="h-4 w-4" /> {t("settings.whatsapp.signatureActive")}
-          </p>
+          <WebhookSignatureStatus stats={webhook.signatureStats} t={t} locale={locale} />
         ) : webhook.signatureRequired ? (
           <p
             role="alert"
