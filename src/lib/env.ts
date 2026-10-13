@@ -19,7 +19,13 @@ const envSchema = z.object({
         "ENCRYPTION_KEY debe ser 32 bytes en base64 (genera con: openssl rand -base64 32)",
     }),
   META_WEBHOOK_VERIFY_TOKEN: z.string().min(8),
-  META_APP_SECRET: z.string().optional(),
+  // Se normaliza UNA vez aquí: sin espacios ni saltos de línea alrededor (un
+  // panel o un `echo` los añaden fácil) y vacío = ausente. Así la presencia
+  // (503 si falta) y el HMAC de la firma usan exactamente el mismo valor.
+  META_APP_SECRET: z
+    .string()
+    .optional()
+    .transform((v) => v?.trim() || undefined),
   META_GRAPH_API_VERSION: z.string().default("v25.0"),
   META_GRAPH_BASE_URL: z.string().url().default("https://graph.facebook.com"),
   // 009 (custom heili.cloud): Embedded Signup de Meta para conectar el número

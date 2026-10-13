@@ -16,7 +16,7 @@ export const GET = withAdminAuth(async () => {
     url,
     verifyToken: env.META_WEBHOOK_VERIFY_TOKEN,
     isHttps: url.startsWith("https://"),
-    signatureLayer: Boolean(env.META_APP_SECRET?.trim()),
+    signatureLayer: Boolean(env.META_APP_SECRET),
     // Sin secreto y con la firma obligatoria el webhook rechaza todo (503):
     // la UI lo muestra como alerta, no como "capa opcional".
     signatureRequired: !unsignedWebhookAllowed(),

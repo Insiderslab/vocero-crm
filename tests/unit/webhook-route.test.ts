@@ -329,3 +329,28 @@ describe("URL del webhook: solo owner/admin, y aun así no basta para inyectar",
     expect(info.signatureRequired).toBe(false);
   });
 });
+
+describe("META_APP_SECRET normalizado una sola vez (env)", () => {
+  it.each([
+    ["espacio final", `${APP_SECRET} `],
+    ["salto de línea final", `${APP_SECRET}\n`],
+    ["espacios y CRLF alrededor", `  ${APP_SECRET}\r\n`],
+  ])("con %s la firma de Meta (hecha con el secreto limpio) verifica → 200", async (_l, raw) => {
+    const routes = await loadRoutes({ nodeEnv: "production", secret: raw });
+    const res = await post(routes, { signature: sign(payloadParaB, APP_SECRET) });
+    await settled();
+    expect(res.status).toBe(200);
+    expect(state.ingested).toHaveLength(1);
+  });
+
+  it("solo espacios cuenta como ausente: 503 y la UI no dice «firma activa»", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const routes = await loadRoutes({ nodeEnv: "production", secret: "   \n" });
+    const res = await post(routes, { signature: sign(payloadParaB, "   \n") });
+    await settled();
+    expect(res.status).toBe(503);
+    expect(state.ingested).toEqual([]);
+    const info = (await (await routes.settings.GET()).json()) as { signatureLayer: boolean };
+    expect(info.signatureLayer).toBe(false);
+  });
+});
