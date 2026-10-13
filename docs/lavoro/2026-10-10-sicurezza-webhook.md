@@ -120,3 +120,44 @@ Finché la si usa: vale solo con UNA organizzazione (con due o più → 401 `ins
 | M3 | `unsignedWebhookAllowed()` sempre vero (eventi non firmati fuori dal gate dei mock) | rosso (12, `dev-guard` + `webhook-route`) |
 
 Nota per il deploy: invariata rispetto a sopra (`META_APP_SECRET` obbligatorio nel runtime), ma con 007 il mittente WhatsApp decide anche chi è «del team» per l'assistente interno: la firma obbligatoria impedisce di fingersi un collega con la sola URL. Con il merge arrivano anche le migrazioni 0014–0015 di `main`.
+
+## 2026-10-13 — Correzioni dalla revisione di sicurezza della PR #9
+
+Commit piccoli su `sec-merge`, nessun push.
+
+| # | Rilievo | Correzione | Commit |
+|---|---|---|---|
+| 4 | segreto «trimmato» per la presenza ma non nell'HMAC | `META_APP_SECRET` normalizzato una volta nello schema dell'env (`trim`, vuoto = assente) | `c75dbd1` |
+| 6 | handshake GET con `===` | `safeEqual` anche per `hub.verify_token` | `b7db7e9` |
+| 3 | nessun tetto al corpo prima dell'HMAC | `readBodyCapped`: `content-length` > 5 MB → 413 senza leggere; chunked tagliato a 5 MB → 413; HMAC sui byte grezzi, poi UTF-8 (senza BOM) per il JSON; Caddy `request_body max_size 10MB` su `/api/webhooks/*` (verificato con `caddy adapt` 2.8.4) | `dbae3a1` |
+| 1 | segreto sbagliato = 401 muto | log `[webhook] firma inválida (401): cabecera presente=sí/no, N bytes …` al massimo 1/min, mai intestazione/segreto/token | `256340f` |
+| 2 | il badge guardava solo la presenza | contatori di processo (ultima verificata, ultima non valida, rifiuti dall'avvio) in `GET /api/settings/webhook` (solo owner/admin) e in Configurazione → WhatsApp (es/en/it, «X fa», allerta con i rifiuti) | `256340f`, `6407e51` |
+| 5 | CSV | guardia formule `/^[=+\-@\t\r]/`; `Content-Disposition` con riserva ASCII ripulita (niente controlli, virgolette, barre, `;`) + `filename*` RFC 5987 | `859f2eb` |
+| 7 | modo agenzia | README, `.env.example` e testi del wizard: **non supportato** con la firma obbligatoria, mai copiare l'App Secret dell'agenzia sui server dei clienti; codice invariato (fail-closed) | `e86c6f6` |
+| — | E2E | la sezione «seguridad» controlla anche i contatori | `26f06db` |
+
+**Sabotaggi (uno per guardia nuova, ripristinati):**
+
+| Sabotaggio | Esito |
+|---|---|
+| env senza normalizzazione | rosso (3) |
+| handshake di nuovo con `===` | rosso (1, guardrail strutturale) |
+| niente controllo di `content-length` | rosso (2) |
+| niente tetto in streaming | rosso (`readBodyCapped`; il test chunked resta appeso → file rosso) |
+| HMAC sul testo decodificato | rosso (2, BOM) |
+| nessun log sulla firma non valida | rosso (1) |
+| log senza limite al minuto | rosso (1) |
+| log con il valore dell'intestazione | rosso (1) |
+| `/api/settings/webhook` senza contatori | rosso (4) |
+| UI che nasconde i rifiuti | rosso (5) |
+| guardia CSV vecchia (`/^[=+\-@]/`) | rosso (2) |
+| `Content-Disposition` vecchio | rosso (1) |
+| `.env.example` di nuovo con «App Secret dell'agenzia» | rosso (1) |
+
+**Prove:** `tsc`, `eslint .`, `next build` ok · `vitest run` 85 file / **1286** · golden su base nuova `vocero_sec9_review_golden` **148/148**, istantanee invariate · E2E (`next dev` + mock, `META_APP_SECRET` sintetico, base `vocero_sec9_review_e2e`) **181/181**, `channels_legacy_check()` V1–V6 = 0 · smoke sul server di sviluppo: 6 MB dichiarati → 413, 6 MB chunked → 413, handshake con token errato 403 e corretto 200, una riga «firma inválida» nel log, il segreto mai nel log (il token della URL compare solo nelle righe di richiesta di `next dev`, non in `next start`).
+
+**Note:** i contatori sono per processo (globalThis) e ripartono a ogni riavvio; con più repliche ognuna ha i suoi.
+
+### Decisioni (aggiornate)
+- **Modo agenzia**: sostituisce la decisione 1 sopra. Copiare l'App Secret dell'agenzia su ogni istanza cliente **non è accettabile**: quel segreto dà il controllo dell'app (token d'app, sottoscrizioni webhook, ispezione dei token di tutti i clienti). Finché non esiste un **inoltro firmato** (il backend dell'agenzia verifica la firma di Meta e reinoltra firmando con un segreto per istanza) la modalità agenzia con override del callback **non è supportata**; il codice resta fail-closed. La scelta dell'inoltro spetta all'owner.
+- **Rimandato**: più segreti accettati / `WAPI_WEBHOOK_SECRET` separato per Wapi. Wapi è congelato; per ora vale la decisione 2 (segreto dell'endpoint Wapi = `META_APP_SECRET`).
