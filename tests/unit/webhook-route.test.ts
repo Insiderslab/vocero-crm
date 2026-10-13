@@ -148,6 +148,9 @@ async function settled() {
 }
 
 beforeEach(() => {
+  // Contadores de firma por proceso (globalThis): cada caso empieza de cero.
+  (globalThis as { __webhookSignatureStats?: unknown }).__webhookSignatureStats = undefined;
+  vi.spyOn(console, "warn").mockImplementation(() => {});
   state.session = { userId: "u_a", organizationId: "org_a", role: "admin" };
   state.ingested = [];
   state.pending = [];
@@ -476,5 +479,83 @@ describe("cuerpo: tope de 5 MB antes del HMAC y firma sobre los bytes crudos", (
     await settled();
     expect(res.status).toBe(401);
     expect(state.ingested).toEqual([]);
+  });
+});
+
+describe("firma inválida: ya no es un 401 mudo (log limitado + contadores en Configuración)", () => {
+  type Stats = { lastVerifiedAt: string | null; lastInvalidAt: string | null; invalidSinceBoot: number };
+  async function stats(routes: Awaited<ReturnType<typeof loadRoutes>>): Promise<Stats> {
+    const info = (await (await routes.settings.GET()).json()) as { signatureStats: Stats };
+    return info.signatureStats;
+  }
+
+  it("secreto equivocado: una línea clara por minuto, sin la cabecera, el secreto ni el token", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const now = vi.spyOn(Date, "now").mockReturnValue(1_800_000_000_000);
+    const routes = await loadRoutes({ nodeEnv: "production", secret: APP_SECRET });
+    const wrong = sign(payloadParaB, "secreto-de-OTRA-app");
+    expect((await post(routes, { signature: wrong })).status).toBe(401);
+    expect((await post(routes, { signature: wrong })).status).toBe(401);
+    expect((await post(routes, { signature: null })).status).toBe(401);
+    expect(warn).toHaveBeenCalledTimes(1);
+    const line = String(warn.mock.calls[0]?.[0]);
+    expect(line).toContain("[webhook] firma inválida (401)");
+    expect(line).toContain("cabecera presente=sí");
+    expect(line).toContain(`${Buffer.byteLength(payloadParaB)} bytes`);
+    expect(line).toContain("META_APP_SECRET no coincide con la app que firma");
+    for (const secret of [APP_SECRET, "secreto-de-OTRA-app", wrong, wrong.slice(7), VERIFY_TOKEN]) {
+      expect(line).not.toContain(secret);
+    }
+
+    // pasado un minuto vuelve a registrar (y dice que esta vez no había cabecera)
+    now.mockReturnValue(1_800_000_000_000 + 60_000);
+    await post(routes, { signature: null });
+    expect(warn).toHaveBeenCalledTimes(2);
+    expect(String(warn.mock.calls[1]?.[0])).toContain("cabecera presente=no");
+    expect(String(warn.mock.calls[1]?.[0])).toContain("4 desde el arranque");
+    expect(state.ingested).toEqual([]);
+  });
+
+  it("GET /api/settings/webhook (owner/admin) devuelve última verificada, última inválida y rechazos", async () => {
+    const routes = await loadRoutes({ nodeEnv: "production", secret: APP_SECRET });
+    expect(await stats(routes)).toEqual({ lastVerifiedAt: null, lastInvalidAt: null, invalidSinceBoot: 0 });
+
+    expect((await post(routes, { signature: sign(payloadParaB, APP_SECRET) })).status).toBe(200);
+    await settled();
+    const s1 = await stats(routes);
+    expect(s1.lastVerifiedAt).not.toBeNull();
+    expect(s1.invalidSinceBoot).toBe(0);
+
+    await post(routes, { signature: sign(payloadParaB, "otro") });
+    await post(routes, { signature: null });
+    const s2 = await stats(routes);
+    expect(s2.invalidSinceBoot).toBe(2);
+    expect(s2.lastInvalidAt).not.toBeNull();
+    expect(s2.lastVerifiedAt).toBe(s1.lastVerifiedAt);
+
+    const raw = await (await routes.settings.GET()).text();
+    expect(raw).not.toContain(APP_SECRET);
+  });
+
+  it("un member no ve los contadores (403)", async () => {
+    state.session = { userId: "u_m", organizationId: "org_a", role: "member" };
+    const routes = await loadRoutes({ nodeEnv: "production", secret: APP_SECRET });
+    const res = await routes.settings.GET();
+    expect(res.status).toBe(403);
+    expect(await res.text()).not.toContain("signatureStats");
+  });
+
+  it("el gate de pruebas sin secreto NO cuenta como firma verificada", async () => {
+    const routes = await loadRoutes({ nodeEnv: "test", mocks: true });
+    expect((await post(routes, { signature: null })).status).toBe(200);
+    await settled();
+    expect((await stats(routes)).lastVerifiedAt).toBeNull();
+  });
+
+  it("el 503 por falta de secreto no cuenta como firma inválida", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const noSecret = await loadRoutes({ nodeEnv: "production" });
+    expect((await post(noSecret, { signature: null })).status).toBe(503);
+    expect((await stats(noSecret)).invalidSinceBoot).toBe(0);
   });
 });

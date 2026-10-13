@@ -1,6 +1,7 @@
 import { withAdminAuth } from "@/lib/api";
 import { unsignedWebhookAllowed } from "@/lib/dev-guard";
 import { getEnv } from "@/lib/env";
+import { webhookSignatureStats } from "@/server/inbox/webhook-signature-stats";
 
 export const dynamic = "force-dynamic";
 
@@ -20,5 +21,8 @@ export const GET = withAdminAuth(async () => {
     // Sin secreto y con la firma obligatoria el webhook rechaza todo (503):
     // la UI lo muestra como alerta, no como "capa opcional".
     signatureRequired: !unsignedWebhookAllowed(),
+    // Lo que de verdad pasó desde el arranque de este proceso: «firma activa»
+    // con el secreto equivocado se ve aquí como rechazos sin verificadas.
+    signatureStats: webhookSignatureStats(),
   });
 });

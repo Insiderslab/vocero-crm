@@ -12,6 +12,10 @@ import {
   type WebhookPayload,
 } from "@/server/inbox/webhook";
 import { processEchoesValue, processMessagesValue } from "@/server/inbox/ingest";
+import {
+  recordInvalidSignature,
+  recordVerifiedSignature,
+} from "@/server/inbox/webhook-signature-stats";
 import { processTemplateStatusValue } from "@/server/whatsapp/template-events";
 import {
   processAccountUpdateValue,
@@ -88,16 +92,24 @@ export async function POST(req: Request, { params }: Params) {
   // esos bytes y solo después se decodifican como UTF-8 (sin BOM) para el JSON.
   const rawBody = await readBodyCapped(req);
   if (!rawBody) return new Response(null, { status: 413 });
+  const signatureHeader = req.headers.get("x-hub-signature-256");
   const check = checkSignature(
     rawBody,
-    req.headers.get("x-hub-signature-256"),
+    signatureHeader,
     env.META_APP_SECRET,
     unsignedWebhookAllowed()
   );
   if (!check.ok) {
     // `secret_missing` ya se respondió arriba; aquí solo queda firma inválida.
-    return new Response(null, { status: check.reason === "secret_missing" ? 503 : 401 });
+    if (check.reason === "secret_missing") return new Response(null, { status: 503 });
+    // Antes era un 401 mudo: con el secreto equivocado TODO se perdía sin
+    // rastro. Log limitado (1/min, sin cabecera ni secreto) + contadores.
+    recordInvalidSignature({ headerPresent: signatureHeader !== null, bytes: rawBody.byteLength });
+    return new Response(null, { status: 401 });
   }
+  // Solo cuenta como «verificada» si de verdad se comprobó una firma (no el
+  // gate de pruebas sin secreto).
+  if (env.META_APP_SECRET) recordVerifiedSignature();
 
   let payload: WebhookPayload;
   try {
