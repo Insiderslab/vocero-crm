@@ -48,6 +48,14 @@ const messages: typeof base = {
     invalid: "Invalid numbers: {{lines}}. Write each number with “+” and the country code, e.g. +39 347 123 4567.",
     saveError: "Could not save restricted access",
     count: "{{count}} allowed numbers",
+    ronda: {
+      none: "Morning round: none sent yet.",
+      last: "Morning round: last sent on {{date}} to {{count}} people ({{outcome}}).",
+      lastOne: "Morning round: last sent on {{date}} to 1 person ({{outcome}}).",
+      allSent: "all sent",
+      partial: "{{sent}} of {{total}} sent",
+      running: "in progress",
+    },
   },
   kb: {
     title: "Knowledge base",

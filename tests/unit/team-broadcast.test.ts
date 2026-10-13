@@ -1,4 +1,9 @@
 import { describe, expect, it } from "vitest";
+import { rondaLine } from "@/components/agent/ronda-line";
+import { translate } from "@/lib/i18n/t";
+import enAgent from "@/lib/i18n/messages/en/agent";
+import esAgent from "@/lib/i18n/messages/es/agent";
+import itAgent from "@/lib/i18n/messages/it/agent";
 import {
   maskIdentity,
   normalizeRecipientKey,
@@ -146,5 +151,52 @@ describe("maskIdentity", () => {
     expect(maskIdentity("+39 347 111 0001")).toBe("…001");
     expect(maskIdentity("12")).toBe("…12");
     expect(maskIdentity("ciao")).toBe("…");
+  });
+});
+
+describe("rondaLine (pagina Agente IA, Accesso riservato)", () => {
+  const dict = {
+    it: itAgent,
+    es: esAgent,
+    en: enAgent,
+  };
+  const tOf = (locale: "it" | "es" | "en") => (key: string, vars?: Record<string, string | number>) =>
+    translate({ agent: dict[locale] }, key, vars);
+  const last = {
+    at: "2026-10-13T06:00:00.000Z",
+    status: "done" as const,
+    total: 3,
+    sent: 3,
+    failed: 0,
+    skipped: 0,
+  };
+
+  it("nessuna ronda", () => {
+    expect(rondaLine(tOf("it"), "it", null)).toBe("Ronda: ancora nessuna inviata.");
+    expect(rondaLine(tOf("es"), "es", null)).toBe("Ronda: todavía no se ha enviado ninguna.");
+    expect(rondaLine(tOf("en"), "en", null)).toBe("Morning round: none sent yet.");
+  });
+  it("ultima ronda: data, persone ed esito, in tutte e tre le lingue", () => {
+    const it_ = rondaLine(tOf("it"), "it", last);
+    expect(it_).toMatch(/^Ronda: ultima inviata il 13 ott 2026, \d{2}:\d{2} a 3 persone \(tutte inviate\)\.$/);
+    expect(rondaLine(tOf("es"), "es", { ...last, sent: 2, failed: 1 })).toMatch(
+      /^Ronda: último envío el .+ a 3 personas \(enviadas 2 de 3\)\.$/
+    );
+    expect(rondaLine(tOf("en"), "en", { ...last, status: "running", sent: 0 })).toMatch(
+      /^Morning round: last sent on .+ to 3 people \(in progress\)\.$/
+    );
+  });
+  it("una persona sola: singolare", () => {
+    expect(rondaLine(tOf("it"), "it", { ...last, total: 1, sent: 1 })).toMatch(/a 1 persona \(tutte inviate\)\.$/);
+    expect(rondaLine(tOf("en"), "en", { ...last, total: 1, sent: 0, skipped: 1 })).toMatch(
+      /to 1 person \(0 of 1 sent\)\.$/
+    );
+  });
+  it("nessuna chiave mancante (la t restituirebbe la chiave stessa)", () => {
+    for (const locale of ["it", "es", "en"] as const) {
+      for (const l of [null, last, { ...last, status: "running" as const }, { ...last, sent: 1 }, { ...last, total: 1, sent: 1 }]) {
+        expect(rondaLine(tOf(locale), locale, l)).not.toContain("agent.restricted");
+      }
+    }
   });
 });
