@@ -354,3 +354,35 @@ describe("META_APP_SECRET normalizado una sola vez (env)", () => {
     expect(info.signatureLayer).toBe(false);
   });
 });
+
+describe("handshake GET: verify token comparado en tiempo constante", () => {
+  function handshakeWith(routes: Awaited<ReturnType<typeof loadRoutes>>, verify: string | null) {
+    const q = new URLSearchParams({ "hub.mode": "subscribe", "hub.challenge": "reto-123" });
+    if (verify !== null) q.set("hub.verify_token", verify);
+    return routes.webhook.GET(
+      new Request(`https://crm.example.com/api/webhooks/wa/${VERIFY_TOKEN}?${q}`),
+      { params: Promise.resolve({ webhookToken: VERIFY_TOKEN }) }
+    );
+  }
+
+  it.each([
+    ["equivocado", "otro-token-cualquiera"],
+    ["prefijo del bueno", VERIFY_TOKEN.slice(0, -1)],
+    ["vacío", ""],
+    ["ausente", null],
+  ] as const)("hub.verify_token %s → 403 sin challenge", async (_l, verify) => {
+    const routes = await loadRoutes({ nodeEnv: "production", secret: APP_SECRET });
+    const res = await handshakeWith(routes, verify);
+    expect(res.status).toBe(403);
+    expect(await res.text()).not.toContain("reto-123");
+  });
+
+  it("estructural: el GET compara hub.verify_token con safeEqual, nunca con ===", async () => {
+    const { readFileSync } = await import("node:fs");
+    const src = readFileSync("src/app/api/webhooks/wa/[webhookToken]/route.ts", "utf8");
+    const get = src.slice(src.indexOf("export async function GET"), src.indexOf("export async function POST"));
+    expect(get).toMatch(/safeEqual\(\s*token\s*,\s*env\.META_WEBHOOK_VERIFY_TOKEN\s*\)/);
+    expect(get).not.toMatch(/token\s*[!=]==?\s*env\.META_WEBHOOK_VERIFY_TOKEN/);
+    expect(get).not.toMatch(/env\.META_WEBHOOK_VERIFY_TOKEN\s*[!=]==?\s*token/);
+  });
+});

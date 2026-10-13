@@ -7,6 +7,7 @@ import {
 import {
   checkSignature,
   isValidWebhookToken,
+  safeEqual,
   type WebhookPayload,
 } from "@/server/inbox/webhook";
 import { processEchoesValue, processMessagesValue } from "@/server/inbox/ingest";
@@ -65,7 +66,9 @@ export async function GET(req: Request, { params }: Params) {
   const token = url.searchParams.get("hub.verify_token");
   const challenge = url.searchParams.get("hub.challenge");
 
-  if (mode === "subscribe" && token === env.META_WEBHOOK_VERIFY_TOKEN) {
+  // Comparación en tiempo constante, como el segmento de la URL: el verify
+  // token es el mismo secreto.
+  if (mode === "subscribe" && token !== null && safeEqual(token, env.META_WEBHOOK_VERIFY_TOKEN)) {
     return new Response(challenge ?? "", { status: 200 });
   }
   return new Response(null, { status: 403 });
