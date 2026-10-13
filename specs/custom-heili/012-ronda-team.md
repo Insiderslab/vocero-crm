@@ -1,7 +1,7 @@
 # Fase 12 — «Ronda delle 8:00» al team
 
 > Personalizzazione sul fork distribuito in crm.heili.cloud.
-> **Stato: 🟡 IN CORSO** (2026-10-13), branch locale `team-broadcast`
+> **Stato: ✅ IMPLEMENTATA** (2026-10-13), branch locale `team-broadcast`
 > (base `origin/main` @ `30ccd1b`).
 > **Carril: COMPLETO** — nuova migrazione `drizzle/0016_*.sql` (tabella
 > `team_broadcast`) e nuovo contratto pubblicato `POST /api/bot/team-broadcast`.
