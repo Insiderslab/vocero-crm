@@ -964,6 +964,8 @@ async function main() {
 
   await usabilitySection();
 
+  await rondaSection();
+
   // Al final a propósito: el Embedded Signup cambia el número de la org.
   await coexistenceSection();
 
@@ -1418,6 +1420,146 @@ async function teamAssistantSection() {
 
   await use(ORG_A);
   ok("vuelta a la organización original", ((await api("/api/my-orgs")).json?.orgs ?? []).length >= 3);
+}
+
+/**
+ * 012 — Ronda del team: el generador externo (n8n) llama con una clave vbk_ y
+ * el CRM manda la plantilla aprobada SOLO a los números de la lista del team.
+ */
+async function rondaSection() {
+  console.log("\n== 012: ronda del team — POST /api/bot/team-broadcast ==");
+  const TEAM1 = "393471230001";
+  const TEAM2 = "393471230002";
+  const CUSTOMER = "393479870003";
+  const NAME = "ronda_mattutina";
+  const BODY = "Buongiorno {{1}}! Le priorità di oggi: {{2}}. Dettagli su Monday.";
+
+  const created = await api("/api/settings/bot-keys", {
+    method: "POST",
+    body: JSON.stringify({ label: "ronda e2e" }),
+  });
+  const KEY = created.json?.key;
+  ok("clave vbk_ creada en Ajustes", created.res.status === 201 && String(KEY).startsWith("vbk_"), JSON.stringify(created.json?.keyPrefix));
+  const ronda = (body, idem = "ronda-e2e-1", key = KEY) =>
+    api("/api/bot/team-broadcast", {
+      method: "POST",
+      headers: { "x-api-key": key ?? "", ...(idem ? { "idempotency-key": idem } : {}) },
+      body: JSON.stringify(body),
+    });
+  const base = { templateName: NAME, language: "it", params: ["team", "1) Offerta · 2) Call · 3) Report"] };
+  const codeOf = (r) => r.json?.error?.code;
+
+  const tpl = await api("/api/templates", {
+    method: "POST",
+    body: JSON.stringify({ name: NAME, language: "it", category: "UTILITY", body: BODY }),
+  });
+  ok("plantilla ronda_mattutina (it) creada (pendiente en Meta)", tpl.res.ok, JSON.stringify(tpl.json));
+
+  // Un cliente de la misma organización, con la ventana abierta.
+  await api("/api/dev/wa-mock/inbound", {
+    method: "POST",
+    body: JSON.stringify({ phoneNumberId: PN, from: CUSTOMER, name: "Cliente Ronda", text: "buongiorno", waMessageId: "wamid.e2e.ronda.cust.1" }),
+  });
+
+  const prof = (body) => api("/api/agent/profile", { method: "PUT", body: JSON.stringify(body) });
+  await prof({ restrictToAllowlist: false, allowedIdentities: `+${TEAM1}\n+${TEAM2}` });
+  const off = await ronda(base);
+  ok("restricción apagada → 409 no_team_list", off.res.status === 409 && codeOf(off) === "no_team_list", JSON.stringify(off.json));
+  await prof({ restrictToAllowlist: true, allowedIdentities: "" });
+  const empty = await ronda(base);
+  ok("lista vacía → 409 no_team_list", empty.res.status === 409 && codeOf(empty) === "no_team_list", JSON.stringify(empty.json));
+  await prof({ restrictToAllowlist: true, allowedIdentities: "+39 347 123 0001\n+39 347 123 0002" });
+  const pending = await ronda(base);
+  ok("plantilla aún pendiente → 422 template_not_approved", pending.res.status === 422 && codeOf(pending) === "template_not_approved", JSON.stringify(pending.json));
+
+  // Meta la aprueba (panel simulado) y el CRM la sincroniza, como en modo agencia.
+  await api("/api/dev/wa-mock/template-status", {
+    method: "POST",
+    body: JSON.stringify({ wabaId: "WABA-E2E", name: NAME, language: "it", event: "APPROVED", notify: false }),
+  });
+  await api("/api/templates/sync", { method: "POST" });
+  const local = ((await api("/api/templates")).json?.templates ?? []).find((t) => t.name === NAME);
+  ok("plantilla aprobada tras el sync", local?.status === "approved", JSON.stringify(local?.status));
+  await api("/api/dev/wa-mock/outbox", { method: "DELETE" });
+
+  const noIdem = await ronda(base, null);
+  ok("sin Idempotency-Key → 400", noIdem.res.status === 400 && codeOf(noIdem) === "idempotency_key_required", JSON.stringify(noIdem.json));
+  ok("sin clave → 401", (await ronda(base, "x", "")).res.status === 401);
+  ok("clave vbk_ inventada → 401", (await ronda(base, "x", "vbk_inventada_0123456789abcdef")).res.status === 401);
+  const unknown = await ronda({ ...base, templateName: "no_existe" }, "x");
+  ok("plantilla desconocida → 422 template_not_found", unknown.res.status === 422 && codeOf(unknown) === "template_not_found", JSON.stringify(unknown.json));
+  const mismatch = await ronda({ ...base, params: ["solo uno"] }, "x");
+  ok("parámetros que no cuadran → 422 template_params_mismatch", mismatch.res.status === 422 && codeOf(mismatch) === "template_params_mismatch", JSON.stringify(mismatch.json));
+  const strict = await ronda({ ...base, recipients: [CUSTOMER] }, "x");
+  ok("campo desconocido (recipients) → 422", strict.res.status === 422, JSON.stringify(strict.json));
+
+  const dry = await ronda({ ...base, dryRun: true }, "ronda-e2e-dry");
+  const outbox = async () => ((await api("/api/dev/wa-mock/outbox")).json?.outbox ?? []).filter((o) => o.type === "template");
+  ok(
+    "dryRun: 2 destinatarios skipped/dry_run y nada en el outbox",
+    dry.res.ok && dry.json?.skipped === 2 && dry.json?.results?.every((r) => r.reason === "dry_run") && (await outbox()).length === 0,
+    JSON.stringify(dry.json)
+  );
+
+  const sent = await ronda({
+    ...base,
+    params: ["team", "1) Offerta\n2) Call\t\tBianchi      3) Report"],
+    perRecipient: { [`+${TEAM1}`]: ["Marco", "1) Offerta Rossi · 2) Demo"] },
+  });
+  ok("ronda enviada: 2 sent, 0 failed", sent.res.ok && sent.json?.sent === 2 && sent.json?.failed === 0, JSON.stringify(sent.json));
+  ok(
+    "la respuesta enmascara los números (últimas 3 cifras)",
+    JSON.stringify(sent.json?.results?.map((r) => r.recipient)) === JSON.stringify(["…001", "…002"]) &&
+      !JSON.stringify(sent.json).includes(TEAM1),
+    JSON.stringify(sent.json?.results)
+  );
+  const sends = await outbox();
+  ok("wa-mock: exactamente 2 plantillas, solo a la lista del team", sends.length === 2 && sends.map((o) => o.to).sort().join() === [TEAM1, TEAM2].join(), JSON.stringify(sends.map((o) => o.to)));
+  ok("el cliente NO recibió nada", !sends.some((o) => o.to === CUSTOMER));
+  const paramsOf = (to) => sends.find((o) => o.to === to)?.body?.template?.components?.[0]?.parameters?.map((p) => p.text);
+  ok("perRecipient: Marco recibe sus prioridades", JSON.stringify(paramsOf(TEAM1)) === JSON.stringify(["Marco", "1) Offerta Rossi · 2) Demo"]), JSON.stringify(paramsOf(TEAM1)));
+  ok(
+    "los demás reciben los params por defecto, en UNA línea (sin \\n, \\t ni 4+ espacios)",
+    JSON.stringify(paramsOf(TEAM2)) === JSON.stringify(["team", "1) Offerta 2) Call Bianchi 3) Report"]),
+    JSON.stringify(paramsOf(TEAM2))
+  );
+  ok("plantilla ronda_mattutina en it hacia Meta", sends.every((o) => o.body?.template?.name === NAME && o.body?.template?.language?.code === "it"));
+
+  const again = await ronda(base);
+  ok("misma Idempotency-Key → mismo resultado, replayed, nada nuevo en el outbox", again.res.ok && again.json?.replayed === true && again.json?.broadcastId === sent.json?.broadcastId && (await outbox()).length === 2, JSON.stringify(again.json?.replayed));
+
+  // Visible en la Posta.
+  await sleep(500);
+  const convs = (await api("/api/conversations")).json?.conversations ?? [];
+  const marco = convs.find((c) => c.contact.phone === TEAM1);
+  const msgs = (await api(`/api/conversations/${marco?.id}/messages`)).json?.messages ?? [];
+  const tplMsg = msgs.find((m) => m.direction === "out" && m.type === "template");
+  ok(
+    "Posta: la conversación del compañero tiene la plantilla renderizada",
+    tplMsg?.text === "Buongiorno Marco! Le priorità di oggi: 1) Offerta Rossi · 2) Demo. Dettagli su Monday.",
+    JSON.stringify(msgs.map((m) => [m.direction, m.type, m.text]))
+  );
+  const custConv = convs.find((c) => c.contact.phone === CUSTOMER);
+  const custMsgs = (await api(`/api/conversations/${custConv?.id}/messages`)).json?.messages ?? [];
+  ok("Posta: la conversación del cliente no tiene salientes", custConv && custMsgs.every((m) => m.direction === "in"), JSON.stringify(custMsgs.map((m) => m.direction)));
+
+  const profile = (await api("/api/agent/profile")).json;
+  const last = profile?.restriction?.lastBroadcast;
+  ok("Agente IA: «Ronda: última enviada» con 2 personas, todas enviadas", last?.total === 2 && last?.sent === 2 && last?.status === "done", JSON.stringify(last));
+
+  // Límite: 3 rondas por hora (la de arriba es la primera).
+  const r2 = await ronda(base, "ronda-e2e-2");
+  const r3 = await ronda(base, "ronda-e2e-3");
+  const r4 = await ronda(base, "ronda-e2e-4");
+  ok(
+    "límite: la cuarta ronda de la hora → 429 rate_limited con Retry-After",
+    r2.res.ok && r3.res.ok && r4.res.status === 429 && codeOf(r4) === "rate_limited" && Number(r4.res.headers.get("retry-after")) > 0,
+    `${r2.res.status} ${r3.res.status} ${r4.res.status} ${r4.res.headers.get("retry-after")}`
+  );
+  ok("la cuarta no mandó nada", (await outbox()).length === 6, String((await outbox()).length));
+
+  const restore = await prof({ restrictToAllowlist: false, allowedIdentities: "" });
+  ok("acceso reservado restaurado (apagado, lista vacía)", restore.res.ok && restore.json?.restriction?.allowedIdentities?.length === 0);
 }
 
 /**
