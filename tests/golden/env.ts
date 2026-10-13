@@ -52,7 +52,8 @@ Object.assign(process.env, {
   META_WEBHOOK_VERIFY_TOKEN: "golden-verify-token-0001",
   // La firma del webhook es obligatoria fuera del gate de pruebas (y los
   // golden no abren el gate): todos los POST van firmados como los firmaría
-  // Meta (`postWebhook` firma solo si hay secreto). Mismo valor que fija
+  // Meta (`postWebhook` sin secreto lanza en vez de mandar un POST que solo
+  // podría acabar en 503). Mismo valor que fija
   // webhook-auth.golden.test.ts.
   META_APP_SECRET: "golden-synthetic-app-secret-0001",
   // Hosts inexistentes: el fetch de los golden los intercepta, y cualquier

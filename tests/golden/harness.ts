@@ -334,6 +334,14 @@ async function describeResponse(res: Response): Promise<HttpResult> {
   return { status: res.status, body };
 }
 
+/**
+ * POST al webhook real. `signature: "auto"` (por defecto) firma como Meta con
+ * el META_APP_SECRET sintético de env.ts. La firma es obligatoria y los golden
+ * no abren el gate de pruebas: un POST "auto" sin secreto solo podría acabar
+ * en 503 sin ingerir nada, así que se corta aquí con un error claro en vez de
+ * dejar que un caso nuevo registre en silencio un webhook rechazado. Los casos
+ * sin firma o con firma errónea se piden explícitamente (`"none"` o un valor).
+ */
 export async function postWebhook(
   payload: unknown,
   opts: { token?: string; signature?: "auto" | "none" | string; raw?: string } = {}
@@ -341,10 +349,16 @@ export async function postWebhook(
   const token = opts.token ?? process.env.META_WEBHOOK_VERIFY_TOKEN!;
   const raw = opts.raw ?? JSON.stringify(payload);
   const headers: Record<string, string> = { "content-type": "application/json" };
-  const secret = process.env.META_APP_SECRET;
+  const secret = process.env.META_APP_SECRET?.trim();
   const signature = opts.signature ?? "auto";
   if (signature === "auto") {
-    if (secret) headers["x-hub-signature-256"] = sign(raw, secret);
+    if (!secret) {
+      throw new Error(
+        "[golden] postWebhook firma por defecto pero falta META_APP_SECRET (tests/golden/env.ts): " +
+          "sin secreto el webhook rechaza todo con 503"
+      );
+    }
+    headers["x-hub-signature-256"] = sign(raw, secret);
   } else if (signature !== "none") {
     headers["x-hub-signature-256"] = signature;
   }
