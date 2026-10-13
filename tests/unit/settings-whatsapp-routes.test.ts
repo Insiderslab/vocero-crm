@@ -51,7 +51,9 @@ vi.mock("@/server/whatsapp/connect", () => ({
   },
 }));
 
-vi.mock("@/lib/env", () => ({
+vi.mock("@/lib/env", async (importOriginal) => ({
+  // isMockEnabled real: /api/settings/webhook dice si la firma es obligatoria.
+  ...(await importOriginal<typeof import("@/lib/env")>()),
   getEnv: () => ({
     APP_BASE_URL: "https://crm.example.com",
     META_WEBHOOK_VERIFY_TOKEN: "SECRETO-DE-VERIFICACION",

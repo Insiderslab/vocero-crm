@@ -76,3 +76,12 @@ no se abría.
 16. **Reconexión**: (cubierto por diseño: EventSource reconecta y el cliente
     refetch-ea con el evento `open`; verificación funcional en el checkpoint
     de compose).
+17. **Firma obligatoria del webhook** (automatizado en
+    `scripts/e2e-selftest.mjs`, sección «seguridad»; con `META_APP_SECRET`):
+    el owner copia la URL de Configuración → WhatsApp y la usa sin firma, o
+    firmando con el token de la URL.
+    ✅ Ambos → **401** y no aparece nada en la bandeja.
+    ✅ El mismo evento firmado con el App Secret → 200 y llega.
+    ✅ Fuera del gate de mocks y SIN `META_APP_SECRET` el webhook responde
+    **503** a todo y lo registra en el log (cubierto por
+    `tests/unit/webhook-route.test.ts`: los mocks no existen en producción).

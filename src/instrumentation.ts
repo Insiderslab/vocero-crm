@@ -10,8 +10,10 @@ export async function register(): Promise<void> {
       recoverPendingAgentRetries,
       startAutomationScheduler,
       warnWapiLegacyConfig,
+      warnWebhookSignatureConfig,
     } = await import("./instrumentation-node");
     warnWapiLegacyConfig();
+    warnWebhookSignatureConfig();
     await cleanupOrphanRuns();
     await recoverPendingAgentRetries();
     startAutomationScheduler();

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { generateApiKey } from "@/server/api-keys";
+import { generateApiKey, resetInstanceKeyWarnings } from "@/server/api-keys";
 import { authenticateBot } from "@/server/bot/auth";
 import { authenticateExport, type ExportAuthDeps } from "@/server/export/auth";
 import { withExport } from "@/server/export/handler";
@@ -151,6 +151,33 @@ describe("authenticateExport — clave de instancia heredada EXPORT_API_KEY", ()
 
   it("sin header → 401", async () => {
     expect(status(await authenticateExport(req(), fakeDeps(KEYS, ["org_a"])))).toBe(401);
+  });
+
+  it("transición: usarla avisa UNA vez (sin el valor) de que migre a una clave vex_", async () => {
+    resetInstanceKeyWarnings();
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      await authenticateExport(req(INSTANCE), fakeDeps([], ["org_a"]));
+      await authenticateExport(req(INSTANCE), fakeDeps([], ["org_a"]));
+      expect(warn).toHaveBeenCalledTimes(1);
+      const line = String(warn.mock.calls[0]?.[0]);
+      expect(line).toContain("EXPORT_API_KEY");
+      expect(line).toContain("vex_");
+      expect(line).not.toContain(INSTANCE);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it("una clave vex_ por organización no dispara el aviso de transición", async () => {
+    resetInstanceKeyWarnings();
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      await authenticateExport(req(exA.plain), fakeDeps(KEYS, ["org_a", "org_b"]));
+      expect(warn).not.toHaveBeenCalled();
+    } finally {
+      warn.mockRestore();
+    }
   });
 });
 

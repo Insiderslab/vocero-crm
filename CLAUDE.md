@@ -73,7 +73,8 @@ Ver [.specify/memory/constitution.md](.specify/memory/constitution.md).
 Ver `.env.example` (cada una con guía inline). Las claves: `APP_BASE_URL`,
 `DATABASE_URL`, `BETTER_AUTH_SECRET`, `ENCRYPTION_KEY` (32 bytes base64),
 `META_WEBHOOK_VERIFY_TOKEN` (segmento secreto del webhook), `META_APP_SECRET`
-(opcional, firma), y para IA:
+(firma del webhook, OBLIGATORIA fuera del gate de mocks: sin ella el webhook
+responde 503 a todo), y para IA:
 
 ```bash
 OPENROUTER_API_TOKEN=sk-or-...

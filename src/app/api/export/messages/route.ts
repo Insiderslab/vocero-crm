@@ -1,7 +1,8 @@
-import { and, eq, gte } from "drizzle-orm";
+import { eq, gte } from "drizzle-orm";
 import { apiError } from "@/lib/api";
 import { csvResponse, toCsv } from "@/lib/csv";
 import { getDb, schema } from "@/lib/db";
+import { scoped } from "@/lib/db/tenant";
 import { parseFormat } from "@/server/export/auth";
 import { withExport } from "@/server/export/handler";
 import { MESSAGE_CHRONOLOGY } from "@/server/inbox/queries";
@@ -38,11 +39,16 @@ export const GET = withExport(async (org, url) => {
     .from(schema.message)
     .innerJoin(
       schema.conversation,
-      eq(schema.message.conversationId, schema.conversation.id)
+      scoped(
+        schema.conversation.organizationId,
+        org.id,
+        eq(schema.message.conversationId, schema.conversation.id)
+      )
     )
     .where(
-      and(
-        eq(schema.message.organizationId, org.id),
+      scoped(
+        schema.message.organizationId,
+        org.id,
         eq(schema.conversation.isTest, false),
         conversationId
           ? eq(schema.message.conversationId, conversationId)

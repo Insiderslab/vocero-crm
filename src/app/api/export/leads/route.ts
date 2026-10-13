@@ -1,6 +1,7 @@
 import { asc, eq } from "drizzle-orm";
 import { csvResponse, toCsv } from "@/lib/csv";
 import { getDb, schema } from "@/lib/db";
+import { scoped } from "@/lib/db/tenant";
 import { parseFormat } from "@/server/export/auth";
 import { withExport } from "@/server/export/handler";
 
@@ -25,12 +26,19 @@ export const GET = withExport(async (org, url) => {
       updatedAt: schema.lead.updatedAt,
     })
     .from(schema.lead)
-    .innerJoin(schema.contact, eq(schema.lead.contactId, schema.contact.id))
+    .innerJoin(
+      schema.contact,
+      scoped(schema.contact.organizationId, org.id, eq(schema.lead.contactId, schema.contact.id))
+    )
     .innerJoin(
       schema.pipelineStage,
-      eq(schema.lead.stageId, schema.pipelineStage.id)
+      scoped(
+        schema.pipelineStage.organizationId,
+        org.id,
+        eq(schema.lead.stageId, schema.pipelineStage.id)
+      )
     )
-    .where(eq(schema.lead.organizationId, org.id))
+    .where(scoped(schema.lead.organizationId, org.id))
     .orderBy(asc(schema.lead.createdAt));
 
   const tagRows = await db
@@ -39,8 +47,11 @@ export const GET = withExport(async (org, url) => {
       name: schema.tag.name,
     })
     .from(schema.contactTag)
-    .innerJoin(schema.tag, eq(schema.contactTag.tagId, schema.tag.id))
-    .where(eq(schema.contactTag.organizationId, org.id));
+    .innerJoin(
+      schema.tag,
+      scoped(schema.tag.organizationId, org.id, eq(schema.contactTag.tagId, schema.tag.id))
+    )
+    .where(scoped(schema.contactTag.organizationId, org.id));
   const tagsByContact = new Map<string, string[]>();
   for (const t of tagRows) {
     const list = tagsByContact.get(t.contactId) ?? [];

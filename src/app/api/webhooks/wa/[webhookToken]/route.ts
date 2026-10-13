@@ -1,11 +1,21 @@
 import { after } from "next/server";
 import { getEnv } from "@/lib/env";
 import {
-  isValidSignature,
+  unsignedWebhookAllowed,
+  webhookSecretMissingWarning,
+} from "@/lib/dev-guard";
+import {
+  checkSignature,
   isValidWebhookToken,
+  readBodyCapped,
+  safeEqual,
   type WebhookPayload,
 } from "@/server/inbox/webhook";
 import { processEchoesValue, processMessagesValue } from "@/server/inbox/ingest";
+import {
+  recordInvalidSignature,
+  recordVerifiedSignature,
+} from "@/server/inbox/webhook-signature-stats";
 import { processTemplateStatusValue } from "@/server/whatsapp/template-events";
 import {
   processAccountUpdateValue,
@@ -16,12 +26,34 @@ import {
 /**
  * Webhook público de WhatsApp (contrato webhook.md).
  * Capa 1: el segmento [webhookToken] debe coincidir (si no → 404 sin efectos).
- * Capa 2: firma x-hub-signature-256 solo si META_APP_SECRET está configurado.
+ * Capa 2: firma x-hub-signature-256 OBLIGATORIA (fail-closed). Sin
+ * META_APP_SECRET el webhook responde 503 a todo (GET y POST) y lo registra;
+ * con secreto, una firma ausente o errónea → 401. La única excepción es el
+ * gate de pruebas (`unsignedWebhookAllowed`, cerrado en producción).
  * El POST siempre responde 200 tras validar; el procesamiento va en after().
  */
 export const dynamic = "force-dynamic";
 
 type Params = { params: Promise<{ webhookToken: string }> };
+
+const SECRET_WARNING_EVERY_MS = 60_000;
+let lastSecretWarningAt = 0;
+
+/**
+ * 503 cuando la firma es obligatoria y no hay secreto. El aviso se registra
+ * como mucho una vez por minuto (Meta reintenta y no debe inundar los logs) y
+ * no contiene ningún valor secreto (ni el token de la URL ni el App Secret).
+ */
+function secretMissingResponse(appSecret: string | undefined): Response | null {
+  const warning = webhookSecretMissingWarning(appSecret);
+  if (!warning) return null;
+  const now = Date.now();
+  if (now - lastSecretWarningAt >= SECRET_WARNING_EVERY_MS) {
+    lastSecretWarningAt = now;
+    console.error(warning);
+  }
+  return new Response(null, { status: 503 });
+}
 
 export async function GET(req: Request, { params }: Params) {
   const { webhookToken } = await params;
@@ -29,13 +61,19 @@ export async function GET(req: Request, { params }: Params) {
   if (!isValidWebhookToken(webhookToken, env.META_WEBHOOK_VERIFY_TOKEN)) {
     return new Response(null, { status: 404 });
   }
+  // Sin secreto no se completa ni la suscripción: el fallo se ve al configurar
+  // el webhook en Meta, no días después con mensajes perdidos.
+  const missing = secretMissingResponse(env.META_APP_SECRET);
+  if (missing) return missing;
 
   const url = new URL(req.url);
   const mode = url.searchParams.get("hub.mode");
   const token = url.searchParams.get("hub.verify_token");
   const challenge = url.searchParams.get("hub.challenge");
 
-  if (mode === "subscribe" && token === env.META_WEBHOOK_VERIFY_TOKEN) {
+  // Comparación en tiempo constante, como el segmento de la URL: el verify
+  // token es el mismo secreto.
+  if (mode === "subscribe" && token !== null && safeEqual(token, env.META_WEBHOOK_VERIFY_TOKEN)) {
     return new Response(challenge ?? "", { status: 200 });
   }
   return new Response(null, { status: 403 });
@@ -47,16 +85,35 @@ export async function POST(req: Request, { params }: Params) {
   if (!isValidWebhookToken(webhookToken, env.META_WEBHOOK_VERIFY_TOKEN)) {
     return new Response(null, { status: 404 });
   }
+  const missing = secretMissingResponse(env.META_APP_SECRET);
+  if (missing) return missing;
 
-  const rawBody = await req.text();
-  const signature = req.headers.get("x-hub-signature-256");
-  if (!isValidSignature(rawBody, signature, env.META_APP_SECRET)) {
+  // Bytes crudos con tope (413) ANTES del HMAC; la firma se calcula sobre
+  // esos bytes y solo después se decodifican como UTF-8 (sin BOM) para el JSON.
+  const rawBody = await readBodyCapped(req);
+  if (!rawBody) return new Response(null, { status: 413 });
+  const signatureHeader = req.headers.get("x-hub-signature-256");
+  const check = checkSignature(
+    rawBody,
+    signatureHeader,
+    env.META_APP_SECRET,
+    unsignedWebhookAllowed()
+  );
+  if (!check.ok) {
+    // `secret_missing` ya se respondió arriba; aquí solo queda firma inválida.
+    if (check.reason === "secret_missing") return new Response(null, { status: 503 });
+    // Antes era un 401 mudo: con el secreto equivocado TODO se perdía sin
+    // rastro. Log limitado (1/min, sin cabecera ni secreto) + contadores.
+    recordInvalidSignature({ headerPresent: signatureHeader !== null, bytes: rawBody.byteLength });
     return new Response(null, { status: 401 });
   }
+  // Solo cuenta como «verificada» si de verdad se comprobó una firma (no el
+  // gate de pruebas sin secreto).
+  if (env.META_APP_SECRET) recordVerifiedSignature();
 
   let payload: WebhookPayload;
   try {
-    payload = JSON.parse(rawBody) as WebhookPayload;
+    payload = JSON.parse(new TextDecoder("utf-8").decode(rawBody)) as WebhookPayload;
   } catch {
     // body ilegible: 200 igualmente (Meta reintenta y termina desactivando)
     return Response.json({ received: true });

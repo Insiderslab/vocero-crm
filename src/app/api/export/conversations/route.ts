@@ -1,6 +1,7 @@
-import { and, asc, eq } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import { csvResponse, toCsv } from "@/lib/csv";
 import { getDb, schema } from "@/lib/db";
+import { scoped } from "@/lib/db/tenant";
 import { parseFormat } from "@/server/export/auth";
 import { withExport } from "@/server/export/handler";
 
@@ -26,11 +27,16 @@ export const GET = withExport(async (org, url) => {
     .from(schema.conversation)
     .innerJoin(
       schema.contact,
-      eq(schema.conversation.contactId, schema.contact.id)
+      scoped(
+        schema.contact.organizationId,
+        org.id,
+        eq(schema.conversation.contactId, schema.contact.id)
+      )
     )
     .where(
-      and(
-        eq(schema.conversation.organizationId, org.id),
+      scoped(
+        schema.conversation.organizationId,
+        org.id,
         eq(schema.conversation.isTest, false)
       )
     )
