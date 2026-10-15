@@ -5,6 +5,7 @@ import { LOCALES, type Locale } from "@/lib/i18n";
 import { messagesFor } from "@/lib/i18n/messages";
 import { translate } from "@/lib/i18n/t";
 import {
+  canConnectAnotherNumber,
   connectionMode,
   guideState,
   guideSteps,
@@ -19,7 +20,7 @@ import type { WhatsappGuideStatus } from "@/server/whatsapp/guide-status";
 // La vista no abre el SSE ni llama a la API; los hijos cliente no se ejecutan en SSR.
 vi.mock("@/components/use-events", () => ({ useEvents: () => undefined }));
 
-import { WhatsappGuideView } from "@/components/settings/whatsapp-guide";
+import { AnotherNumberWithMeta, WhatsappGuideView } from "@/components/settings/whatsapp-guide";
 
 /**
  * 013 — Pagina guidata di Configurazione → WhatsApp: la macchina a stati pura
@@ -330,5 +331,42 @@ describe("WhatsappGuideView", () => {
   it("la vista non contiene segreti (non le arrivano: lo stato non li porta)", () => {
     const keys = JSON.stringify(Object.keys(STATES.connected.connection!).sort());
     expect(keys).not.toMatch(/token|secret/i);
+  });
+});
+
+describe("«Collega un altro numero con Meta» in Avanzate (revisione PR #15)", () => {
+  function renderAnother(status: WhatsappGuideStatus): string {
+    const messages = messagesFor("it") as unknown as Record<string, unknown>;
+    const t = ((key: string, vars?: Record<string, string | number>) => translate(messages, key, vars)) as never;
+    return renderToStaticMarkup(
+      createElement(AnotherNumberWithMeta, {
+        status,
+        t,
+        renderConnect: (label?: string, confirm?: string) =>
+          createElement("span", null, `[BOTTONE-META:${label}|${confirm}]`),
+      })
+    );
+  }
+
+  it.each<[string, WhatsappGuideStatus, boolean]>([
+    ["collegata, piattaforma pronta → sì", STATES.connected, true],
+    ["collegata, piattaforma NON pronta → no", { ...STATES.connected, platform: { ready: false, reason: "not_configured" } }, false],
+    ["nessun numero → no (c'è già il pulsante del passo 1)", STATES.ready, false],
+    ["coexistence da ricollegare → no (c'è già «Ricollega con Meta» in alto)", STATES.reconnect_required, false],
+    ["manuale da ricollegare → sì, ma come «altro numero» con conferma, mai come «Ricollega»", STATES.reconnect_manual, true],
+  ])("%s", (_n, status, visible) => {
+    expect(canConnectAnotherNumber({ platformReady: status.platform.ready, connection: status.connection })).toBe(visible);
+    const out = renderAnother(status);
+    if (!visible) {
+      expect(out).toBe("");
+      return;
+    }
+    expect(out).toContain("[BOTTONE-META:Collega un altro numero con Meta|");
+    expect(out).toContain("SOSTITUISCE");
+    expect(out).not.toContain("Ricollega");
+  });
+
+  it("la conferma nomina il numero che verrà sostituito", () => {
+    expect(renderAnother(STATES.reconnect_manual)).toContain("SOSTITUISCE +1 555 000 1111");
   });
 });

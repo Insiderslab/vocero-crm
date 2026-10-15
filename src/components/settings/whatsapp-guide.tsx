@@ -19,6 +19,7 @@ import {
 import { useT, type TFunction } from "@/lib/i18n/client";
 import type { Locale } from "@/lib/i18n";
 import {
+  canConnectAnotherNumber,
   connectionMode,
   guideState,
   reconnectVia,
@@ -46,6 +47,9 @@ import { useEvents } from "@/components/use-events";
  */
 
 export const ADVANCED_HASH = "#avanzate";
+
+/** Pulsante «Collega con Meta» con etichetta e, se serve, testo di conferma. */
+type RenderConnect = (label?: string, confirmText?: string) => ReactNode;
 
 export function WhatsappGuide() {
   const { t, locale } = useT();
@@ -87,6 +91,18 @@ export function WhatsappGuide() {
     });
   }
 
+  const renderConnect: RenderConnect = (label, confirmText) => (
+    <CoexistenceConnect
+      label={label}
+      confirmText={confirmText}
+      onConnected={(r) => {
+        setSyncOk(r.syncOk);
+        setAdvancedKey((k) => k + 1);
+        void refetch();
+      }}
+    />
+  );
+
   return (
     <div className="space-y-6">
       {status === "loading" ? (
@@ -103,16 +119,7 @@ export function WhatsappGuide() {
           now={now}
           syncOk={syncOk}
           onOpenAdvanced={openAdvanced}
-          renderConnect={(label) => (
-            <CoexistenceConnect
-              label={label}
-              onConnected={(r) => {
-                setSyncOk(r.syncOk);
-                setAdvancedKey((k) => k + 1);
-                void refetch();
-              }}
-            />
-          )}
+          renderConnect={renderConnect}
         />
       )}
 
@@ -129,6 +136,9 @@ export function WhatsappGuide() {
           </span>
         </summary>
         <div className="space-y-6 border-t p-4">
+          {typeof status === "object" && (
+            <AnotherNumberWithMeta status={status} t={t} renderConnect={renderConnect} />
+          )}
           <WhatsappAdvanced key={advancedKey} onSaved={() => void refetch()} />
           <WapiKeyCard />
         </div>
@@ -157,7 +167,7 @@ export function WhatsappGuideView({
   /** Apre «Avanzate»; con "token" mette il cursore sul campo del token. */
   onOpenAdvanced: (focus?: "token") => void;
   /** Il pulsante «Collega con Meta» (iniettato: nei test basta un segnaposto). */
-  renderConnect: (label?: string) => ReactNode;
+  renderConnect: RenderConnect;
 }) {
   const state = guideState({ platformReady: status.platform.ready, connection: status.connection });
   const steps = guideSteps(state, status.lastInboundAt, status.connection?.connectedAt ?? null);
@@ -374,7 +384,7 @@ function StateBanner({
   onOpenToken: () => void;
   t: TFunction;
   g: (key: string, vars?: Record<string, string | number>) => string;
-  renderConnect: (label?: string) => ReactNode;
+  renderConnect: RenderConnect;
   advancedLink: (key: string) => ReactNode;
 }) {
   if (state === "connected") {
@@ -483,5 +493,37 @@ function Step({
         <div className="mt-1">{children}</div>
       </div>
     </li>
+  );
+}
+
+/**
+ * «Avanzate» → «Collega un altro numero con Meta» (revisione PR #15): con un
+ * numero già collegato e la piattaforma pronta. Chiede conferma: il numero
+ * nuovo SOSTITUISCE quello attuale (e passa in coexistence).
+ */
+export function AnotherNumberWithMeta({
+  status,
+  t,
+  renderConnect,
+}: {
+  status: WhatsappGuideStatus;
+  t: TFunction;
+  renderConnect: RenderConnect;
+}) {
+  if (!canConnectAnotherNumber({ platformReady: status.platform.ready, connection: status.connection })) {
+    return null;
+  }
+  const current = status.connection?.displayPhoneNumber ?? status.connection?.phoneNumberId ?? "";
+  return (
+    <div className="space-y-2 rounded-md border p-3" data-testid="another-number">
+      <p className="text-sm font-medium">{t("settings.whatsapp.guide.another.title")}</p>
+      <p className="text-sm text-muted-foreground">
+        {t("settings.whatsapp.guide.another.body", { number: current })}
+      </p>
+      {renderConnect(
+        t("settings.whatsapp.guide.another.button"),
+        t("settings.whatsapp.guide.another.confirm", { number: current })
+      )}
+    </div>
   );
 }

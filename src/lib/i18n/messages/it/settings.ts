@@ -243,6 +243,12 @@ const messages: typeof base = {
         wapi: "Questa istanza usa il gateway Wapi: il numero si collega dalla sezione Avanzate.",
         manual: "Hai già un token? Apri Avanzate.",
       },
+      another: {
+        title: "Collega un altro numero con Meta",
+        body: "Sostituisce il numero attuale ({{number}}) con un altro numero dell'app WhatsApp Business.",
+        button: "Collega un altro numero con Meta",
+        confirm: "Il nuovo numero SOSTITUISCE {{number}} in questa azienda (e passa in modalità App + CRM). Continuare?",
+      },
       banner: {
         connected: "WhatsApp è collegato: {{number}}.",
         ready: "Tutto pronto: segui i 3 passi qui sotto per collegare il tuo numero.",

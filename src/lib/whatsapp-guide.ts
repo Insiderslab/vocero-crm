@@ -125,3 +125,19 @@ export function reconnectVia(input: {
   if (input.connection?.onboardingMode !== "coexistence") return "manual";
   return input.platformReady ? "meta" : "manual";
 }
+
+/**
+ * Revisione PR #15: con un numero già collegato, «Avanzate» offre «Collega un
+ * altro numero con Meta» (con conferma: sostituisce quello attuale) se la
+ * piattaforma è pronta. Non è mai un «Ricollega»: per un numero manuale da
+ * ricollegare l'avviso in alto resta solo «Incolla un token nuovo» (Q3).
+ */
+export function canConnectAnotherNumber(input: {
+  platformReady: boolean;
+  connection: GuideConnection | null;
+}): boolean {
+  // Se l'avviso in alto offre già «Ricollega con Meta», un secondo pulsante
+  // di Meta sulla stessa pagina sarebbe un doppione (e un secondo ascoltatore
+  // della finestra di Meta).
+  return input.platformReady && input.connection !== null && reconnectVia(input) !== "meta";
+}

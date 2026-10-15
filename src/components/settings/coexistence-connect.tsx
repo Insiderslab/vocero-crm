@@ -120,10 +120,13 @@ type Result =
 export function CoexistenceConnect({
   onConnected,
   label,
+  confirmText,
 }: {
   /** Numero collegato e se Meta ha accettato di mandare rubrica e storico. */
   onConnected: (result: { number: string; syncOk: boolean }) => void;
   label?: string;
+  /** Se c'è, si chiede conferma prima di aprire la finestra di Meta. */
+  confirmText?: string;
 }) {
   const { t } = useT();
   const [config, setConfig] = useState<EsConfig | null>(null);
@@ -205,6 +208,7 @@ export function CoexistenceConnect({
   }
 
   async function connect() {
+    if (confirmText && !window.confirm(confirmText)) return;
     setBusy(true);
     setResult(null);
     sessionRef.current = null;

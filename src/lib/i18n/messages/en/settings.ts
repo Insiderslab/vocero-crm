@@ -242,6 +242,12 @@ const messages: typeof base = {
         wapi: "This instance uses the Wapi gateway: connect the number from Advanced.",
         manual: "Already have a token? Open Advanced.",
       },
+      another: {
+        title: "Connect another number with Meta",
+        body: "Replaces the current number ({{number}}) with another WhatsApp Business app number.",
+        button: "Connect another number with Meta",
+        confirm: "The new number REPLACES {{number}} in this company (and switches to App + CRM mode). Continue?",
+      },
       banner: {
         connected: "WhatsApp is connected: {{number}}.",
         ready: "All set: follow the 3 steps below to connect your number.",
