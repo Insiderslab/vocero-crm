@@ -17,6 +17,8 @@ const bodySchema = z.object({
   /** Reproduce el `errors[]` que Meta adjunta a los `failed`. */
   errorCode: z.number().int().optional(),
   errorMessage: z.string().optional(),
+  /** Revisión PR #14: filtro de organización (opcional; obligatorio si el wamid es ambiguo). */
+  organizationId: z.string().min(1).optional(),
 });
 
 export async function POST(req: Request) {
@@ -36,11 +38,19 @@ export async function POST(req: Request) {
     .where(
       and(
         eq(schema.message.channel, "whatsapp"),
-        eq(schema.message.externalMessageId, body.data.waMessageId)
+        eq(schema.message.externalMessageId, body.data.waMessageId),
+        body.data.organizationId
+          ? eq(schema.message.organizationId, body.data.organizationId)
+          : undefined
       )
     )
-    .limit(1);
+    .limit(2);
   if (!rows[0]) return apiError(404, "not_found", "Mensaje no encontrado");
+  // El ID externo es único por organización, no en la instancia: si dos
+  // organizaciones lo tienen, el mock no elige por su cuenta.
+  if (rows.length > 1) {
+    return apiError(409, "ambiguous", "El wamid existe en varias organizaciones: indica organizationId");
+  }
 
   const creds = await getCredentialsByOrg(rows[0].organizationId);
   if (!creds) return apiError(409, "not_connected", "Sin número conectado");

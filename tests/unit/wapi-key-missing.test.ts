@@ -35,7 +35,11 @@ vi.mock("@/server/whatsapp/credentials", async (importOriginal) => {
 
 // 005 (M1.3): el envío por la conversación lee la cuenta en el núcleo
 // (`channel_account`, R2); el contexto marca la reconexión con la MISMA
-// función de hoy (aquí la espía `markReconnectRequired`).
+// función de hoy (aquí la espía `markReconnectRequired`). El cableado REAL
+// `accountContext` → `markWhatsappReconnectRequired` (meta_credentials +
+// copia estricta) lo prueba el golden `send` «token vencido (190) →
+// reconnect_required, credencial marcada…» con PostgreSQL real; sabotajes S15
+// y S16 del registro M1.3 (revisión PR #14, punto 6).
 vi.mock("@/server/channels/core/accounts", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/server/channels/core/accounts")>();
   const account = {
