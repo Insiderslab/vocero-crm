@@ -964,6 +964,10 @@ async function main() {
 
   await usabilitySection();
 
+  // 013: deja App ID y Configuration ID guardados en /admin, así la sección
+  // 009 corre con ellos (sin META_APP_ID / META_ES_CONFIG_ID en el entorno).
+  await guidedConnectSection();
+
   // Al final a propósito: el Embedded Signup cambia el número de la org.
   await coexistenceSection();
 
@@ -1421,16 +1425,112 @@ async function teamAssistantSection() {
 }
 
 /**
+ * 013 — Collegamento WhatsApp guidato (specs/custom-heili/013-…):
+ * el super-admin guarda App ID y Configuration ID en /admin (sin SSH),
+ * validación (solo dígitos 6–25, sin campos extra), el entorno gana si está
+ * definido, el botón aparece en la organización, y el estado de la guía
+ * (número, modo, firma, último entrante en vivo) sin secretos.
+ * Requiere SUPERADMIN_EMAILS con el correo del operador E2E.
+ */
+async function guidedConnectSection() {
+  console.log("\n== 013: collegamento guidato — Piattaforma → Meta + stato della guida ==");
+  const P = "/api/admin/platform/meta";
+  const SECRETS = [process.env.META_APP_SECRET, process.env.META_WEBHOOK_VERIFY_TOKEN, "tok-e2e"].filter(Boolean);
+  const clean = (r) => {
+    const raw = JSON.stringify(r.json ?? {});
+    return SECRETS.every((x) => !raw.includes(x));
+  };
+  const envApp = process.env.META_APP_ID?.trim() || null;
+  const envCfg = process.env.META_ES_CONFIG_ID?.trim() || null;
+
+  const before = await api(P);
+  ok("GET Piattaforma → Meta como super-admin → 200", before.res.ok, JSON.stringify(before.json));
+  if (!before.res.ok) return;
+  ok("sin secretos en el estado de la plataforma", clean(before), JSON.stringify(before.json));
+  ok(
+    "el App Secret solo como presencia",
+    typeof before.json?.appSecret?.present === "boolean" &&
+      before.json.appSecret.present === Boolean(process.env.META_APP_SECRET),
+    JSON.stringify(before.json?.appSecret)
+  );
+
+  const bad = await api(P, { method: "PUT", body: JSON.stringify({ appId: "12345", configId: "12ab5678" }) });
+  ok("ID no válidos (5 dígitos, letras) → 422", bad.res.status === 422, JSON.stringify(bad.json));
+  const extra = await api(P, {
+    method: "PUT",
+    body: JSON.stringify({ appId: "609974691965875", configId: "998877665544", appSecret: "no-aqui" }),
+  });
+  ok("un appSecret en el cuerpo → 422 (el secreto no se guarda aquí)", extra.res.status === 422);
+
+  const APP = "609974691965875";
+  const CFG = "998877665544";
+  const saved = await api(P, { method: "PUT", body: JSON.stringify({ appId: ` ${APP} `, configId: CFG }) });
+  ok("guardado: 200", saved.res.ok, JSON.stringify(saved.json));
+  ok(
+    "fuente: el entorno gana si está definido, si no «db»",
+    saved.json?.appId?.source === (envApp ? "env" : "db") &&
+      saved.json?.appId?.value === (envApp ?? APP) &&
+      saved.json?.appId?.stored === APP &&
+      saved.json?.configId?.value === (envCfg ?? CFG),
+    JSON.stringify({ appId: saved.json?.appId, configId: saved.json?.configId })
+  );
+  ok("sin secretos en la respuesta del guardado", clean(saved));
+
+  const es = (await api("/api/settings/whatsapp/embedded-signup")).json;
+  if (process.env.META_APP_SECRET && !process.env.WAPI_BASE_URL) {
+    ok(
+      "el botón «Conectar con Meta» aparece en la organización con esos ID",
+      es?.enabled === true && es?.appId === (envApp ?? APP) && es?.configId === (envCfg ?? CFG),
+      JSON.stringify(es)
+    );
+  } else {
+    ok("sin META_APP_SECRET (o con Wapi) el botón sigue sin aparecer", es?.enabled === false, JSON.stringify(es));
+  }
+
+  const st = await api("/api/settings/whatsapp/status");
+  ok("estado de la guía (owner) → 200 y sin secretos", st.res.ok && clean(st), JSON.stringify(st.json));
+  ok(
+    "estado de la guía: número conectado, modo y firma",
+    st.json?.connection?.phoneNumberId === PN &&
+      st.json?.connection?.status === "connected" &&
+      typeof st.json?.signature?.configured === "boolean" &&
+      st.json?.platform?.ready === Boolean(es?.enabled),
+    JSON.stringify(st.json)
+  );
+  ok("estado de la guía: sin tokenLast4", !("tokenLast4" in (st.json?.connection ?? {})));
+
+  // «Ultimo messaggio ricevuto» en vivo: un entrante nuevo lo adelanta.
+  const prev = st.json?.lastInboundAt ? Date.parse(st.json.lastInboundAt) : 0;
+  await sleep(1100);
+  const inb = await api("/api/dev/wa-mock/inbound", {
+    method: "POST",
+    body: JSON.stringify({ phoneNumberId: PN, from: "5215512340013", name: "Prova 013", text: "prova dalla guida", waMessageId: `wamid.e2e.013.${Date.now()}` }),
+  });
+  ok("entrante de prueba entregado", inb.res.ok, JSON.stringify(inb.json));
+  await sleep(900);
+  const st2 = (await api("/api/settings/whatsapp/status")).json;
+  ok(
+    "el último entrante avanza tras el mensaje de prueba",
+    st2?.lastInboundAt && Date.parse(st2.lastInboundAt) > prev,
+    `${st.json?.lastInboundAt} → ${st2?.lastInboundAt}`
+  );
+
+  const anon = await fetch(`${BASE}${P}`, { headers: { origin: BASE } });
+  ok("Piattaforma → Meta sin sesión → 401", anon.status === 401);
+}
+
+/**
  * 009 — Coexistence: Embedded Signup (canje del code en el servidor) +
  * webhooks history / smb_app_state_sync / account_update.
- * Requiere META_APP_ID, META_ES_CONFIG_ID y META_APP_SECRET en la app; si
- * faltan, la sección se salta (el botón tampoco aparece en producción).
+ * Requiere META_APP_SECRET en la app y App ID + Configuration ID (013: los
+ * guarda la sección anterior en /admin, o vienen del entorno); si faltan, la
+ * sección se salta (el botón tampoco aparece en producción).
  */
 async function coexistenceSection() {
   console.log("\n== 009: coexistence — Embedded Signup + historial + agenda ==");
   const cfg = (await api("/api/settings/whatsapp/embedded-signup")).json;
   if (!cfg?.enabled) {
-    console.log("  SKIP Embedded Signup no configurado (META_APP_ID / META_ES_CONFIG_ID / META_APP_SECRET)");
+    console.log("  SKIP Embedded Signup no configurado (App ID / Configuration ID en /admin o el entorno, y META_APP_SECRET)");
     return;
   }
   ok("config pública sin App Secret", !JSON.stringify(cfg).includes(process.env.META_APP_SECRET ?? "§"));
