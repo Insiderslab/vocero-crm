@@ -12,6 +12,7 @@ import {
 } from "@/server/whatsapp/credentials";
 import { runStartup } from "../../scripts/migrate-channels.mjs";
 import { getOrCreateContactByIdentity } from "@/server/inbox/identity";
+import { insertContactIfAbsent } from "@/server/channels/dual-write";
 import { waFixture } from "./fixtures/whatsapp";
 import { conversationIdOf, postWebhook } from "./harness";
 import * as r0 from "./legacy/r0-credentials";
@@ -59,6 +60,8 @@ async function startup(mode: "avvisa" | "blocca") {
     log: { log: capture, warn: capture, error: capture },
     attempts: 1,
     retryMs: 10,
+    // «blocca» ritenta riconciliazione+verifiche (2 s, 5 s in produzione).
+    checkRetryDelaysMs: [10, 10],
   });
   return { code, log: lines.join("\n") };
 }
@@ -523,39 +526,50 @@ describe("migration — revisione avversaria (PR #7)", () => {
     expect(await accountMismatches()).toEqual([]);
   });
 
-  // 005 (M1.3, R2): la lettura passa a `contact_identity` (plan §5.1). Il
-  // caso di R1 («la scrittura vecchia vince», letture sulle colonne vecchie)
-  // non esiste più: un'identità «sporca» ora DECIDE il contatto. Per questo R2
-  // parte solo con V3 = 0 (modalità `blocca`), e qui si prova che una riga
-  // sporca scritta a mano dopo l'avvio non fa perdere il messaggio né crea un
-  // contatto doppio, che V3 la vede e che il riavvio di R2 non parte.
-  it("R2: un'identità residua con lo stesso ID esterno decide il contatto (nessun doppione, nessun errore); V3 la segnala e R2 non riparte", async () => {
+  // 005 (M1.3, R2, revisione PR #14): un'identità «sporca» (external_id
+  // diverso dal wa_identity del suo contatto) NON deve catturare in silenzio
+  // i messaggi di un'altra persona. Scelta: RIFIUTARE. La lettura nuova vede
+  // l'incoerenza e non assegna il messaggio (errore nel log, nessuna
+  // scrittura); V3 la conta e R2 non riparte finché non si risolve. Anche
+  // l'alta diretta di un contatto con quell'ID esterno viene rifiutata dalla
+  // doppia scrittura stretta (postcondizione).
+  it("R2: un'identità residua con lo stesso ID esterno NON cattura i messaggi: ingesta e alta rifiutate senza scritture; V3 la segnala e R2 non riparte", async () => {
     expect((await startup("blocca")).code).toBe(0);
-    const [other] = await sql()<{ id: string }[]>`
-      select id from contact where organization_id = ${ORG_A} order by created_at limit 1
-    `;
-    let otherId = other?.id;
-    if (!otherId) {
-      otherId = "ct_golden_other";
-      await sql()`insert into contact (id, organization_id, wa_identity, phone, name)
-                  values (${otherId}, ${ORG_A}, '5215599990000', '5215599990000', 'Altro')`;
-    }
-    // Identità "sporca": punta a un altro contatto con l'ID esterno che arriverà.
+    const otherId = "ct_golden_other";
+    await sql()`insert into contact (id, organization_id, wa_identity, phone, name)
+                values (${otherId}, ${ORG_A}, '5215599990000', '5215599990000', 'Altro')`;
     await sql()`insert into contact_identity (id, organization_id, contact_id, channel, external_id)
-                values ('ci_golden_stale', ${ORG_A}, ${otherId}, 'whatsapp', '5215512340000')`;
+                values ('ci_golden_other', ${ORG_A}, ${otherId}, 'whatsapp', '5215599990000')`;
+    // Identità "sporca": punta ad Altro con l'ID esterno di un'altra persona.
+    await sql()`insert into contact_identity (id, organization_id, contact_id, channel, external_id)
+                values ('ci_golden_stale', ${ORG_A}, ${otherId}, 'whatsapp', '525512345678')`;
 
-    const { contact, isNew } = await getOrCreateContactByIdentity(ORG_A, {
-      identity: "5215512340000",
-      phone: "5215512340000",
-      waUserId: null,
-      profileName: "Nuovo",
-    });
-    expect(isNew).toBe(false);
-    expect(contact.id).toBe(otherId);
-    const [row] = await sql()<{ n: string }[]>`
-      select count(*)::text as n from contact where organization_id = ${ORG_A} and wa_identity = '5215512340000'
-    `;
-    expect(row?.n).toBe("0");
+    const counts = async () =>
+      (await sql()<{ contacts: number; messages: number }[]>`
+        select (select count(*)::int from contact where organization_id = ${ORG_A}) as contacts,
+               (select count(*)::int from message where organization_id = ${ORG_A}) as messages
+      `)[0];
+    const before = await counts();
+
+    // Ingesta: il messaggio di 525512345678 non finisce ad «Altro».
+    await expect(
+      getOrCreateContactByIdentity(ORG_A, {
+        identity: "525512345678",
+        phone: "525512345678",
+        waUserId: null,
+        profileName: "Ana",
+      })
+    ).rejects.toMatchObject({ name: "IdentityConflictError" });
+    expect((await postWebhook(waFixture("inbound-text-mx"))).status).toBe(200);
+    expect(await counts()).toEqual(before);
+
+    // Alta diretta (manuale, Laboratorio, seed): la postcondizione della
+    // doppia scrittura la rifiuta e annulla anche il contatto.
+    await expect(
+      insertContactIfAbsent({ id: "ct_golden_new", organizationId: ORG_A, waIdentity: "525512345678", name: "Ana" })
+    ).rejects.toMatchObject({ name: "ChannelMirrorError" });
+    expect(await counts()).toEqual(before);
+
     expect((await legacyCheck()).V3).toBeGreaterThan(0);
     const restart = await startup("blocca");
     expect(restart.code).toBe(1);

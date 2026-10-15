@@ -49,6 +49,18 @@ describe("letture di R2", () => {
     expect(rows[0]).toEqual({ contacts: 1, messages: 2, archived: 0 });
   });
 
+  it("identità mancante (cancellata a mano) e telefono cambiato: la rilettura dopo la gara ripiega su wa_identity → stesso contatto, nessun messaggio perso", async () => {
+    await postWebhook(waFixture("inbound-text-mx"));
+    await sql()`delete from contact_identity where organization_id = ${ORG_A} and external_id = ${ANA}`;
+    await sql()`update contact set phone = '529999999999' where organization_id = ${ORG_A} and wa_identity = ${ANA}`;
+    await postWebhook(waFixture("inbound-text-mx-again"));
+    const rows = await sql()<{ contacts: number; messages: number }[]>`
+      select (select count(*)::int from contact where organization_id = ${ORG_A}) as contacts,
+             (select count(*)::int from message where organization_id = ${ORG_A}) as messages
+    `;
+    expect(rows[0]).toEqual({ contacts: 1, messages: 2 });
+  });
+
   it("gli stati si applicano per external_message_id (non per wa_message_id)", async () => {
     await postWebhook(waFixture("inbound-text-mx"));
     const cv = await conversationIdOf(ORG_A, ANA);
@@ -62,27 +74,47 @@ describe("letture di R2", () => {
     expect(row?.status).toBe("read");
   });
 
-  it("bot: ?waIdentity= si risolve su contact_identity (DTO invariato) e «sta scrivendo» usa external_message_id", async () => {
+  it("bot: ?waIdentity= si risolve su contact_identity con il DTO di oggi; un'identità incoerente non restituisce un altro contatto", async () => {
     await postWebhook(waFixture("inbound-text-mx"));
     const key = generateApiKey("bot");
     await sql()`
       insert into bot_api_key (id, organization_id, label, scope, key_prefix, key_hash, created_by)
       values ('bk_golden_r2', ${ORG_A}, 'golden', 'bot', ${key.prefix}, ${key.hash}, 'golden')
     `;
-    // Colonna vecchia divergente apposta: la lettura nuova trova lo stesso contatto.
-    await sql()`update contact set wa_identity = 'vecchia-divergente' where organization_id = ${ORG_A} and wa_identity = ${ANA}`;
-    const res = await botContext(
-      new Request(`http://localhost:3000/api/bot/context?waIdentity=${ANA}`, {
-        headers: { "x-api-key": key.plain },
-      })
-    );
-    expect(res.status).toBe(200);
-    const body = (await res.json()) as { contact: { waIdentity: string; name: string } };
-    // Il DTO resta quello di oggi: `waIdentity` è la colonna del contatto fino a R3.
-    expect(body.contact).toMatchObject({ name: "Ana Golden", waIdentity: "vecchia-divergente" });
+    const context = (waIdentity: string) =>
+      botContext(
+        new Request(`http://localhost:3000/api/bot/context?waIdentity=${waIdentity}`, {
+          headers: { "x-api-key": key.plain },
+        })
+      );
+    const ok = await context(ANA);
+    expect(ok.status).toBe(200);
+    expect(((await ok.json()) as { contact: unknown }).contact).toMatchObject({
+      name: "Ana Golden",
+      waIdentity: ANA,
+    });
 
+    // Revisione PR #14: identità di Ana spostata a mano su un altro contatto
+    // (incoerente con il suo wa_identity) → il bot NON riceve quel contatto;
+    // la colonna vecchia resta il ripiego fino a R3.
+    await sql()`insert into contact (id, organization_id, wa_identity, phone, name)
+                values ('ct_golden_altro', ${ORG_A}, '529999000000', '529999000000', 'Altro')`;
+    await sql()`update contact_identity set contact_id = 'ct_golden_altro'
+                 where organization_id = ${ORG_A} and external_id = ${ANA}`;
+    const res = await context(ANA);
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as { contact: { name: string } }).contact.name).toBe("Ana Golden");
+  });
+
+  it("bot: «sta scrivendo» usa external_message_id", async () => {
+    await postWebhook(waFixture("inbound-text-mx"));
+    const key = generateApiKey("bot");
+    await sql()`
+      insert into bot_api_key (id, organization_id, label, scope, key_prefix, key_hash, created_by)
+      values ('bk_golden_r2', ${ORG_A}, 'golden', 'bot', ${key.prefix}, ${key.hash}, 'golden')
+    `;
     await sql()`update message set wa_message_id = null where external_message_id = 'wamid.golden.in.text.1'`;
-    const cv = await conversationIdOf(ORG_A, "vecchia-divergente");
+    const cv = await conversationIdOf(ORG_A, ANA);
     const typing = await botTyping(
       new Request("http://localhost:3000/api/bot/typing", {
         method: "POST",
