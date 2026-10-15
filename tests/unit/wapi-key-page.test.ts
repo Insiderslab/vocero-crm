@@ -26,9 +26,12 @@ async function html(): Promise<string> {
 }
 
 // En SSR los componentes cliente pintan su estado "cargando"; para distinguir
-// la tarjeta Wapi se mira el mismo texto de carga duplicado: dos bloques
-// (asistente + tarjeta) para owner/admin, uno solo para el resto.
+// la tarjeta Wapi se mira el mismo texto de carga repetido: 013 — tres
+// bloques para owner/admin (guía, «Avanzate» con el modo manual y la tarjeta
+// Wapi, también dentro de «Avanzate»), ninguno para el resto.
 const loadingBlocks = (out: string) => out.split("common.loading").length - 1;
+/** Lo que queda dentro de <details id="avanzate">…</details>. */
+const advanced = (out: string) => /<details id="avanzate"[\s\S]*?<\/details>/.exec(out)?.[0] ?? "";
 
 describe("/settings/whatsapp (tarjeta de la clave Wapi)", () => {
   beforeEach(() => {
@@ -37,7 +40,11 @@ describe("/settings/whatsapp (tarjeta de la clave Wapi)", () => {
 
   it.each(["owner", "admin"])("%s: asistente de WhatsApp + tarjeta Wapi", async (role) => {
     state.session = { userId: "u_1", organizationId: "org_a", role };
-    expect(loadingBlocks(await html())).toBe(2);
+    const out = await html();
+    expect(loadingBlocks(out)).toBe(3);
+    // 013: el modo manual y la tarjeta Wapi viven en «Avanzate», cerrada.
+    expect(loadingBlocks(advanced(out))).toBe(2);
+    expect(advanced(out)).not.toMatch(/<details[^>]*\bopen\b/);
   });
 
   // Desde el control de rol de la página (ruoli-whatsapp), quien no es

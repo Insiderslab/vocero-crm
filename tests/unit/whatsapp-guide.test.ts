@@ -1,0 +1,255 @@
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { describe, expect, it, vi } from "vitest";
+import { LOCALES, type Locale } from "@/lib/i18n";
+import { messagesFor } from "@/lib/i18n/messages";
+import { translate } from "@/lib/i18n/t";
+import {
+  connectionMode,
+  guideState,
+  guideSteps,
+  signatureState,
+  type GuideConnection,
+  type GuideState,
+  type SignatureInfo,
+} from "@/lib/whatsapp-guide";
+import type { WhatsappGuideStatus } from "@/server/whatsapp/guide-status";
+
+// La vista no abre el SSE ni llama a la API; los hijos cliente no se ejecutan en SSR.
+vi.mock("@/components/use-events", () => ({ useEvents: () => undefined }));
+
+import { WhatsappGuideView } from "@/components/settings/whatsapp-guide";
+
+/**
+ * 013 — Pagina guidata di Configurazione → WhatsApp: la macchina a stati pura
+ * e la vista in ogni stato e in ogni lingua (senza chiavi crude).
+ */
+
+const NOW = Date.parse("2026-10-15T12:00:00Z");
+const ago = (min: number) => new Date(NOW - min * 60_000).toISOString();
+
+const conn = (over: Partial<GuideConnection> = {}): GuideConnection => ({
+  status: "connected",
+  appDisconnectedAt: null,
+  onboardingMode: "coexistence",
+  ...over,
+});
+
+describe("guideState", () => {
+  it.each<[string, { platformReady: boolean; connection: GuideConnection | null }, GuideState]>([
+    ["piattaforma non configurata, nessun numero", { platformReady: false, connection: null }, "not_configured"],
+    ["piattaforma pronta, nessun numero", { platformReady: true, connection: null }, "ready"],
+    ["numero collegato", { platformReady: true, connection: conn() }, "connected"],
+    ["numero collegato anche se la piattaforma perde la config", { platformReady: false, connection: conn() }, "connected"],
+    ["token scaduto", { platformReady: true, connection: conn({ status: "reconnect_required" }) }, "reconnect_required"],
+    ["coexistence tagliata", { platformReady: true, connection: conn({ appDisconnectedAt: ago(5) }) }, "app_disconnected"],
+    [
+      "taglio + token scaduto → prima il taglio (ricollegare rinnova anche il token)",
+      { platformReady: true, connection: conn({ status: "reconnect_required", appDisconnectedAt: ago(5) }) },
+      "app_disconnected",
+    ],
+  ])("%s → %s", (_n, input, expected) => {
+    expect(guideState(input)).toBe(expected);
+  });
+});
+
+describe("guideSteps", () => {
+  it("non configurata: il passo 1 aspetta l'amministratore", () => {
+    expect(guideSteps("not_configured", null)).toEqual({ connect: "blocked", confirm: "todo", test: "todo" });
+  });
+  it.each<GuideState>(["ready", "reconnect_required", "app_disconnected"])("%s: si parte dal passo 1", (s) => {
+    expect(guideSteps(s, ago(1))).toEqual({ connect: "current", confirm: "todo", test: "todo" });
+  });
+  it("collegato senza messaggi: tocca alla prova", () => {
+    expect(guideSteps("connected", null)).toEqual({ connect: "done", confirm: "done", test: "current" });
+  });
+  it("collegato con un messaggio ricevuto: tutto fatto", () => {
+    expect(guideSteps("connected", ago(2))).toEqual({ connect: "done", confirm: "done", test: "done" });
+  });
+});
+
+describe("connectionMode", () => {
+  it("coexistence = app + CRM; manuale ed Embedded Signup senza app = API", () => {
+    expect(connectionMode("coexistence")).toBe("coexistence");
+    expect(connectionMode("manual")).toBe("api");
+    expect(connectionMode("embedded")).toBe("api");
+  });
+});
+
+describe("signatureState (contatori della PR #9)", () => {
+  const sig = (
+    over: Partial<Omit<SignatureInfo, "stats">> & { stats?: Partial<SignatureInfo["stats"]> }
+  ): SignatureInfo => ({
+    required: over.required ?? true,
+    configured: over.configured ?? true,
+    stats: { lastVerifiedAt: null, lastInvalidAt: null, invalidSinceBoot: 0, ...over.stats },
+  });
+  it("senza segreto: manca (o ambiente di prova con i mock)", () => {
+    expect(signatureState(sig({ configured: false }))).toBe("missing");
+    expect(signatureState(sig({ configured: false, required: false }))).toBe("test_mode");
+  });
+  it("segreto ma nessun evento: in attesa", () => {
+    expect(signatureState(sig({}))).toBe("waiting");
+  });
+  it("verificata", () => {
+    expect(signatureState(sig({ stats: { lastVerifiedAt: ago(3) } }))).toBe("verified");
+  });
+  it("solo rifiuti: rifiutata", () => {
+    expect(signatureState(sig({ stats: { lastInvalidAt: ago(1), invalidSinceBoot: 4 } }))).toBe("rejected");
+  });
+  it("rifiuto PIÙ RECENTE dell'ultima verificata: rifiutata", () => {
+    expect(
+      signatureState(sig({ stats: { lastVerifiedAt: ago(10), lastInvalidAt: ago(1), invalidSinceBoot: 1 } }))
+    ).toBe("rejected");
+  });
+  it("rifiuto vecchio e verificata dopo: verificata", () => {
+    expect(
+      signatureState(sig({ stats: { lastVerifiedAt: ago(1), lastInvalidAt: ago(10), invalidSinceBoot: 1 } }))
+    ).toBe("verified");
+  });
+});
+
+/* ------------------------------ vista ------------------------------ */
+
+const verified: SignatureInfo = {
+  required: true,
+  configured: true,
+  stats: { lastVerifiedAt: ago(5), lastInvalidAt: null, invalidSinceBoot: 0 },
+};
+
+const connection = (over: Partial<GuideConnection> = {}) => ({
+  ...conn(over),
+  phoneNumberId: "100000000000001",
+  displayPhoneNumber: "+39 347 718 5235",
+  verifiedName: "InsidersLab",
+});
+
+const STATES: Record<GuideState | "connected_waiting", WhatsappGuideStatus> = {
+  not_configured: {
+    platform: { ready: false, reason: "not_configured" },
+    connection: null,
+    signature: verified,
+    lastInboundAt: null,
+  },
+  ready: { platform: { ready: true, reason: null }, connection: null, signature: verified, lastInboundAt: null },
+  connected_waiting: {
+    platform: { ready: true, reason: null },
+    connection: connection(),
+    signature: verified,
+    lastInboundAt: null,
+  },
+  connected: {
+    platform: { ready: true, reason: null },
+    connection: connection(),
+    signature: verified,
+    lastInboundAt: ago(2),
+  },
+  reconnect_required: {
+    platform: { ready: true, reason: null },
+    connection: connection({ status: "reconnect_required", onboardingMode: "manual" }),
+    signature: verified,
+    lastInboundAt: ago(60 * 24 * 3),
+  },
+  app_disconnected: {
+    platform: { ready: true, reason: null },
+    connection: connection({ appDisconnectedAt: ago(30) }),
+    signature: verified,
+    lastInboundAt: ago(60 * 24 * 20),
+  },
+};
+
+function render(status: WhatsappGuideStatus, locale: Locale): string {
+  const messages = messagesFor(locale) as unknown as Record<string, unknown>;
+  const t = ((key: string, vars?: Record<string, string | number>) => translate(messages, key, vars)) as never;
+  return renderToStaticMarkup(
+    createElement(WhatsappGuideView, {
+      status,
+      t,
+      locale,
+      now: NOW,
+      onOpenAdvanced: () => undefined,
+      renderConnect: (label?: string) => createElement("span", null, `[BOTTONE-META${label ? `:${label}` : ""}]`),
+    })
+  );
+}
+
+describe("WhatsappGuideView", () => {
+  it.each(LOCALES.flatMap((l) => Object.keys(STATES).map((s) => [l, s] as const)))(
+    "%s / %s: nessuna chiave cruda",
+    (locale, state) => {
+      const out = render(STATES[state as keyof typeof STATES], locale);
+      expect(out).not.toMatch(/settings\.whatsapp\.|admin\.platform\./);
+    }
+  );
+
+  it("non configurata: messaggio per l'amministratore, nessun pulsante, via d'uscita in Avanzate", () => {
+    const out = render(STATES.not_configured, "it");
+    expect(out).toContain('data-guide-state="not_configured"');
+    expect(out).toContain("Il tuo amministratore deve completare la configurazione Meta");
+    expect(out).not.toContain("[BOTTONE-META");
+    expect(out).toContain("Apri Avanzate");
+  });
+
+  it("gateway Wapi: lo dice invece del generico", () => {
+    const out = render({ ...STATES.not_configured, platform: { ready: false, reason: "wapi_gateway" } }, "it");
+    expect(out).toContain("gateway Wapi");
+  });
+
+  it("pronta: il grande pulsante nel passo 1 con la frase sull'app che resta sul telefono", () => {
+    const out = render(STATES.ready, "it");
+    expect(out).toContain('data-guide-state="ready"');
+    expect(out.split("[BOTTONE-META]").length - 1).toBe(1);
+    expect(out).toContain("l&#x27;app WhatsApp Business resta sul telefono");
+    expect(out).toContain("Condividi la cronologia");
+  });
+
+  it("collegata in attesa: striscia con numero, modalità e firma; passo 3 in attesa", () => {
+    const out = render(STATES.connected_waiting, "it");
+    expect(out).toContain("+39 347 718 5235");
+    expect(out).toContain("InsidersLab");
+    expect(out).toContain("App + CRM (coexistence)");
+    expect(out).toContain("Verificata 5 minuti fa");
+    expect(out).toContain("In attesa del primo messaggio");
+    expect(out).not.toContain("[BOTTONE-META");
+  });
+
+  it("collegata con messaggio: «ultimo messaggio ricevuto» in diretta", () => {
+    const out = render(STATES.connected, "it");
+    expect(out).toContain("Ultimo messaggio ricevuto: 2 minuti fa");
+    expect(out).toMatch(/data-step-status="done"[\s\S]*data-step-status="done"[\s\S]*data-step-status="done"/);
+  });
+
+  it.each([
+    ["reconnect_required", "Il token di WhatsApp è scaduto"],
+    ["app_disconnected", "Meta ha scollegato il numero dal CRM"],
+  ] as const)("%s: allerta rossa con «Ricollega con Meta» e alternativa manuale", (state, title) => {
+    const out = render(STATES[state], "it");
+    expect(out).toContain('role="alert"');
+    expect(out).toContain(title);
+    expect(out).toContain("[BOTTONE-META:Ricollega con Meta]");
+    expect(out).toContain("Oppure incolla un token nuovo in Avanzate");
+  });
+
+  it("da ricollegare con piattaforma non pronta: solo la via manuale", () => {
+    const out = render({ ...STATES.reconnect_required, platform: { ready: false, reason: "not_configured" } }, "it");
+    expect(out).not.toContain("[BOTTONE-META");
+    expect(out).toContain("Apri Avanzate per incollare un token nuovo");
+  });
+
+  it("modalità API per una connessione manuale", () => {
+    expect(render(STATES.reconnect_required, "it")).toContain("Solo API");
+  });
+
+  it("firma: manca il segreto → avviso nella striscia", () => {
+    const out = render(
+      { ...STATES.connected, signature: { ...verified, configured: false } },
+      "it"
+    );
+    expect(out).toContain("Manca l&#x27;App Secret");
+  });
+
+  it("la vista non contiene segreti (non le arrivano: lo stato non li porta)", () => {
+    const keys = JSON.stringify(Object.keys(STATES.connected.connection!).sort());
+    expect(keys).not.toMatch(/token|secret/i);
+  });
+});

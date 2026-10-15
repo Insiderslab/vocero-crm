@@ -134,14 +134,8 @@ const messages: typeof base = {
       "Only the organization owner or an administrator can manage the WhatsApp connection.",
     reconnectTitle: "The WhatsApp token expired or was revoked.",
     reconnectBody:
-      "Sending is paused. Paste a new token below and test the connection to reconnect.",
-    connectedNumber: "Connected number: {{number}}",
-    tokenTail: "token …{{last4}}",
+      "Sending is paused. Reconnect the number with Meta, or paste a new token in Advanced.",
     // 009 — Embedded Signup + coexistence
-    coexTitle: "Connect your WhatsApp Business app number",
-    coexDescription:
-      "The number stays in the phone app and also comes into the CRM: reply from wherever you like. A Meta window opens: log in with Facebook, pick your app number and confirm on the phone.",
-    coexPoint1: "Open the WhatsApp Business app on the phone at least every 13 days, otherwise Meta disconnects the number from the CRM.",
     coexPoint2: "You can share up to 6 months of chats: they come into the CRM as history, without waking the AI.",
     coexPoint3: "Groups, disappearing messages and broadcast lists don't reach the CRM.",
     coexButton: "Connect with Meta",
@@ -152,12 +146,10 @@ const messages: typeof base = {
     coexSuccess: "Number {{number}} connected (app + CRM).",
     coexSyncRequested: "We asked Meta for contacts and history: they arrive in the next few minutes.",
     coexSyncFailed: "Contacts or history could not be requested from Meta: new messages still arrive.",
-    coexBadge: "App + CRM",
     coexKeepAlive: "Remember to open the WhatsApp Business app on the phone at least every 13 days.",
     disconnectedTitle: "Meta disconnected the number from the CRM.",
     disconnectedBody:
       "This usually happens if the WhatsApp Business app wasn't opened for ~14 days, the phone changed or access was removed. Open the app and connect with Meta again.",
-    connected: "Connected",
     titleReconnect: "Reconnect / update the number",
     titleConnect: "Connect your WhatsApp number",
     connectDescription:
@@ -210,6 +202,70 @@ const messages: typeof base = {
       "META_APP_SECRET is missing: the signature is mandatory, so the webhook REJECTS every event (503) and no message reaches the inbox. Add the App Secret of the Meta app that sends the webhooks (your own app's — agency mode with a callback override is not supported with mandatory signatures, never copy the agency's App Secret here; behind Wapi, the endpoint secret) to the instance and restart.",
     signatureTestMode:
       "Test environment (mocks enabled): without META_APP_SECRET unsigned events are accepted. In production the signature is always mandatory.",
+    // 013 — Guided connection (3 steps + status strip)
+    guide: {
+      title: "Connect WhatsApp in 3 steps",
+      intro:
+        "You need the phone with the WhatsApp Business app and the business's Facebook login. It takes a couple of minutes.",
+      loadError: "Could not load the WhatsApp status: reload the page.",
+      advanced: "Advanced",
+      advancedHint:
+        "Manual connection (WABA and token), webhook, agency override and Wapi key. Only for whoever configures the Meta app.",
+      stepState: {
+        done: "Done",
+        current: "Now",
+        todo: "Next",
+        blocked: "Waiting for your administrator",
+      },
+      steps: {
+        connect: {
+          title: "Connect the number",
+          body: "Press the button and log in with Facebook: the WhatsApp Business app stays on the phone and keeps working, and messages also arrive here.",
+          done: "Number {{number}} connected.",
+          reconnectHint: "The number needs reconnecting: use the button above.",
+        },
+        confirm: {
+          title: "Confirm on the phone",
+          body: "In the Meta window pick the number, confirm in the WhatsApp Business app on the phone and tap “Share chat history”.",
+        },
+        test: {
+          title: "Test it",
+          body: "Text the number from another phone: the message shows up here and in the Inbox.",
+          waiting: "Waiting for the first message…",
+          received: "Last message received: {{when}}.",
+          openInbox: "Open the Inbox",
+        },
+      },
+      notConfigured: {
+        title: "Your administrator needs to finish the Meta setup.",
+        body: "Until then, the “Connect with Meta” button does not appear.",
+        wapi: "This instance uses the Wapi gateway: connect the number from Advanced.",
+        manual: "Already have a token? Open Advanced.",
+      },
+      banner: {
+        connected: "WhatsApp is connected: {{number}}.",
+        ready: "All set: follow the 3 steps below to connect your number.",
+        reconnectButton: "Reconnect with Meta",
+        manualAlternative: "Or paste a new token in Advanced.",
+        manualOnly: "Open Advanced to paste a new token.",
+      },
+      status: {
+        label: "WhatsApp status",
+        number: "Number",
+        numberNone: "No number connected",
+        mode: "Mode",
+        mode_coexistence: "App + CRM (coexistence)",
+        mode_api: "API only",
+        signature: "Webhook signature",
+        sigVerified: "Verified {{when}}",
+        sig_waiting: "Waiting for the first signed event",
+        sig_rejected: "Signatures rejected: the App Secret does not match",
+        sig_missing: "App Secret missing (server setting)",
+        sig_test_mode: "Test environment (mocks)",
+        lastInbound: "Last message received",
+        lastInboundNone: "None yet",
+      },
+    },
     wapi: {
       title: "Wapi key for this organization",
       description:
