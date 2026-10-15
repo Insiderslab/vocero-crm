@@ -1,176 +1,34 @@
-import { and, eq, or } from "drizzle-orm";
-import { getDb, schema } from "@/lib/db";
-import { newId } from "@/lib/db/ids";
-import { normalizeMx } from "@/lib/meta/client";
-import { insertContactIfAbsent } from "@/server/channels/dual-write";
-import type { WebhookMessage, WebhookValue } from "@/server/inbox/webhook";
+import {
+  BSUID_PREFIX,
+  getOrCreateWhatsappContact,
+  type ResolvedIdentity,
+} from "@/server/channels/core/identity";
+import { resolveIdentity } from "@/server/channels/whatsapp/parse";
 
 /**
  * Identidad resiliente de contacto (003).
  *
  * Meta está migrando la identidad de WhatsApp de teléfono a Business-Scoped
  * User IDs (BSUID): `wa_id`/`from` pasan a ser opcionales y aparecen
- * `from_user_id` (mensaje) y `user_id` (contacts[]). Este módulo resuelve la
- * identidad del remitente sin asumir teléfono, y reconcilia para que un mismo
- * humano no genere dos contactos.
+ * `from_user_id` (mensaje) y `user_id` (contacts[]).
+ *
+ * 005 (M1.3, T031): módulo DELGADO, mismas firmas exportadas. La extracción
+ * pura vive en el adaptador (`channels/whatsapp/parse.ts`) y la resolución
+ * contra la BD en el núcleo (`channels/core/identity.ts`, que en R2 lee
+ * `contact_identity`).
  */
 
-export const BSUID_PREFIX = "bsuid:";
-
-export type ResolvedIdentity = {
-  /** Llave estable de resolución: teléfono normalizado o `bsuid:<id>`. */
-  identity: string;
-  phone: string | null;
-  waUserId: string | null;
-  profileName: string | null;
-};
+export { BSUID_PREFIX, resolveIdentity, type ResolvedIdentity };
 
 /**
- * Extrae la identidad utilizable de un mensaje del webhook.
- * Devuelve null si el mensaje no trae NINGUNA identidad (se descarta con log,
- * jamás se revienta el webhook).
- */
-export function resolveIdentity(
-  msg: WebhookMessage,
-  contacts: WebhookValue["contacts"]
-): ResolvedIdentity | null {
-  const waUserId =
-    msg.from_user_id ??
-    contacts?.find((c) => c.wa_id != null && c.wa_id === msg.from)?.user_id ??
-    contacts?.find((c) => c.user_id != null)?.user_id ??
-    null;
-
-  const profileName =
-    contacts?.find((c) => c.wa_id != null && c.wa_id === msg.from)?.profile
-      ?.name ??
-    (waUserId
-      ? contacts?.find((c) => c.user_id === waUserId)?.profile?.name
-      : undefined) ??
-    null;
-
-  if (msg.from) {
-    const phone = normalizeMx(msg.from);
-    return { identity: phone, phone, waUserId, profileName };
-  }
-  if (waUserId) {
-    return {
-      identity: `${BSUID_PREFIX}${waUserId}`,
-      phone: null,
-      waUserId,
-      profileName,
-    };
-  }
-  return null;
-}
-
-/**
- * Resuelve o crea el contacto para una identidad, reconciliando:
- * - Si llegan teléfono Y BSUID, encuentra al contacto por cualquiera de los
- *   dos y adquiere la señal que le faltaba (el `wa_identity` NO cambia:
- *   es estable de por vida).
- * - Reactiva contactos archivados (el nombre editado por el operador se
- *   respeta).
+ * Resuelve o crea el contacto para una identidad, reconciliando teléfono y
+ * BSUID (el `wa_identity` NO cambia) y reactivando archivados (salvo
+ * `reactivate: false`, historial de la coexistence 009).
  */
 export async function getOrCreateContactByIdentity(
   organizationId: string,
   resolved: ResolvedIdentity,
-  /** 009 — el historial de coexistence no reactiva archivados. */
   opts: { reactivate?: boolean } = {}
 ) {
-  const reactivate = opts.reactivate ?? true;
-  const db = getDb();
-
-  const matchers = [eq(schema.contact.waIdentity, resolved.identity)];
-  if (resolved.waUserId) {
-    matchers.push(eq(schema.contact.waUserId, resolved.waUserId));
-    matchers.push(
-      eq(schema.contact.waIdentity, `${BSUID_PREFIX}${resolved.waUserId}`)
-    );
-  }
-  if (resolved.phone) {
-    matchers.push(eq(schema.contact.phone, resolved.phone));
-  }
-
-  const rows = await db
-    .select()
-    .from(schema.contact)
-    .where(and(eq(schema.contact.organizationId, organizationId), or(...matchers)))
-    .orderBy(schema.contact.createdAt)
-    .limit(1);
-
-  const existing = rows[0];
-  if (existing) {
-    const patch: Partial<typeof schema.contact.$inferInsert> = {};
-    if (resolved.waUserId && !existing.waUserId)
-      patch.waUserId = resolved.waUserId;
-    if (resolved.phone && !existing.phone) patch.phone = resolved.phone;
-    if (existing.archivedAt && reactivate) patch.archivedAt = null;
-    if (Object.keys(patch).length > 0) {
-      patch.updatedAt = new Date();
-      await db
-        .update(schema.contact)
-        .set(patch)
-        .where(eq(schema.contact.id, existing.id));
-      Object.assign(existing, patch);
-    }
-    return { contact: existing, isNew: false };
-  }
-
-  // 009 — Coexistence: si la agenda de la app WhatsApp Business conoce el
-  // número, ese nombre (el que puso el dueño) gana al nombre de perfil.
-  const addressBookName = resolved.phone
-    ? await lookupAddressBookName(organizationId, resolved.phone)
-    : null;
-
-  // 005 (R1): el contacto y su identidad WhatsApp, en una transacción.
-  const inserted = await insertContactIfAbsent({
-    id: newId("contact"),
-    organizationId,
-    waIdentity: resolved.identity,
-    phone: resolved.phone,
-    waUserId: resolved.waUserId,
-    name:
-      addressBookName ||
-      resolved.profileName?.trim() ||
-      displayFallback(resolved),
-  });
-  if (inserted) return { contact: inserted, isNew: true };
-
-  // Carrera: otro request lo creó entre el SELECT y el INSERT.
-  const raced = await db
-    .select()
-    .from(schema.contact)
-    .where(
-      and(
-        eq(schema.contact.organizationId, organizationId),
-        eq(schema.contact.waIdentity, resolved.identity)
-      )
-    )
-    .limit(1);
-  const contact = raced[0];
-  if (!contact) throw new Error("contacto no encontrado tras upsert");
-  return { contact, isNew: false };
-}
-
-async function lookupAddressBookName(
-  organizationId: string,
-  phone: string
-): Promise<string | null> {
-  const rows = await getDb()
-    .select({ name: schema.waAddressBookEntry.name })
-    .from(schema.waAddressBookEntry)
-    .where(
-      and(
-        eq(schema.waAddressBookEntry.organizationId, organizationId),
-        eq(schema.waAddressBookEntry.waIdentity, phone)
-      )
-    )
-    .limit(1);
-  return rows[0]?.name?.trim() || null;
-}
-
-/** Nombre de respaldo cuando no hay nombre de perfil: nunca el BSUID crudo. */
-function displayFallback(resolved: ResolvedIdentity): string {
-  if (resolved.phone) return resolved.phone;
-  return "Contacto de WhatsApp";
+  return getOrCreateWhatsappContact(organizationId, resolved, opts);
 }

@@ -520,8 +520,14 @@ describe("migration — revisione avversaria (PR #7)", () => {
     expect(await accountMismatches()).toEqual([]);
   });
 
-  it("un'identità residua con lo stesso ID esterno NON blocca l'alta di un contatto: la scrittura vecchia vince, V3 lo segnala, l'avvio lo ripara", async () => {
-    expect((await startup("avvisa")).code).toBe(0);
+  // 005 (M1.3, R2): la lettura passa a `contact_identity` (plan §5.1). Il
+  // caso di R1 («la scrittura vecchia vince», letture sulle colonne vecchie)
+  // non esiste più: un'identità «sporca» ora DECIDE il contatto. Per questo R2
+  // parte solo con V3 = 0 (modalità `blocca`), e qui si prova che una riga
+  // sporca scritta a mano dopo l'avvio non fa perdere il messaggio né crea un
+  // contatto doppio, che V3 la vede e che il riavvio di R2 non parte.
+  it("R2: un'identità residua con lo stesso ID esterno decide il contatto (nessun doppione, nessun errore); V3 la segnala e R2 non riparte", async () => {
+    expect((await startup("blocca")).code).toBe(0);
     const [other] = await sql()<{ id: string }[]>`
       select id from contact where organization_id = ${ORG_A} order by created_at limit 1
     `;
@@ -535,18 +541,22 @@ describe("migration — revisione avversaria (PR #7)", () => {
     await sql()`insert into contact_identity (id, organization_id, contact_id, channel, external_id)
                 values ('ci_golden_stale', ${ORG_A}, ${otherId}, 'whatsapp', '5215512340000')`;
 
-    const { contact } = await getOrCreateContactByIdentity(ORG_A, {
+    const { contact, isNew } = await getOrCreateContactByIdentity(ORG_A, {
       identity: "5215512340000",
       phone: "5215512340000",
       waUserId: null,
       profileName: "Nuovo",
     });
-    expect(contact.waIdentity).toBe("5215512340000");
+    expect(isNew).toBe(false);
+    expect(contact.id).toBe(otherId);
     const [row] = await sql()<{ n: string }[]>`
       select count(*)::text as n from contact where organization_id = ${ORG_A} and wa_identity = '5215512340000'
     `;
-    expect(row?.n).toBe("1");
+    expect(row?.n).toBe("0");
     expect((await legacyCheck()).V3).toBeGreaterThan(0);
+    const restart = await startup("blocca");
+    expect(restart.code).toBe(1);
+    expect(restart.log).toMatch(/verifica fallita[^\n]*V3=[1-9]/);
   });
 });
 

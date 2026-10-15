@@ -75,7 +75,8 @@ vi.mock("@/server/whatsapp/media", async (importOriginal) => {
 
 function makeChain(rows: unknown[]) {
   const chain: Record<string, unknown> = {};
-  for (const m of ["from", "innerJoin", "where", "orderBy"]) {
+  // 005 (M1.3): el pre-flight del núcleo une también `channel_account` (leftJoin).
+  for (const m of ["from", "innerJoin", "leftJoin", "where", "orderBy"]) {
     chain[m] = () => chain;
   }
   chain.limit = () => Promise.resolve(rows);
@@ -89,7 +90,13 @@ vi.mock("@/lib/db", () => ({
     select: () => makeChain(selectRows.shift() ?? []),
   }),
   schema: {
-    conversation: { contactId: "contactId", id: "id" },
+    conversation: {
+      contactId: "contactId",
+      id: "id",
+      channelAccountId: "channelAccountId",
+      organizationId: "organizationId",
+    },
+    channelAccount: { id: "id", organizationId: "organizationId", channel: "channel" },
     contact: { id: "id" },
     message: {},
     mediaAsset: {},
