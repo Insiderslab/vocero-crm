@@ -8,6 +8,7 @@ import { slugify, uniqueSlug } from "@/lib/slug";
 import { provisionOrganization } from "@/server/auth/on-signup";
 import { getLocale } from "@/lib/i18n/server";
 import { withSuperadmin } from "@/server/auth/superadmin";
+import { EMAIL_UNAVAILABLE_MESSAGE, isEmailUnavailableError } from "@/server/auth/superadmin-email";
 
 export const dynamic = "force-dynamic";
 
@@ -86,10 +87,15 @@ export const POST = withSuperadmin(async (ctx, req: Request) => {
             email: body.data.owner!.email,
             password: body.data.owner!.password,
           },
-        })
+        }),
+        { bySuperadmin: true }
       );
       ownerUserId = result.user.id;
     } catch (err) {
+      // 013: email di super-admin fuori da bootstrap e /admin → messaggio generico.
+      if (isEmailUnavailableError(err)) {
+        return apiError(403, "email_unavailable", EMAIL_UNAVAILABLE_MESSAGE);
+      }
       const message =
         err instanceof Error ? err.message : "No se pudo crear la cuenta";
       if (/exist/i.test(message)) {

@@ -3,20 +3,9 @@ import { getAuth } from "@/lib/auth";
 import { apiError } from "@/lib/api";
 import { UnauthorizedError } from "@/lib/auth/session";
 
-/**
- * Super-admin de la instancia (custom heili.cloud): una capacidad definida por
- * la variable SUPERADMIN_EMAILS (correos separados por coma). No es un rol de
- * organización — es quien opera la instancia y puede crear organizaciones y
- * usuarios desde /admin. Sin la variable, nadie es super-admin.
- */
-export function isSuperadminEmail(email: string | null | undefined): boolean {
-  if (!email) return false;
-  const list = (process.env.SUPERADMIN_EMAILS ?? "")
-    .split(",")
-    .map((s) => s.trim().toLowerCase())
-    .filter(Boolean);
-  return list.includes(email.trim().toLowerCase());
-}
+// La regla pura vive en superadmin-email.ts (la usa también @/lib/auth).
+export { isSuperadminEmail } from "@/server/auth/superadmin-email";
+import { isSuperadminEmail } from "@/server/auth/superadmin-email";
 
 export class ForbiddenError extends Error {
   constructor(message = "No eres super-admin de esta instancia") {
