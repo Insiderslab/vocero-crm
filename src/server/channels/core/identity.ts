@@ -10,8 +10,10 @@ import { BSUID_PREFIX, type ResolvedIdentity } from "@/server/channels/whatsapp/
  *
  * R2: la resolución lee `contact_identity` (plan §5.1). Hasta R3 cada contacto
  * WhatsApp tiene EXACTAMENTE una identidad `whatsapp` con `external_id =
- * wa_identity` (D5; lo verifica V3 en cada arranque, en modo `blocca`), así
- * que buscar por la identidad es lo mismo que buscar por `wa_identity`.
+ * wa_identity` (D5; lo verifica V3 en cada arranque, en modo `blocca`, y lo
+ * exige la doble escritura estricta). Una identidad que NO coincide con el
+ * `wa_identity` de su contacto no captura nada: la ingesta se rechaza
+ * (`IdentityConflictError`) y las relecturas usan la columna vieja.
  *
  * Reconciliación automática SOLO la que atestigua el proveedor en el mismo
  * evento y canal (WhatsApp: teléfono + BSUID, 003). Entre canales, jamás
@@ -22,16 +24,42 @@ export { BSUID_PREFIX, type ResolvedIdentity };
 
 type ContactRow = typeof schema.contact.$inferSelect;
 
-/** Contactos de la organización con alguna de estas identidades del canal. */
-function contactIdsWithIdentity(
+/**
+ * Identidad WhatsApp incoherente con la columna vieja (`external_id ≠
+ * wa_identity` de su contacto: una fila residual o escrita a mano). Revisión
+ * de la PR #14: una fila así JAMÁS captura en silencio los mensajes de otra
+ * persona. La ingesta se RECHAZA (error en el log, el webhook ya respondió
+ * 200), V3 la cuenta y el arranque en `blocca` no sirve tráfico hasta que se
+ * resuelva. Sin valores en el mensaje.
+ */
+export class IdentityConflictError extends Error {
+  readonly code = "identity_conflict" as const;
+  constructor() {
+    super(
+      "[canali] identidad WhatsApp incoherente con wa_identity (V3): mensaje rechazado para no asignarlo a otro contacto"
+    );
+    this.name = "IdentityConflictError";
+  }
+}
+
+/** Identidades del canal que coinciden, con la columna vieja de su contacto. */
+async function identityMatches(
   organizationId: string,
   channel: ChannelKind,
   externalIds: string[]
 ) {
   const ci = schema.contactIdentity;
   return getDb()
-    .select({ id: ci.contactId })
+    .select({
+      contactId: ci.contactId,
+      externalId: ci.externalId,
+      waIdentity: schema.contact.waIdentity,
+    })
     .from(ci)
+    .innerJoin(
+      schema.contact,
+      and(eq(schema.contact.organizationId, ci.organizationId), eq(schema.contact.id, ci.contactId))
+    )
     .where(
       and(
         eq(ci.organizationId, organizationId),
@@ -41,23 +69,57 @@ function contactIdsWithIdentity(
     );
 }
 
-/** El contacto de UNA identidad del canal (o undefined). */
+/** El contacto de UNA identidad de un canal que no es WhatsApp (o undefined). */
 async function contactByIdentity(
   organizationId: string,
   channel: ChannelKind,
   externalId: string
 ): Promise<ContactRow | undefined> {
+  const ci = schema.contactIdentity;
   const rows = await getDb()
-    .select()
-    .from(schema.contact)
-    .where(
+    .select({ contact: schema.contact })
+    .from(ci)
+    .innerJoin(
+      schema.contact,
+      and(eq(schema.contact.organizationId, ci.organizationId), eq(schema.contact.id, ci.contactId))
+    )
+    .where(and(eq(ci.organizationId, organizationId), eq(ci.channel, channel), eq(ci.externalId, externalId)))
+    .limit(1);
+  return rows[0]?.contact;
+}
+
+/**
+ * El contacto de una identidad WhatsApp, SEGURO hasta R3: vale la identidad
+ * solo si coincide con el `wa_identity` de su contacto (una fila residual no
+ * captura a nadie); si no hay identidad coherente, la columna vieja
+ * (`contact.wa_identity`), que sigue siendo la fuente de verdad.
+ */
+async function whatsappContactByIdentity(
+  organizationId: string,
+  waIdentity: string
+): Promise<ContactRow | undefined> {
+  const ci = schema.contactIdentity;
+  const viaIdentity = await getDb()
+    .select({ contact: schema.contact })
+    .from(ci)
+    .innerJoin(
+      schema.contact,
       and(
-        eq(schema.contact.organizationId, organizationId),
-        inArray(schema.contact.id, contactIdsWithIdentity(organizationId, channel, [externalId]))
+        eq(schema.contact.organizationId, ci.organizationId),
+        eq(schema.contact.id, ci.contactId),
+        eq(schema.contact.waIdentity, ci.externalId)
       )
     )
+    .where(and(eq(ci.organizationId, organizationId), eq(ci.channel, "whatsapp"), eq(ci.externalId, waIdentity)))
     .limit(1);
-  return rows[0];
+  if (viaIdentity[0]) return viaIdentity[0].contact;
+  // Respaldo hasta R3: la columna vieja.
+  const legacy = await getDb()
+    .select()
+    .from(schema.contact)
+    .where(and(eq(schema.contact.organizationId, organizationId), eq(schema.contact.waIdentity, waIdentity)))
+    .limit(1);
+  return legacy[0];
 }
 
 /**
@@ -67,6 +129,7 @@ async function contactByIdentity(
  *   estable de por vida);
  * - reactiva contactos archivados (el nombre editado por el operador se
  *   respeta), salvo `reactivate: false` (historial de la coexistence).
+ * Una identidad incoherente con `wa_identity` → `IdentityConflictError`.
  */
 export async function getOrCreateWhatsappContact(
   organizationId: string,
@@ -78,12 +141,16 @@ export async function getOrCreateWhatsappContact(
 
   const identities = [resolved.identity];
   if (resolved.waUserId) identities.push(`${BSUID_PREFIX}${resolved.waUserId}`);
-  const matchers = [
-    inArray(
-      schema.contact.id,
-      contactIdsWithIdentity(organizationId, "whatsapp", identities)
-    ),
-  ];
+  const matches = await identityMatches(organizationId, "whatsapp", identities);
+  if (matches.some((m) => m.waIdentity !== m.externalId)) {
+    const error = new IdentityConflictError();
+    console.error(error.message);
+    throw error;
+  }
+  const matchers = [];
+  if (matches.length > 0) {
+    matchers.push(inArray(schema.contact.id, matches.map((m) => m.contactId)));
+  }
   if (resolved.waUserId) {
     matchers.push(eq(schema.contact.waUserId, resolved.waUserId));
   }
@@ -91,12 +158,15 @@ export async function getOrCreateWhatsappContact(
     matchers.push(eq(schema.contact.phone, resolved.phone));
   }
 
-  const rows = await db
-    .select()
-    .from(schema.contact)
-    .where(and(eq(schema.contact.organizationId, organizationId), or(...matchers)))
-    .orderBy(schema.contact.createdAt)
-    .limit(1);
+  const rows =
+    matchers.length === 0
+      ? []
+      : await db
+          .select()
+          .from(schema.contact)
+          .where(and(eq(schema.contact.organizationId, organizationId), or(...matchers)))
+          .orderBy(schema.contact.createdAt)
+          .limit(1);
 
   const existing = rows[0];
   if (existing) {
@@ -136,9 +206,10 @@ export async function getOrCreateWhatsappContact(
   });
   if (inserted) return { contact: inserted, isNew: true };
 
-  // Carrera: otro request lo creó entre el SELECT y el INSERT (R2: se relee
-  // por la identidad).
-  const contact = await contactByIdentity(organizationId, "whatsapp", resolved.identity);
+  // Carrera: otro request lo creó entre el SELECT y el INSERT. Se relee por
+  // la identidad coherente o, hasta R3, por la columna vieja (`wa_identity`:
+  // es el índice que acaba de rechazar el INSERT).
+  const contact = await whatsappContactByIdentity(organizationId, resolved.identity);
   if (!contact) throw new Error("contacto no encontrado tras upsert");
   return { contact, isNew: false };
 }
@@ -254,10 +325,14 @@ export async function hasWhatsappIdentity(
   return rows.length > 0;
 }
 
-/** El contacto de una identidad WhatsApp (`?waIdentity=` del bot, R2). */
+/**
+ * El contacto de una identidad WhatsApp (`?waIdentity=` del bot, R2): la
+ * identidad coherente con `wa_identity` o, hasta R3, la columna vieja. Una
+ * identidad residual no devuelve a otro contacto.
+ */
 export async function findContactByWhatsappIdentity(
   organizationId: string,
   waIdentity: string
 ): Promise<ContactRow | undefined> {
-  return contactByIdentity(organizationId, "whatsapp", waIdentity);
+  return whatsappContactByIdentity(organizationId, waIdentity);
 }
