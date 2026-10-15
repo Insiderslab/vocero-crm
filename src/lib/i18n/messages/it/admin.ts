@@ -39,6 +39,59 @@ const messages: typeof base = {
     renameCancel: "Annulla",
     renameError: "Impossibile rinominare l'azienda",
   },
+  // 013 — Piattaforma → Meta (solo super-admin)
+  platform: {
+    sectionTitle: "Piattaforma",
+    title: "Meta (Embedded Signup)",
+    description:
+      "Si fa una volta per tutta l'istanza: dopo, in ogni azienda compare il pulsante «Collega con Meta». App ID e Configuration ID non sono segreti; l'App Secret resta nella configurazione del server.",
+    badgeReady: "Pronto",
+    badgeNotReady: "Da completare",
+    ready: "Pronto: nelle aziende compare il pulsante «Collega con Meta».",
+    notReady: "Il pulsante «Collega con Meta» non compare ancora: manca {{items}}.",
+    wapiGateway:
+      "Il gateway Wapi è attivo (WAPI_BASE_URL): con Wapi il pulsante «Collega con Meta» non compare.",
+    appId: "App ID",
+    configId: "Configuration ID",
+    placeholder: "solo cifre",
+    help: "Solo cifre, da 6 a 25. Lascia vuoto per cancellare.",
+    invalid: "Solo cifre, da 6 a 25.",
+    envWins: "La variabile {{name}} è impostata ({{value}}) e vince su quello che salvi qui.",
+    source: {
+      env: "dall'ambiente",
+      db: "salvato qui",
+      none: "non impostato",
+    },
+    save: "Salva",
+    saving: "Salvataggio…",
+    saved: "Salvato ✓",
+    saveError: "Impossibile salvare la configurazione Meta",
+    loadError: "Impossibile caricare la configurazione Meta: ricarica la pagina.",
+    secret: {
+      title: "App Secret",
+      missing:
+        "Manca META_APP_SECRET. Non si inserisce qui: va nella configurazione del server (è un segreto). Senza, il webhook rifiuta tutto e il pulsante non compare.",
+      present: "Presente nella configurazione del server (META_APP_SECRET).",
+      verified: "Firme del webhook verificate: l'ultima {{when}}.",
+      noneVerified: "Dall'ultimo riavvio non è ancora arrivato nessun evento firmato verificato.",
+      rejected:
+        "{{count}} eventi rifiutati dal riavvio: se nessuno risulta verificato, il segreto non coincide con l'app Meta che firma.",
+    },
+    checklist: {
+      title: "Da fare una volta su Meta",
+      app: "Un'app Meta di tipo Business con il prodotto WhatsApp: il suo App ID va qui sopra.",
+      config:
+        "Facebook Login for Business → Configurazioni: una configurazione «WhatsApp Embedded Signup» v4 con featureType {{featureType}} (coexistence). Il suo ID è il Configuration ID.",
+      domain: "Il dominio {{domain}} tra i «Domini consentiti per l'SDK JavaScript» dell'app.",
+      webhook: "Webhook di WhatsApp: iscrivi questi {{count}} campi:",
+      secret: "App Secret (Impostazioni → Base) nella configurazione del server come META_APP_SECRET, poi riavvio.",
+      linkApps: "Apri le app",
+      linkLogin: "Facebook Login for Business",
+      linkCoexistence: "guida coexistence",
+      linkEs: "guida Embedded Signup",
+      linkWebhooks: "guida webhook",
+    },
+  },
   automations: {
     title: "Automazioni",
     newTitle: "Nuova regola",
