@@ -132,8 +132,7 @@ const messages = {
     forbidden:
       "Solo el propietario o un administrador de la organización gestiona la conexión de WhatsApp.",
     reconnectTitle: "El token de WhatsApp expiró o fue revocado.",
-    reconnectBody:
-      "Los envíos están pausados. Vuelve a conectar el número con Meta, o pega un token nuevo en Avanzado.",
+    reconnectBody: "Los envíos están pausados hasta que vuelvas a conectar el número.",
     // 009 — Embedded Signup + coexistence
     coexPoint2: "Puedes compartir hasta 6 meses de chats: entran al CRM como historial, sin despertar a la IA.",
     coexPoint3: "Grupos, mensajes temporales y listas de difusión no pasan al CRM.",

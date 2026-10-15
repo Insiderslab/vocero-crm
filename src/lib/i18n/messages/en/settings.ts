@@ -133,8 +133,7 @@ const messages: typeof base = {
     forbidden:
       "Only the organization owner or an administrator can manage the WhatsApp connection.",
     reconnectTitle: "The WhatsApp token expired or was revoked.",
-    reconnectBody:
-      "Sending is paused. Reconnect the number with Meta, or paste a new token in Advanced.",
+    reconnectBody: "Sending is paused until you reconnect the number.",
     // 009 — Embedded Signup + coexistence
     coexPoint2: "You can share up to 6 months of chats: they come into the CRM as history, without waking the AI.",
     coexPoint3: "Groups, disappearing messages and broadcast lists don't reach the CRM.",

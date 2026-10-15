@@ -134,8 +134,7 @@ const messages: typeof base = {
     forbidden:
       "Solo il proprietario o un amministratore dell'organizzazione gestisce la connessione WhatsApp.",
     reconnectTitle: "Il token di WhatsApp è scaduto o è stato revocato.",
-    reconnectBody:
-      "Gli invii sono in pausa. Ricollega il numero con Meta, oppure incolla un token nuovo in Avanzate.",
+    reconnectBody: "Gli invii sono in pausa finché non ricolleghi il numero.",
     // 009 — Embedded Signup + coexistence
     coexPoint2: "Puoi condividere fino a 6 mesi di chat: entrano nel CRM come storico, senza attivare l'IA.",
     coexPoint3: "Gruppi, messaggi effimeri e liste broadcast non passano al CRM.",

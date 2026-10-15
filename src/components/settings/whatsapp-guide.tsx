@@ -191,18 +191,13 @@ export function WhatsappGuideView({
             {state === "connected" ? (
               <p className="text-sm">{g("steps.connect.done", { number: number ?? "" })}</p>
             ) : state === "not_configured" ? (
-              <div className="space-y-1 text-sm">
-                <p className="flex items-start gap-2 font-medium">
-                  <Lock className="mt-0.5 h-4 w-4 shrink-0 text-text-3" aria-hidden="true" />
-                  {g("notConfigured.title")}
-                </p>
-                <p className="text-muted-foreground">
-                  {status.platform.reason === "wapi_gateway"
-                    ? g("notConfigured.wapi")
-                    : g("notConfigured.body")}{" "}
-                  {advancedLink("notConfigured.manual")}
-                </p>
-              </div>
+              // El título ya está en el aviso de arriba: aquí solo qué pasa y la salida manual.
+              <p className="text-sm text-muted-foreground">
+                {status.platform.reason === "wapi_gateway"
+                  ? g("notConfigured.wapi")
+                  : g("notConfigured.body")}{" "}
+                {advancedLink("notConfigured.manual")}
+              </p>
             ) : state === "ready" ? (
               <div className="space-y-3">
                 <p className="text-sm text-muted-foreground">{g("steps.connect.body")}</p>
