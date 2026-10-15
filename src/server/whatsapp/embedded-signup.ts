@@ -9,6 +9,7 @@ import {
   saveCredentials,
 } from "@/server/whatsapp/credentials";
 import { subscribeAppToWaba, testConnection } from "@/server/whatsapp/connect";
+import { getMetaPlatformIds } from "@/server/platform/meta-config";
 
 /**
  * 009 — Embedded Signup de Meta (custom heili.cloud).
@@ -27,20 +28,24 @@ export type EmbeddedSignupConfig =
   | { enabled: true; appId: string; configId: string; graphVersion: string }
   | { enabled: false };
 
-/** Config pública para el navegador. App ID y Config ID no son secretos. */
-export function getEmbeddedSignupConfig(): EmbeddedSignupConfig {
+/**
+ * Config pública para el navegador. App ID y Config ID no son secretos.
+ * 013: salen del entorno (override) o, si faltan, de lo que guardó el
+ * super-admin en /admin → Piattaforma → Meta (`getMetaPlatformIds`). El App
+ * Secret sigue siendo solo de entorno.
+ */
+export async function getEmbeddedSignupConfig(): Promise<EmbeddedSignupConfig> {
   const env = getEnv();
-  if (!env.META_APP_ID || !env.META_ES_CONFIG_ID || !env.META_APP_SECRET) {
-    return { enabled: false };
-  }
   // Con el gateway Wapi activo los envíos usan la clave Wapi, no el token del
   // Embedded Signup: el botón no aparece para no dejar una conexión que no se
   // usa (y Wapi está congelado desde el 10/10/2026).
-  if (env.WAPI_BASE_URL) return { enabled: false };
+  if (!env.META_APP_SECRET || env.WAPI_BASE_URL) return { enabled: false };
+  const ids = await getMetaPlatformIds();
+  if (!ids.appId.value || !ids.configId.value) return { enabled: false };
   return {
     enabled: true,
-    appId: env.META_APP_ID,
-    configId: env.META_ES_CONFIG_ID,
+    appId: ids.appId.value,
+    configId: ids.configId.value,
     graphVersion: env.META_GRAPH_API_VERSION,
   };
 }
@@ -165,12 +170,12 @@ export async function completeEmbeddedSignup(input: {
   phoneNumberId?: string | null;
   coexistence: boolean;
 }): Promise<EmbeddedSignupResult> {
-  const config = getEmbeddedSignupConfig();
+  const config = await getEmbeddedSignupConfig();
   const env = getEnv();
   if (!config.enabled || !env.META_APP_SECRET) {
     throw new EmbeddedSignupError(
       "not_configured",
-      "El Embedded Signup no está configurado en esta instancia (META_APP_ID, META_ES_CONFIG_ID, META_APP_SECRET)"
+      "El Embedded Signup no está configurado en esta instancia (App ID y Configuration ID en /admin o en el entorno, y META_APP_SECRET)"
     );
   }
 
