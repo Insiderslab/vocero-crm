@@ -17,6 +17,8 @@ const state = vi.hoisted(() => ({
   saves: [] as Record<string, unknown>[],
   tests: [] as { phoneNumberId: string; token: string }[],
   subscribes: 0,
+  /** 005 (R2): la copia estricta en channel_account rechaza el guardado. */
+  mirrorFails: false,
 }));
 
 vi.mock("@/lib/auth/session", async (importOriginal) => {
@@ -36,6 +38,12 @@ vi.mock("@/server/whatsapp/credentials", () => ({
     return state.connections[organizationId] ?? null;
   },
   saveCredentials: async (input: Record<string, unknown>) => {
+    if (state.mirrorFails) {
+      const { ChannelMirrorError } = await vi.importActual<
+        typeof import("@/server/channels/dual-write")
+      >("@/server/channels/dual-write");
+      throw new ChannelMirrorError("channel_account", "1 cuenta(s) distinta(s) (V1/V2)");
+    }
     state.saves.push(input);
   },
   tokenLast4: (token: string) => token.slice(-4),
@@ -217,5 +225,26 @@ describe("conexión de WhatsApp: aislamiento entre organizaciones", () => {
     const res = await putConnection(json("PUT", { ...valid, wabaId: "waba_A" }));
     expect(res.status).toBe(403);
     expect(state.saves).toHaveLength(0);
+  });
+});
+
+describe("005 (R2): copia estricta en channel_account", () => {
+  beforeEach(() => {
+    state.session = { userId: "u_1", organizationId: "org_a", role: "owner" };
+    state.saves = [];
+    state.subscribes = 0;
+    state.mirrorFails = true;
+  });
+
+  it("si la copia se rechaza, PUT responde 409 channel_account_conflict claro y no suscribe nada", async () => {
+    const res = await putConnection(json("PUT", valid));
+    expect(res.status).toBe(409);
+    const body = (await res.json()) as { error: { code: string; message: string } };
+    expect(body.error.code).toBe("channel_account_conflict");
+    expect(body.error.message).toMatch(/No se cambió nada/);
+    expect(body.error.message).not.toContain(valid.token);
+    expect(state.saves).toHaveLength(0);
+    expect(state.subscribes).toBe(0);
+    state.mirrorFails = false;
   });
 });

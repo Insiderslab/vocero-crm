@@ -402,11 +402,25 @@ export async function processAccountUpdateValue(
 ): Promise<void> {
   const effect = accountUpdateEffect(value.event);
   if (!effect) return;
-  const organizationIds = await setAppDisconnected({
-    wabaId,
-    phoneNumber: value.phone_number ?? null,
-    disconnected: effect === "disconnected",
-  });
+  let organizationIds: string[];
+  try {
+    organizationIds = await setAppDisconnected({
+      wabaId,
+      phoneNumber: value.phone_number ?? null,
+      disconnected: effect === "disconnected",
+    });
+  } catch (err) {
+    // 005 (R2): la copia en channel_account es estricta; si falla, el corte
+    // NO se registra (ni en meta_credentials) y este payload se aborta (el
+    // webhook ya respondió 200). Línea propia en el log, sin valores.
+    console.error(
+      `[webhook] account_update ${value.event ?? "?"}: no se pudo registrar el ${
+        effect === "disconnected" ? "corte" : "restablecimiento"
+      } de la coexistence (se aborta este payload)`,
+      err instanceof Error ? err.message : err
+    );
+    throw err;
+  }
   // La UI lo lee al abrir Configuración → WhatsApp (sin evento SSE propio).
   for (const organizationId of organizationIds) {
     console.warn(
