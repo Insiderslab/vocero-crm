@@ -243,7 +243,8 @@ await page.goto(`${BASE}/settings/whatsapp`);
 ok("5) coexistence tagliata", await until(async () => (await guideState()) === "app_disconnected"));
 ok("   «Meta ha scollegato il numero dal CRM» + Ricollega",
   (await page.getByText("Meta ha scollegato il numero dal CRM.").isVisible()) &&
-    (await page.getByRole("button", { name: "Ricollega con Meta" }).isVisible()));
+    // Il pulsante compare dopo aver letto la config dell'Embedded Signup.
+    (await until(() => page.getByRole("button", { name: "Ricollega con Meta" }).isVisible())));
 await shot("guida-5-coexistence-tagliata");
 await coex("ACCOUNT_RECONNECTED");
 await page.goto(`${BASE}/settings/whatsapp`);

@@ -222,9 +222,6 @@ export function WhatsappGuideView({
 
   return (
     <div className="space-y-6" data-guide-state={state}>
-      <p className="sr-only" role="status" aria-live="polite" data-testid="guide-announcement">
-        {announcement}
-      </p>
       <StatusStrip status={status} t={t} locale={locale} now={now} />
 
       <StateBanner
@@ -312,6 +309,12 @@ export function WhatsappGuideView({
           </Step>
         </ol>
       </section>
+
+      {/* In fondo: è sr-only (assoluta) e da primo figlio spostava la pagina
+          con il margine di space-y. */}
+      <p className="sr-only" role="status" aria-live="polite" data-testid="guide-announcement">
+        {announcement}
+      </p>
     </div>
   );
 }
