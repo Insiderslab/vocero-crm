@@ -1,10 +1,11 @@
-import { max, sql } from "drizzle-orm";
+import { and, eq, isNull, max, notInArray, or, sql } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { scoped } from "@/lib/db/tenant";
 import { unsignedWebhookAllowed } from "@/lib/dev-guard";
 import { getEnv } from "@/lib/env";
 import type { GuideConnection, SignatureInfo } from "@/lib/whatsapp-guide";
 import { webhookSignatureStats } from "@/server/inbox/webhook-signature-stats";
+import { DEMO_PHONES } from "@/server/seed/demo";
 import { getCredentialsByOrg } from "@/server/whatsapp/credentials";
 import { getEmbeddedSignupConfig } from "@/server/whatsapp/embedded-signup";
 
@@ -23,28 +24,50 @@ export type WhatsappGuideStatus = {
         phoneNumberId: string;
         displayPhoneNumber: string | null;
         verifiedName: string | null;
+        /** Ultimo collegamento o aggiornamento della connessione (ISO): il passo 3 vale dopo. */
+        connectedAt: string | null;
       })
     | null;
   signature: SignatureInfo;
-  /** Ultimo messaggio vero ricevuto (non Laboratorio), ISO. */
+  /**
+   * Ultimo messaggio vero ricevuto, ISO: solo conversazioni reali (non
+   * Laboratorio) sull'account WhatsApp ATTUALE dell'organizzazione, senza i
+   * contatti della demo. `conversation.last_inbound_at` lo scrive solo
+   * l'ingestione di un messaggio nuovo (non lo storico della coexistence).
+   */
   lastInboundAt: string | null;
 };
 
 export async function getWhatsappGuideStatus(organizationId: string): Promise<WhatsappGuideStatus> {
   const env = getEnv();
-  const [es, creds, last] = await Promise.all([
+  const c = schema.conversation;
+  const [es, creds, last, mc] = await Promise.all([
     getEmbeddedSignupConfig(),
     getCredentialsByOrg(organizationId),
     getDb()
-      .select({ at: max(schema.conversation.lastInboundAt) })
-      .from(schema.conversation)
+      .select({ at: max(c.lastInboundAt) })
+      .from(c)
+      .innerJoin(
+        schema.contact,
+        and(eq(schema.contact.id, c.contactId), eq(schema.contact.organizationId, c.organizationId))
+      )
       .where(
         scoped(
-          schema.conversation.organizationId,
+          c.organizationId,
           organizationId,
-          sql`${schema.conversation.isTest} = false`
+          sql`${c.isTest} = false`,
+          // L'account WhatsApp attuale (uno per organizzazione), scritto a mano
+          // per non dipendere dagli helper dei canali che la PR #14 rifà.
+          sql`${c.channelAccountId} = (select ca.id from channel_account ca
+                where ca.organization_id = ${organizationId} and ca.channel = 'whatsapp')`,
+          or(isNull(schema.contact.phone), notInArray(schema.contact.phone, DEMO_PHONES))
         )
       ),
+    getDb()
+      .select({ updatedAt: schema.metaCredentials.updatedAt })
+      .from(schema.metaCredentials)
+      .where(scoped(schema.metaCredentials.organizationId, organizationId))
+      .limit(1),
   ]);
   const lastInbound = last[0]?.at ?? null;
   return {
@@ -60,6 +83,7 @@ export async function getWhatsappGuideStatus(organizationId: string): Promise<Wh
           status: creds.status,
           onboardingMode: creds.onboardingMode,
           appDisconnectedAt: creds.appDisconnectedAt?.toISOString() ?? null,
+          connectedAt: mc[0]?.updatedAt ? new Date(mc[0].updatedAt).toISOString() : null,
         }
       : null,
     signature: {

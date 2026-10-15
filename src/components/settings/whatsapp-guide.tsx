@@ -160,7 +160,7 @@ export function WhatsappGuideView({
   renderConnect: (label?: string) => ReactNode;
 }) {
   const state = guideState({ platformReady: status.platform.ready, connection: status.connection });
-  const steps = guideSteps(state, status.lastInboundAt);
+  const steps = guideSteps(state, status.lastInboundAt, status.connection?.connectedAt ?? null);
   const via = reconnectVia({ platformReady: status.platform.ready, connection: status.connection });
   const g = (key: string, vars?: Record<string, string | number>) =>
     t(`settings.whatsapp.guide.${key}`, vars);
@@ -243,7 +243,7 @@ export function WhatsappGuideView({
                 aria-live="polite"
                 data-testid="guide-last-inbound"
               >
-                {status.lastInboundAt ? (
+                {steps.test === "done" && status.lastInboundAt ? (
                   <>
                     <CheckCircle2 className="h-4 w-4 text-success" aria-hidden="true" />
                     <span>

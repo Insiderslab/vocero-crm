@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
-import { getSql } from "@/lib/db";
-import { reconnectVia } from "@/lib/whatsapp-guide";
+import { getDb, getSql } from "@/lib/db";
+import { guideState, guideSteps, reconnectVia } from "@/lib/whatsapp-guide";
+import { seedDemo } from "@/server/seed/demo";
 import { markReconnectRequired, saveCredentials } from "@/server/whatsapp/credentials";
 import { graphFails, recordedRequests } from "./harness";
 import { ORG_A, ORGS } from "./setup";
@@ -42,6 +43,13 @@ import {
 import { GET as statusGet } from "@/app/api/settings/whatsapp/status/route";
 
 const sql = () => getSql();
+
+/** Cuenta WhatsApp (channel_account) de la organización: la escribe saveCredentials. */
+async function accountOf(org: string): Promise<string> {
+  const [row] = await sql()<{ id: string }[]>`
+    select id from channel_account where organization_id = ${org} and channel = 'whatsapp'`;
+  return row!.id;
+}
 const APP_ID = "609974691965875";
 const CONFIG_ID = "998877665544";
 
@@ -272,7 +280,7 @@ describe("013 — ninguna respuesta nueva lleva secretos", () => {
     const status = JSON.parse(statusRaw);
     // Ni siquiera los últimos 4 del token (`tokenLast4`): la guía no los necesita.
     expect(Object.keys(status.connection).sort()).toEqual(
-      ["appDisconnectedAt", "displayPhoneNumber", "onboardingMode", "phoneNumberId", "status", "verifiedName"].sort()
+      ["appDisconnectedAt", "connectedAt", "displayPhoneNumber", "onboardingMode", "phoneNumberId", "status", "verifiedName"].sort()
     );
     expect(status.connection).toMatchObject({
       phoneNumberId: ORGS.A.phoneNumberId,
@@ -294,13 +302,56 @@ describe("013 — ninguna respuesta nueva lleva secretos", () => {
              ('ct_g_lab', ${ORG_A}, '5215500000002', 'Lab'),
              ('ct_g_b', 'org_golden_b', '5215500000003', 'B')
     `;
+    const accA = await accountOf(ORG_A);
+    const accB = await accountOf("org_golden_b");
     await sql()`
-      insert into conversation (id, organization_id, contact_id, is_test, last_inbound_at)
-      values ('cv_g_real', ${ORG_A}, 'ct_g_real', false, '2030-01-01T10:00:00'::timestamp),
-             ('cv_g_lab', ${ORG_A}, 'ct_g_lab', true, '2030-06-01T10:00:00'::timestamp),
-             ('cv_g_b', 'org_golden_b', 'ct_g_b', false, '2031-01-01T10:00:00'::timestamp)
+      insert into conversation (id, organization_id, contact_id, is_test, last_inbound_at, channel_account_id)
+      values ('cv_g_real', ${ORG_A}, 'ct_g_real', false, '2030-01-01T10:00:00'::timestamp, ${accA}),
+             ('cv_g_lab', ${ORG_A}, 'ct_g_lab', true, '2030-06-01T10:00:00'::timestamp, null),
+             ('cv_g_b', 'org_golden_b', 'ct_g_b', false, '2031-01-01T10:00:00'::timestamp, ${accB})
     `;
     expect((await (await statusGet()).json()).lastInboundAt).toBe("2030-01-01T10:00:00.000Z");
+  });
+
+  it("revisión PR #15: la demo NO cuenta (ni en la franja ni en el paso 3)", async () => {
+    await seedUsers();
+    as("owner");
+    await seedDemo(getDb(), ORG_A);
+    const [n] = await sql()<{ n: string }[]>`
+      select count(*) as n from conversation where organization_id = ${ORG_A} and last_inbound_at is not null`;
+    expect(Number(n!.n)).toBeGreaterThan(0); // la demo sí escribe last_inbound_at…
+    const status = await (await statusGet()).json();
+    expect(status.lastInboundAt).toBeNull(); // …pero no es un mensaje real
+    const state = guideState({ platformReady: status.platform.ready, connection: status.connection });
+    expect(guideSteps(state, status.lastInboundAt, status.connection.connectedAt).test).toBe("current");
+  });
+
+  it("revisión PR #15: un mensaje de antes de reconectar no completa el paso 3; uno de después sí", async () => {
+    await seedUsers();
+    as("owner");
+    const acc = await accountOf(ORG_A);
+    await sql()`insert into contact (id, organization_id, wa_identity, phone, name)
+      values ('ct_g_old', ${ORG_A}, '5215500000009', '5215500000009', 'Cliente')`;
+    await sql()`insert into conversation (id, organization_id, contact_id, is_test, last_inbound_at, channel_account_id)
+      values ('cv_g_old', ${ORG_A}, 'ct_g_old', false, '2030-01-01T10:00:00'::timestamp, ${acc})`;
+    // Conectado ANTES del mensaje: el paso 3 está hecho.
+    await sql()`update meta_credentials set updated_at = '2030-01-01T09:00:00'::timestamp where organization_id = ${ORG_A}`;
+    const step = async () => {
+      const s = await (await statusGet()).json();
+      return guideSteps(guideState({ platformReady: s.platform.ready, connection: s.connection }), s.lastInboundAt, s.connection.connectedAt).test;
+    };
+    expect(await step()).toBe("done");
+    // Reconexión (función real, token nuevo) DESPUÉS del mensaje: ya no cuenta.
+    const a = ORGS.A;
+    await saveCredentials({
+      organizationId: a.id, wabaId: a.wabaId, phoneNumberId: a.phoneNumberId, token: `${a.token}-nuevo`,
+      displayPhoneNumber: a.displayPhoneNumber, verifiedName: a.verifiedName,
+    });
+    await sql()`update meta_credentials set updated_at = '2030-02-01T09:00:00'::timestamp where organization_id = ${ORG_A}`;
+    expect(await step()).toBe("current");
+    // Un mensaje nuevo después de reconectar → hecho otra vez.
+    await sql()`update conversation set last_inbound_at = '2030-02-01T10:00:00'::timestamp where id = 'cv_g_old'`;
+    expect(await step()).toBe("done");
   });
 
   it("member: 403 en el estado de la guía (owner/admin, como el resto de WhatsApp)", async () => {

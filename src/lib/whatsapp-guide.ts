@@ -45,9 +45,21 @@ export type GuideSteps = { connect: StepStatus; confirm: StepStatus; test: StepS
 /**
  * I tre passi: (1) collega il numero, (2) conferma sul telefono (avviene
  * dentro la finestra di Meta: è fatto quando il numero risulta collegato),
- * (3) prova: fatto quando è arrivato almeno un messaggio vero.
+ * (3) prova: fatto quando è arrivato un messaggio vero DOPO l'ultimo
+ * collegamento o aggiornamento della connessione (`connectedAt`): i messaggi
+ * del numero di prima, o di prima di ricollegare, non contano.
  */
-export function guideSteps(state: GuideState, lastInboundAt: string | null): GuideSteps {
+export function inboundAfterConnection(lastInboundAt: string | null, connectedAt: string | null): boolean {
+  if (!lastInboundAt) return false;
+  if (!connectedAt) return true;
+  return Date.parse(lastInboundAt) > Date.parse(connectedAt);
+}
+
+export function guideSteps(
+  state: GuideState,
+  lastInboundAt: string | null,
+  connectedAt: string | null = null
+): GuideSteps {
   switch (state) {
     case "not_configured":
       return { connect: "blocked", confirm: "todo", test: "todo" };
@@ -56,7 +68,11 @@ export function guideSteps(state: GuideState, lastInboundAt: string | null): Gui
     case "app_disconnected":
       return { connect: "current", confirm: "todo", test: "todo" };
     case "connected":
-      return { connect: "done", confirm: "done", test: lastInboundAt ? "done" : "current" };
+      return {
+        connect: "done",
+        confirm: "done",
+        test: inboundAfterConnection(lastInboundAt, connectedAt) ? "done" : "current",
+      };
   }
 }
 

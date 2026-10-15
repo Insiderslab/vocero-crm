@@ -30,7 +30,11 @@ vi.mock("@/server/whatsapp/embedded-signup", () => ({
 }));
 vi.mock("@/lib/db", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/db")>();
-  const chain = { from: () => chain, where: async () => [{ at: new Date("2026-10-15T10:00:00Z") }] };
+  // Due letture: l'ultimo entrante (from → innerJoin → where) e updated_at della
+  // connessione (from → where → limit). Il doppio risponde a entrambe.
+  const rows = [{ at: new Date("2026-10-15T10:00:00Z"), updatedAt: new Date("2026-10-15T09:00:00Z") }];
+  const where = () => Object.assign(Promise.resolve(rows), { limit: async () => rows });
+  const chain = { from: () => chain, innerJoin: () => chain, where };
   return { ...actual, getDb: () => ({ select: () => chain }) };
 });
 

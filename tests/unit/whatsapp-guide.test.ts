@@ -67,6 +67,11 @@ describe("guideSteps", () => {
   it("collegato con un messaggio ricevuto: tutto fatto", () => {
     expect(guideSteps("connected", ago(2))).toEqual({ connect: "done", confirm: "done", test: "done" });
   });
+  it("messaggio PRIMA dell'ultimo collegamento (numero vecchio, prima di ricollegare): non conta", () => {
+    expect(guideSteps("connected", ago(30), ago(10)).test).toBe("current");
+    expect(guideSteps("connected", ago(10), ago(10)).test).toBe("current");
+    expect(guideSteps("connected", ago(5), ago(10)).test).toBe("done");
+  });
 });
 
 describe("reconnectVia (decisione Q3: mai coexistence con un clic su un numero manuale)", () => {
@@ -145,6 +150,8 @@ const connection = (over: Partial<GuideConnection> = {}) => ({
   phoneNumberId: "100000000000001",
   displayPhoneNumber: "+39 347 718 5235",
   verifiedName: "InsidersLab",
+  // Collegato un'ora fa: i messaggi «di 2 minuti fa» contano, quelli di prima no.
+  connectedAt: ago(60),
 });
 
 const STATES: Record<GuideState | "connected_waiting" | "reconnect_manual", WhatsappGuideStatus> = {
@@ -245,6 +252,15 @@ describe("WhatsappGuideView", () => {
     expect(out).toContain("Verificata 5 minuti fa");
     expect(out).toContain("In attesa del primo messaggio");
     expect(out).not.toContain("[BOTTONE-META");
+  });
+
+  it("collegata, ma l'ultimo messaggio è di prima del collegamento: passo 3 ancora in attesa", () => {
+    const out = render(
+      { ...STATES.connected, lastInboundAt: ago(120), connection: { ...STATES.connected.connection!, connectedAt: ago(60) } },
+      "it"
+    );
+    expect(out).toContain("In attesa del primo messaggio");
+    expect(out).not.toContain("Ultimo messaggio ricevuto: 2 ore fa");
   });
 
   it("collegata con messaggio: «ultimo messaggio ricevuto» in diretta", () => {
