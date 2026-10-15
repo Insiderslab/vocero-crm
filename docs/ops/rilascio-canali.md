@@ -127,7 +127,16 @@ Sicuro e **senza ripristino del backup**: R0 non conosce le colonne nuove e non 
 ### 5.0 Prerequisiti (checklist R2)
 
 - [ ] **D10: R1 in produzione da almeno 7 giorni.** R1 è uscito il **13/10/2026**: R2 si può rilasciare **dal 20/10/2026**, non prima.
-- [ ] A ogni avvio di R1 in questi giorni il riepilogo era `canali (avvisa): V1=0 V2=0 V3=0 V4=0 V5=0 V6=0 V7=0` (cercare `canali (avvisa)` nei log; annotare le durate). Una sola riga con V ≠ 0: **fermarsi e chiedere**, R2 non partirebbe.
+- [ ] A ogni avvio di R1 in questi giorni il riepilogo era `canali (avvisa): V1=0 V2=0 V3=0 V4=0 V5=0 V6=0 V7=0` e **non** compare nessuna riga di fase B incompleta né di verifica fallita (R1 parte comunque, R2 no):
+  ```sh
+  docker compose logs app --since 168h | grep -E "\[migrate\] canali \(avvisa\)|non completato|verifica fallita"
+  ```
+  Atteso: solo righe `canali (avvisa): V1=0 … V7=0`. Una sola riga con V ≠ 0, `non completato` o `verifica fallita`: **fermarsi e chiedere**, R2 non partirebbe. Annotare le durate.
+- [ ] Oggetti della fase B validi (la stessa query del §3, passo 3; sola lettura):
+  ```sh
+  docker compose exec postgres psql -U postgres -d vocero -c "select c.relname, i.indisvalid from pg_class c join pg_index i on i.indexrelid = c.oid where c.relname in ('contact_org_id_uq', 'message_org_channel_ext_uq');" -c "select conname, convalidated from pg_constraint where conname in ('contact_identity_contact_fk', 'message_channel_ck', 'conversation_channel_account_fk');"
+  ```
+  Atteso: due indici con `indisvalid = t`, tre vincoli con `convalidated = t`. Altrimenti R2 (che esige la fase B completa) non parte: fermarsi e chiedere.
 - [ ] Il branch di M1.3 è stato rivisto da un agente diverso dall'autore e unito su `main` dall'owner; CI verde (compreso `test:golden`).
 - [ ] Subito prima del rilascio, con R1 in esecuzione (sola lettura, conteggi):
   ```sh
@@ -152,11 +161,17 @@ Durata attesa dell'avvio: come gli avvii successivi di R1 (riconciliazione e ver
    docker compose logs app --since 15m | grep -E "\[migrate\]"
    ```
    Atteso, in ordine: `canali: riconciliazione prima delle migrazioni…`, `canali: fase A`, `migraciones aplicadas`, `canali: fase B`, `canali: fase C`, poi **`canali (blocca): V1=0 V2=0 V3=0 V4=0 V5=0 V6=0 V7=0 | …`**. Annotare le durate nel registro di rilascio.
+   - Una riga `canali (pre|post): tentativo N/3 non riuscito, nuovo tentativo tra …s` vuol dire che la riconciliazione ha trovato un lock o un'anomalia e ritenta (2 s, poi 5 s): se dopo c'è il riepilogo `V…=0` il container è partito, annotarlo.
    - Se compare `verifica fallita …` il container **non** è partito: §5.3.
 2. Verifiche a mano (sola lettura): `select * from channels_legacy_check();` → V1…V6 a `0`.
 3. Configurazione → WhatsApp: stesso numero, stesso stato, stessa URL del webhook (`…/api/webhooks/wa/…`), contatori della firma che si muovono quando arriva un messaggio.
 4. Prova funzionale dell'owner su un numero di prova: un messaggio in entrata (compare in bandeja), una risposta dal CRM (spunte che diventano blu), un'immagine in entrata, un modello se la finestra è chiusa. Se c'è la coexistence: un messaggio scritto dall'app del telefono compare come «manuale» e mette in pausa l'AI.
-5. Nei log dell'app, nessuna riga `[webhook] error procesando payload` o `[canali] doppia scrittura … fallita`.
+5. Nei log dell'app, nessuna riga `[webhook] error procesando payload`, `[canali] copia en channel_account rechazada`, `[canali] copia en contact_identity rechazada` o `[canali] identidad WhatsApp incoherente`.
+
+**Copia stretta (R2).** In R2 la doppia scrittura non è più «best effort»: se la copia su `channel_account` o `contact_identity` non può restare identica alla riga vecchia, **l'intera operazione si annulla** e si vede:
+- salvataggio della connessione (Configurazione → WhatsApp, Embedded Signup) → **409 `channel_account_conflict`** («No se cambió nada…») e nel log `[canali] copia en channel_account rechazada: … — la escritura de meta_credentials se deshace`. Causa tipica: il numero è ancora nell'account di un'altra organizzazione (riga di `meta_credentials` cancellata a mano). Non toccare le tabelle: chiedere, con `channels_legacy_check()`;
+- un `account_update` della coexistence che non si può registrare → `[webhook] account_update …: no se pudo registrar …` (quel payload si annulla; Meta non lo ripete);
+- un messaggio il cui mittente ha un'identità incoerente con `wa_identity` → `[canali] identidad WhatsApp incoherente … mensaje rechazado`: il messaggio **non** viene assegnato a un altro contatto; V3 lo conta e il prossimo avvio di R2 non parte. Fermarsi e chiedere.
 
 ### 5.3 Se R2 non parte (V ≠ 0)
 
