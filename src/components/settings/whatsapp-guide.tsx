@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import {
   AlertTriangle,
@@ -59,12 +59,32 @@ export function WhatsappGuide() {
   const [advancedKey, setAdvancedKey] = useState(0);
   const [syncOk, setSyncOk] = useState<boolean | null>(null);
   const [now, setNow] = useState(() => Date.now());
+  // Annuncio per i lettori di schermo SOLO quando arriva un messaggio nuovo
+  // (non a ogni «X fa» che scorre).
+  const [announcement, setAnnouncement] = useState("");
+  const lastSeen = useRef<string | null | undefined>(undefined);
+  const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const refetch = useCallback(async () => {
     const res = await fetch("/api/settings/whatsapp/status", { cache: "no-store" }).catch(() => null);
     const data = res?.ok ? ((await res.json().catch(() => null)) as WhatsappGuideStatus | null) : null;
     setStatus((prev) => data ?? (prev === "loading" ? "error" : prev));
     setNow(Date.now());
+    if (data) {
+      if (lastSeen.current !== undefined && data.lastInboundAt && data.lastInboundAt !== lastSeen.current) {
+        setAnnouncement(t("settings.whatsapp.guide.steps.test.newMessage"));
+      }
+      lastSeen.current = data.lastInboundAt;
+    }
+  }, [t]);
+
+  /** Più eventi ravvicinati (un messaggio con allegati, una raffica) → una sola lettura. */
+  const refetchSoon = useCallback(() => {
+    if (debounce.current) clearTimeout(debounce.current);
+    debounce.current = setTimeout(() => void refetch(), 600);
+  }, [refetch]);
+  useEffect(() => () => {
+    if (debounce.current) clearTimeout(debounce.current);
   }, []);
 
   useEffect(() => {
@@ -75,8 +95,13 @@ export function WhatsappGuide() {
     return () => window.clearInterval(timer);
   }, [refetch]);
 
-  // Passo 3 in diretta: ogni messaggio nuovo (SSE) aggiorna «ultimo messaggio ricevuto».
-  useEvents({ onMessageNew: () => void refetch(), onReconnect: () => void refetch() });
+  // Passo 3 in diretta: solo un messaggio ENTRANTE (SSE) aggiorna «ultimo messaggio ricevuto».
+  useEvents({
+    onMessageNew: (data) => {
+      if ((data.message as { direction?: string } | null)?.direction === "in") refetchSoon();
+    },
+    onReconnect: refetchSoon,
+  });
 
   function openAdvanced(focus?: "token") {
     setAdvancedOpen(true);
@@ -86,7 +111,10 @@ export function WhatsappGuide() {
         target.scrollIntoView({ behavior: "smooth", block: "center" });
         target.focus({ preventScroll: true });
       } else {
-        document.getElementById("avanzate")?.scrollIntoView({ behavior: "smooth", block: "start" });
+        // Senza un campo da raggiungere, il fuoco va al titolo della sezione.
+        const summary = document.querySelector<HTMLElement>("#avanzate > summary");
+        summary?.scrollIntoView({ behavior: "smooth", block: "start" });
+        summary?.focus({ preventScroll: true });
       }
     });
   }
@@ -118,6 +146,7 @@ export function WhatsappGuide() {
           locale={locale}
           now={now}
           syncOk={syncOk}
+          announcement={announcement}
           onOpenAdvanced={openAdvanced}
           renderConnect={renderConnect}
         />
@@ -155,6 +184,7 @@ export function WhatsappGuideView({
   locale,
   now,
   syncOk = null,
+  announcement = "",
   onOpenAdvanced,
   renderConnect,
 }: {
@@ -164,6 +194,8 @@ export function WhatsappGuideView({
   now: number;
   /** Esito della richiesta di rubrica e storico dopo «Collega con Meta» (null = non appena fatto). */
   syncOk?: boolean | null;
+  /** Testo della regione viva: cambia solo all'arrivo di un messaggio nuovo. */
+  announcement?: string;
   /** Apre «Avanzate»; con "token" mette il cursore sul campo del token. */
   onOpenAdvanced: (focus?: "token") => void;
   /** Il pulsante «Collega con Meta» (iniettato: nei test basta un segnaposto). */
@@ -190,6 +222,9 @@ export function WhatsappGuideView({
 
   return (
     <div className="space-y-6" data-guide-state={state}>
+      <p className="sr-only" role="status" aria-live="polite" data-testid="guide-announcement">
+        {announcement}
+      </p>
       <StatusStrip status={status} t={t} locale={locale} now={now} />
 
       <StateBanner
@@ -250,7 +285,6 @@ export function WhatsappGuideView({
             {state === "connected" && (
               <p
                 className="mt-2 flex items-center gap-2 text-sm"
-                aria-live="polite"
                 data-testid="guide-last-inbound"
               >
                 {steps.test === "done" && status.lastInboundAt ? (
@@ -443,9 +477,11 @@ function StateBanner({
         // Connessione non in coexistence (o piattaforma non pronta): solo token
         // nuovo. Mai il pulsante di Meta, che cambierebbe la modalità del numero.
         <div className="space-y-2" data-reconnect="manual">
-          {status.connection?.onboardingMode !== "coexistence" && (
-            <p className="text-danger-text">{g("banner.manualReconnectBody")}</p>
-          )}
+          <p className="text-danger-text">
+            {status.connection?.onboardingMode !== "coexistence"
+              ? g("banner.manualReconnectBody")
+              : g("banner.platformNotReadyBody")}
+          </p>
           <Button variant="outline" onClick={onOpenToken}>
             <KeyRound className="mr-2 h-4 w-4" aria-hidden="true" />
             {g("banner.manualReconnectButton")}

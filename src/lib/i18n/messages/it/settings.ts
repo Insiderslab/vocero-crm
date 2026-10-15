@@ -143,6 +143,8 @@ const messages: typeof base = {
     coexCancelled: "Collegamento annullato nella finestra di Meta.",
     coexSdkFailed: "La finestra di Meta non si è caricata. Controlla i blocchi pubblicità o il dominio consentito nell'app Meta.",
     coexFailed: "Non è stato possibile completare il collegamento.",
+    channelAccountConflict:
+      "Il numero non è stato salvato: è in conflitto con un canale già registrato. Non è cambiato nulla; riprova o avvisa l'amministratore.",
     coexSuccess: "Numero {{number}} collegato (app + CRM).",
     coexSyncRequested: "Abbiamo chiesto a Meta rubrica e storico: arrivano nei prossimi minuti.",
     coexSyncFailed: "Non è stato possibile chiedere a Meta rubrica o storico: i messaggi nuovi arrivano comunque.",
@@ -235,6 +237,7 @@ const messages: typeof base = {
           waiting: "In attesa del primo messaggio…",
           received: "Ultimo messaggio ricevuto: {{when}}.",
           openInbox: "Apri la Posta",
+          newMessage: "Nuovo messaggio ricevuto.",
         },
       },
       notConfigured: {
@@ -257,6 +260,8 @@ const messages: typeof base = {
         manualReconnectBody:
           "Questo numero è collegato a mano (WABA e token): per ricollegarlo incolla un token nuovo. Non lo ricolleghiamo con Meta, per non cambiarne la modalità.",
         manualReconnectButton: "Incolla un token nuovo",
+        platformNotReadyBody:
+          "Per ricollegarlo con Meta serve la configurazione Meta della piattaforma, che manca: chiedila al tuo amministratore. Intanto puoi incollare un token nuovo.",
       },
       status: {
         label: "Stato di WhatsApp",

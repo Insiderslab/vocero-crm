@@ -189,13 +189,17 @@ export function CoexistenceConnect({
     const data = (await res?.json().catch(() => null)) as {
       displayPhoneNumber?: string;
       sync?: { contacts: string; history: string };
-      error?: { message?: string };
+      error?: { code?: string; message?: string };
     } | null;
     setBusy(false);
     if (!res?.ok || !data?.displayPhoneNumber) {
       setResult({
         ok: false,
-        message: data?.error?.message ?? t("settings.whatsapp.coexFailed"),
+        // PR #14: 409 channel_account_conflict → testo tradotto.
+        message:
+          data?.error?.code === "channel_account_conflict"
+            ? t("settings.whatsapp.channelAccountConflict")
+            : (data?.error?.message ?? t("settings.whatsapp.coexFailed")),
       });
       return;
     }

@@ -303,10 +303,13 @@ describe("WhatsappGuideView", () => {
     expect(out).toContain("Oppure incolla un token nuovo in Avanzate");
   });
 
-  it("coexistence da ricollegare con piattaforma non pronta: solo la via del token", () => {
+  it("coexistence da ricollegare con piattaforma non pronta: solo la via del token, con il perché", () => {
     const out = render({ ...STATES.reconnect_required, platform: { ready: false, reason: "not_configured" } }, "it");
     expect(out).not.toContain("[BOTTONE-META");
     expect(out).toContain("Incolla un token nuovo");
+    expect(out).toContain("serve la configurazione Meta della piattaforma");
+    const cut = render({ ...STATES.app_disconnected, platform: { ready: false, reason: "not_configured" } }, "it");
+    expect(cut).toContain("serve la configurazione Meta della piattaforma");
     // Il testo «collegato a mano» è solo per le connessioni manuali.
     expect(out).not.toContain("Questo numero è collegato a mano");
   });
@@ -368,5 +371,31 @@ describe("«Collega un altro numero con Meta» in Avanzate (revisione PR #15)", 
 
   it("la conferma nomina il numero che verrà sostituito", () => {
     expect(renderAnother(STATES.reconnect_manual)).toContain("SOSTITUISCE +1 555 000 1111");
+  });
+});
+
+describe("accessibilità (revisione PR #15)", () => {
+  it("una sola regione viva, vuota finché non arriva un messaggio; «X fa» non è viva", () => {
+    const out = render(STATES.connected, "it");
+    expect(out.match(/aria-live/g)).toHaveLength(1);
+    expect(out).toMatch(/data-testid="guide-announcement"><\/p>/);
+    expect(out).not.toMatch(/aria-live="polite"[^>]*data-testid="guide-last-inbound"/);
+  });
+
+  it("all'arrivo di un messaggio la regione viva lo annuncia", () => {
+    const messages = messagesFor("it") as unknown as Record<string, unknown>;
+    const t = ((key: string, vars?: Record<string, string | number>) => translate(messages, key, vars)) as never;
+    const out = renderToStaticMarkup(
+      createElement(WhatsappGuideView, {
+        status: STATES.connected,
+        t,
+        locale: "it",
+        now: NOW,
+        announcement: "Nuovo messaggio ricevuto.",
+        onOpenAdvanced: () => undefined,
+        renderConnect: () => null,
+      })
+    );
+    expect(out).toContain('data-testid="guide-announcement">Nuovo messaggio ricevuto.</p>');
   });
 });

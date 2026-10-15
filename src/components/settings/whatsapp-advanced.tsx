@@ -119,7 +119,7 @@ function ConnectForm({
     }
     const data = (await res.json().catch(() => null)) as {
       displayPhoneNumber?: string;
-      error?: { message?: string };
+      error?: { code?: string; message?: string };
     } | null;
     if (res.ok && data?.displayPhoneNumber) {
       setTestResult({ ok: true, display: data.displayPhoneNumber });
@@ -142,9 +142,14 @@ function ConnectForm({
     setSaving(false);
     if (!res?.ok) {
       const data = (await res?.json().catch(() => null)) as {
-        error?: { message?: string };
+        error?: { code?: string; message?: string };
       } | null;
-      setSaveError(data?.error?.message ?? t("settings.whatsapp.saveError"));
+      // PR #14: 409 channel_account_conflict → testo tradotto.
+      setSaveError(
+        data?.error?.code === "channel_account_conflict"
+          ? t("settings.whatsapp.channelAccountConflict")
+          : (data?.error?.message ?? t("settings.whatsapp.saveError"))
+      );
       return;
     }
     setToken("");

@@ -142,6 +142,8 @@ const messages: typeof base = {
     coexCancelled: "Connection cancelled in the Meta window.",
     coexSdkFailed: "The Meta window could not load. Check ad blockers or the allowed domain in the Meta app.",
     coexFailed: "The connection could not be completed.",
+    channelAccountConflict:
+      "The number was not saved: it conflicts with an already registered channel. Nothing changed; try again or tell your administrator.",
     coexSuccess: "Number {{number}} connected (app + CRM).",
     coexSyncRequested: "We asked Meta for contacts and history: they arrive in the next few minutes.",
     coexSyncFailed: "Contacts or history could not be requested from Meta: new messages still arrive.",
@@ -234,6 +236,7 @@ const messages: typeof base = {
           waiting: "Waiting for the first message…",
           received: "Last message received: {{when}}.",
           openInbox: "Open the Inbox",
+          newMessage: "New message received.",
         },
       },
       notConfigured: {
@@ -256,6 +259,8 @@ const messages: typeof base = {
         manualReconnectBody:
           "This number was connected manually (WABA and token): paste a new token to reconnect it. We don't reconnect it with Meta, so its mode does not change.",
         manualReconnectButton: "Paste a new token",
+        platformNotReadyBody:
+          "Reconnecting with Meta needs the platform's Meta setup, which is missing: ask your administrator. Meanwhile you can paste a new token.",
       },
       status: {
         label: "WhatsApp status",
