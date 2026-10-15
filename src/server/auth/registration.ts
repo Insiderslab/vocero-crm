@@ -8,6 +8,11 @@ import { getDb, schema } from "@/lib/db";
  */
 export async function isPublicSignupAllowed(): Promise<boolean> {
   if (process.env.ALLOW_SIGNUP === "true") return true;
+  return isInstanceEmpty();
+}
+
+/** Instancia sin ninguna organización (bootstrap: primer registro). */
+export async function isInstanceEmpty(): Promise<boolean> {
   const db = getDb();
   const rows = await db.select({ n: count() }).from(schema.organization);
   return (rows[0]?.n ?? 0) === 0;

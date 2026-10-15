@@ -20,9 +20,9 @@ vi.mock("@/lib/i18n/server", () => ({
   getT: async () => ({ locale: "es", t: (key: string) => key }),
 }));
 
-// El asistente real es un componente cliente con fetch; aquí basta saber si se pinta.
-vi.mock("@/components/settings/whatsapp-wizard", () => ({
-  WhatsappWizard: () => "WIZARD-DE-CONEXION",
+// La guía real (013) es un componente cliente con fetch; aquí basta saber si se pinta.
+vi.mock("@/components/settings/whatsapp-guide", () => ({
+  WhatsappGuide: () => "WIZARD-DE-CONEXION",
 }));
 
 import WhatsappSettingsPage from "@/app/(app)/settings/whatsapp/page";

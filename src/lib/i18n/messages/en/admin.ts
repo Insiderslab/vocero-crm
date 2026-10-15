@@ -39,6 +39,59 @@ const messages: typeof base = {
     renameCancel: "Cancel",
     renameError: "Could not rename the company",
   },
+  // 013 — Platform → Meta (super-admin only)
+  platform: {
+    sectionTitle: "Platform",
+    title: "Meta (Embedded Signup)",
+    description:
+      "Done once for the whole instance: afterwards every company gets the “Connect with Meta” button. App ID and Configuration ID are not secrets; the App Secret stays in the server configuration.",
+    badgeReady: "Ready",
+    badgeNotReady: "To complete",
+    ready: "Ready: companies now see the “Connect with Meta” button.",
+    notReady: "The “Connect with Meta” button does not appear yet: missing {{items}}.",
+    wapiGateway:
+      "The Wapi gateway is on (WAPI_BASE_URL): with Wapi the “Connect with Meta” button does not appear.",
+    appId: "App ID",
+    configId: "Configuration ID",
+    placeholder: "digits only",
+    help: "Digits only, 6 to 25. Leave empty to clear it.",
+    invalid: "Digits only, 6 to 25.",
+    envWins: "The {{name}} variable is set ({{value}}) and wins over what you save here.",
+    source: {
+      env: "from the environment",
+      db: "saved here",
+      none: "not set",
+    },
+    save: "Save",
+    saving: "Saving…",
+    saved: "Saved ✓",
+    saveError: "Could not save the Meta configuration",
+    loadError: "Could not load the Meta configuration: reload the page.",
+    secret: {
+      title: "App Secret",
+      missing:
+        "META_APP_SECRET is missing. It is not entered here: it goes in the server configuration (it is a secret). Without it the webhook rejects everything and the button does not appear.",
+      present: "Present in the server configuration (META_APP_SECRET).",
+      verified: "Webhook signatures verified: the last one {{when}}.",
+      noneVerified: "No verified signed event has arrived since the last restart.",
+      rejected:
+        "{{count}} events rejected since the restart: if none shows as verified, the secret does not match the Meta app that signs.",
+    },
+    checklist: {
+      title: "One-time steps on Meta",
+      app: "A Business-type Meta app with the WhatsApp product: its App ID goes above.",
+      config:
+        "Facebook Login for Business → Configurations: a “WhatsApp Embedded Signup” v4 configuration with featureType {{featureType}} (coexistence). Its ID is the Configuration ID.",
+      domain: "The domain {{domain}} in the app's “Allowed domains for the JavaScript SDK”.",
+      webhook: "WhatsApp webhook: subscribe these {{count}} fields:",
+      secret: "App Secret (Settings → Basic) in the server configuration as META_APP_SECRET, then restart.",
+      linkApps: "Open your apps",
+      linkLogin: "Facebook Login for Business",
+      linkCoexistence: "coexistence guide",
+      linkEs: "Embedded Signup guide",
+      linkWebhooks: "webhooks guide",
+    },
+  },
   automations: {
     title: "Automations",
     newTitle: "New rule",

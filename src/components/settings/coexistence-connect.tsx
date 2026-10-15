@@ -4,13 +4,6 @@ import { useEffect, useRef, useState } from "react";
 import { Smartphone } from "lucide-react";
 import { useT } from "@/lib/i18n/client";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 
 /**
  * 009 — Botón "Conectar con Meta" (Embedded Signup en modo coexistence).
@@ -19,6 +12,9 @@ import {
  * solo uso en el callback de FB.login y (2) los IDs de WABA y número por
  * postMessage (`WA_EMBEDDED_SIGNUP`). El code se canjea en el servidor: el
  * navegador jamás ve el token. Sin config en la instancia, no se muestra.
+ *
+ * 013: es solo el botón y su resultado; el texto alrededor lo pone el paso 1
+ * de la página guiada (`whatsapp-guide.tsx`). `label` permite «Ricollega».
  */
 
 type EsConfig =
@@ -121,7 +117,17 @@ type Result =
   | { ok: true; number: string; syncOk: boolean }
   | { ok: false; message: string };
 
-export function CoexistenceConnect({ onConnected }: { onConnected: () => void }) {
+export function CoexistenceConnect({
+  onConnected,
+  label,
+  confirmText,
+}: {
+  /** Numero collegato e se Meta ha accettato di mandare rubrica e storico. */
+  onConnected: (result: { number: string; syncOk: boolean }) => void;
+  label?: string;
+  /** Se c'è, si chiede conferma prima di aprire la finestra di Meta. */
+  confirmText?: string;
+}) {
   const { t } = useT();
   const [config, setConfig] = useState<EsConfig | null>(null);
   const [busy, setBusy] = useState(false);
@@ -183,26 +189,30 @@ export function CoexistenceConnect({ onConnected }: { onConnected: () => void })
     const data = (await res?.json().catch(() => null)) as {
       displayPhoneNumber?: string;
       sync?: { contacts: string; history: string };
-      error?: { message?: string };
+      error?: { code?: string; message?: string };
     } | null;
     setBusy(false);
     if (!res?.ok || !data?.displayPhoneNumber) {
       setResult({
         ok: false,
-        message: data?.error?.message ?? t("settings.whatsapp.coexFailed"),
+        // PR #14: 409 channel_account_conflict → testo tradotto.
+        message:
+          data?.error?.code === "channel_account_conflict"
+            ? t("settings.whatsapp.channelAccountConflict")
+            : (data?.error?.message ?? t("settings.whatsapp.coexFailed")),
       });
       return;
     }
-    setResult({
-      ok: true,
+    const done = {
       number: data.displayPhoneNumber,
-      syncOk:
-        data.sync?.contacts === "requested" && data.sync?.history === "requested",
-    });
-    onConnected();
+      syncOk: data.sync?.contacts === "requested" && data.sync?.history === "requested",
+    };
+    setResult({ ok: true, ...done });
+    onConnected(done);
   }
 
   async function connect() {
+    if (confirmText && !window.confirm(confirmText)) return;
     setBusy(true);
     setResult(null);
     sessionRef.current = null;
@@ -239,43 +249,30 @@ export function CoexistenceConnect({ onConnected }: { onConnected: () => void })
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Smartphone className="h-5 w-5 text-primary" />
-          {t("settings.whatsapp.coexTitle")}
-        </CardTitle>
-        <CardDescription>{t("settings.whatsapp.coexDescription")}</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
-          <li>{t("settings.whatsapp.coexPoint1")}</li>
-          <li>{t("settings.whatsapp.coexPoint2")}</li>
-          <li>{t("settings.whatsapp.coexPoint3")}</li>
-        </ul>
-        {result && (
-          <div
-            className={`text-sm ${result.ok ? "text-success" : "text-destructive"}`}
-            role="status"
-          >
-            <p>
-              {result.ok
-                ? t("settings.whatsapp.coexSuccess", { number: result.number })
-                : result.message}
+    <div className="space-y-2">
+      <Button size="lg" disabled={busy} onClick={() => void connect()}>
+        <Smartphone className="mr-2 h-4 w-4" aria-hidden="true" />
+        {busy ? t("settings.whatsapp.coexConnecting") : (label ?? t("settings.whatsapp.coexButton"))}
+      </Button>
+      {result && (
+        <div
+          className={`text-sm ${result.ok ? "text-success" : "text-destructive"}`}
+          role="status"
+        >
+          <p>
+            {result.ok
+              ? t("settings.whatsapp.coexSuccess", { number: result.number })
+              : result.message}
+          </p>
+          {result.ok && (
+            <p className="text-muted-foreground">
+              {result.syncOk
+                ? t("settings.whatsapp.coexSyncRequested")
+                : t("settings.whatsapp.coexSyncFailed")}
             </p>
-            {result.ok && (
-              <p className="text-muted-foreground">
-                {result.syncOk
-                  ? t("settings.whatsapp.coexSyncRequested")
-                  : t("settings.whatsapp.coexSyncFailed")}
-              </p>
-            )}
-          </div>
-        )}
-        <Button disabled={busy} onClick={() => void connect()}>
-          {busy ? t("settings.whatsapp.coexConnecting") : t("settings.whatsapp.coexButton")}
-        </Button>
-      </CardContent>
-    </Card>
+          )}
+        </div>
+      )}
+    </div>
   );
 }

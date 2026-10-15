@@ -11,32 +11,56 @@ import {
   onUserCreated,
   resolveActiveOrganizationId,
 } from "@/server/auth/on-signup";
-import { isPublicSignupAllowed } from "@/server/auth/registration";
+import { isPublicSignupAllowed, isInstanceEmpty } from "@/server/auth/registration";
+import {
+  EMAIL_UNAVAILABLE,
+  EMAIL_UNAVAILABLE_MESSAGE,
+  isSuperadminEmail,
+  superadminEmailCreationAllowed,
+} from "@/server/auth/superadmin-email";
 
 /**
  * Contexto interno del proceso: permite que el alta de cuentas de equipo
  * (owner → API) atraviese el gate de registro cerrado. No es alcanzable
  * desde fuera: solo envuelve llamadas server-side.
  */
+type InternalSignup = { bySuperadmin: boolean };
+
 const globalForSignup = globalThis as unknown as {
-  __voceroInternalSignup?: AsyncLocalStorage<boolean>;
+  __voceroInternalSignup?: AsyncLocalStorage<InternalSignup>;
 };
 
 // En globalThis: los módulos pueden evaluarse más de una vez (una por ruta en
 // dev) y todas las copias deben compartir el mismo contexto.
-function internalSignupContext(): AsyncLocalStorage<boolean> {
+function internalSignupContext(): AsyncLocalStorage<InternalSignup> {
   if (!globalForSignup.__voceroInternalSignup) {
-    globalForSignup.__voceroInternalSignup = new AsyncLocalStorage<boolean>();
+    globalForSignup.__voceroInternalSignup = new AsyncLocalStorage<InternalSignup>();
   }
   return globalForSignup.__voceroInternalSignup;
 }
 
-export function runInternalSignup<T>(fn: () => Promise<T>): Promise<T> {
-  return internalSignupContext().run(true, fn);
+/**
+ * `bySuperadmin`: SOLO le rotte /api/admin/* (dietro `withSuperadmin`) lo
+ * passano a true; è l'unico modo, fuori dal bootstrap, di creare un account
+ * con un'email di SUPERADMIN_EMAILS (013, revisione PR #15).
+ */
+export function runInternalSignup<T>(
+  fn: () => Promise<T>,
+  opts: { bySuperadmin?: boolean } = {}
+): Promise<T> {
+  return internalSignupContext().run({ bySuperadmin: opts.bySuperadmin === true }, fn);
 }
 
 function isInternalSignup(): boolean {
-  return internalSignupContext().getStore() === true;
+  return internalSignupContext().getStore() !== undefined;
+}
+
+function internalSignupBySuperadmin(): boolean {
+  return internalSignupContext().getStore()?.bySuperadmin === true;
+}
+
+function emailUnavailable(): APIError {
+  return new APIError("FORBIDDEN", { message: EMAIL_UNAVAILABLE_MESSAGE, code: EMAIL_UNAVAILABLE });
 }
 
 function createAuth() {
@@ -70,6 +94,12 @@ function createAuth() {
             message: "Demasiados intentos; espera unos minutos",
           });
         }
+        // 013: nessun invito a un'email di super-admin (diventerebbe
+        // super-admin accettandolo). Messaggio generico.
+        if (ctx.path === "/organization/invite-member") {
+          const email = (ctx.body as { email?: unknown } | undefined)?.email;
+          if (typeof email === "string" && isSuperadminEmail(email)) throw emailUnavailable();
+        }
         // Registro público cerrado tras la primera organización (FR-060).
         if (ctx.path === "/sign-up/email") {
           if (!isInternalSignup() && !(await isPublicSignupAllowed())) {
@@ -84,6 +114,18 @@ function createAuth() {
     databaseHooks: {
       user: {
         create: {
+          // 013 (revisione PR #15): QUALUNQUE creazione di utente (registro
+          // pubblico, ALLOW_SIGNUP, alta di equipo, /admin) passa da qui. Un
+          // account con un'email di super-admin solo nel bootstrap o da /admin.
+          before: async (user) => {
+            if (!isSuperadminEmail(user.email)) return;
+            const allowed = superadminEmailCreationAllowed({
+              email: user.email,
+              bySuperadmin: internalSignupBySuperadmin(),
+              instanceEmpty: await isInstanceEmpty(),
+            });
+            if (!allowed) throw emailUnavailable();
+          },
           after: async (user, context) => {
             // 009 (E2): la organización del primer registro nace en el idioma
             // de quien se registra (cookie de idioma, luego Accept-Language).

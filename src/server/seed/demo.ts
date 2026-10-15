@@ -434,7 +434,8 @@ export async function seedDemo(
 
 type Executor = DbExecutor;
 
-const DEMO_PHONES = DEMO_CONTACTS.map((c) => c.phone);
+/** Telefoni dei contatti demo: 013 li esclude dall'«ultimo messaggio ricevuto». */
+export const DEMO_PHONES = DEMO_CONTACTS.map((c) => c.phone);
 
 /** IDs de los contactos demo de UNA organización (por sus teléfonos demo). */
 async function demoContactIds(

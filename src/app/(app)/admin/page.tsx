@@ -4,6 +4,7 @@ import { getAuth } from "@/lib/auth";
 import { isSuperadminEmail } from "@/server/auth/superadmin";
 import { getT } from "@/lib/i18n/server";
 import { AdminClient } from "@/components/admin/admin-client";
+import { MetaPlatformCard } from "@/components/admin/meta-platform-card";
 
 export const dynamic = "force-dynamic";
 
@@ -22,7 +23,14 @@ export default async function AdminPage() {
       <header className="border-b px-4 py-3 sm:px-6 sm:py-4">
         <h2 className="font-semibold">{t("admin.orgs.title")}</h2>
       </header>
-      <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
+      <div className="min-h-0 flex-1 space-y-8 overflow-y-auto p-4 sm:p-6">
+        {/* 013 — Piattaforma → Meta: App ID e Configuration ID senza SSH. */}
+        <section aria-labelledby="admin-platform-title" className="max-w-3xl space-y-3">
+          <h3 id="admin-platform-title" className="text-sm font-semibold text-muted-foreground">
+            {t("admin.platform.sectionTitle")}
+          </h3>
+          <MetaPlatformCard />
+        </section>
         <AdminClient />
       </div>
     </div>

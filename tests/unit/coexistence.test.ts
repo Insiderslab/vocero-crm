@@ -217,6 +217,13 @@ describe("accountUpdateEffect (009)", () => {
   });
 });
 
+// 013: sin ID en el entorno se leen los guardados en /admin. Aquí, ninguno
+// (la resolución entorno/BD se prueba en platform-meta.test.ts).
+vi.mock("@/server/platform/instance-settings", () => ({
+  readInstanceSettings: async () => ({}),
+  writeInstanceSettings: async () => undefined,
+}));
+
 describe("getEmbeddedSignupConfig (009)", () => {
   afterEach(() => {
     vi.unstubAllEnvs();

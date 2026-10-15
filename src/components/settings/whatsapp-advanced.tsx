@@ -1,19 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import {
-  AlertTriangle,
-  CheckCircle2,
-  Copy,
-  Info,
-} from "lucide-react";
+import { AlertTriangle, Copy, Info } from "lucide-react";
 import { useT } from "@/lib/i18n/client";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { CoexistenceConnect } from "@/components/settings/coexistence-connect";
 import {
   WebhookSignatureStatus,
   type SignatureStats,
@@ -25,10 +18,6 @@ type Connection = {
   displayPhoneNumber: string | null;
   verifiedName: string | null;
   status: "connected" | "reconnect_required";
-  /** 009 — manual / embedded / coexistence. */
-  onboardingMode?: "manual" | "embedded" | "coexistence";
-  /** 009 — Meta cortó la coexistence (ISO), null = activa. */
-  appDisconnectedAt?: string | null;
   tokenLast4: string;
 };
 
@@ -43,7 +32,14 @@ type WebhookInfo = {
   signatureStats?: SignatureStats;
 };
 
-export function WhatsappWizard() {
+/**
+ * 013 — Sezione «Avanzate» di Configurazione → WhatsApp: il collegamento
+ * manuale (WABA, Phone Number ID, token; anche per l'override dell'agenzia) e
+ * i dati del webhook con lo stato della firma. Prima era tutta la pagina; ora
+ * la pagina guidata (`whatsapp-guide.tsx`) la tiene chiusa per chi non è
+ * sviluppatore. Stesse API di prima, stesse guardie (owner/admin).
+ */
+export function WhatsappAdvanced({ onSaved }: { onSaved: () => void }) {
   const { t } = useT();
   const [connection, setConnection] = useState<Connection | null>(null);
   const [webhook, setWebhook] = useState<WebhookInfo | null>(null);
@@ -68,67 +64,16 @@ export function WhatsappWizard() {
   }
 
   return (
-    <div className="max-w-3xl space-y-6">
-      {connection?.status === "reconnect_required" && (
-        <div className="flex items-start gap-2 rounded-lg border border-danger-soft bg-danger-tint p-4 text-sm">
-          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
-          <div>
-            <p className="font-medium text-danger-text">
-              {t("settings.whatsapp.reconnectTitle")}
-            </p>
-            <p className="text-danger-text opacity-80">
-              {t("settings.whatsapp.reconnectBody")}
-            </p>
-          </div>
-        </div>
-      )}
-
-      {connection?.appDisconnectedAt && (
-        <div className="flex items-start gap-2 rounded-lg border border-danger-soft bg-danger-tint p-4 text-sm">
-          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
-          <div>
-            <p className="font-medium text-danger-text">
-              {t("settings.whatsapp.disconnectedTitle")}
-            </p>
-            <p className="text-danger-text opacity-80">
-              {t("settings.whatsapp.disconnectedBody")}
-            </p>
-          </div>
-        </div>
-      )}
-
-      {connection && connection.status === "connected" && (
-        <div className="flex items-center gap-3 rounded-lg border border-success-soft bg-success-tint p-4">
-          <CheckCircle2 className="h-5 w-5 text-success" />
-          <div className="flex-1 text-sm">
-            <p className="font-medium text-success-text">
-              {t("settings.whatsapp.connectedNumber", {
-                number:
-                  connection.displayPhoneNumber ?? connection.phoneNumberId,
-              })}
-            </p>
-            <p className="text-success-text opacity-80">
-              {connection.verifiedName ? `${connection.verifiedName} · ` : ""}
-              {t("settings.whatsapp.tokenTail", {
-                last4: connection.tokenLast4,
-              })}
-            </p>
-            {connection.onboardingMode === "coexistence" && (
-              <p className="text-success-text opacity-80">
-                {t("settings.whatsapp.coexKeepAlive")}
-              </p>
-            )}
-          </div>
-          {connection.onboardingMode === "coexistence" && (
-            <Badge variant="outline">{t("settings.whatsapp.coexBadge")}</Badge>
-          )}
-          <Badge variant="success">{t("settings.whatsapp.connected")}</Badge>
-        </div>
-      )}
-
-      <CoexistenceConnect onConnected={() => void refetch()} />
-
-      <ConnectForm existing={connection} onSaved={() => void refetch()} />
+    <div className="space-y-6">
+      <ConnectForm
+        // Remonta con los datos guardados (también tras conectar con Meta).
+        key={connection ? `${connection.wabaId}:${connection.phoneNumberId}` : "new"}
+        existing={connection}
+        onSaved={() => {
+          void refetch();
+          onSaved();
+        }}
+      />
 
       {webhook && <WebhookCard webhook={webhook} />}
     </div>
@@ -174,7 +119,7 @@ function ConnectForm({
     }
     const data = (await res.json().catch(() => null)) as {
       displayPhoneNumber?: string;
-      error?: { message?: string };
+      error?: { code?: string; message?: string };
     } | null;
     if (res.ok && data?.displayPhoneNumber) {
       setTestResult({ ok: true, display: data.displayPhoneNumber });
@@ -197,9 +142,14 @@ function ConnectForm({
     setSaving(false);
     if (!res?.ok) {
       const data = (await res?.json().catch(() => null)) as {
-        error?: { message?: string };
+        error?: { code?: string; message?: string };
       } | null;
-      setSaveError(data?.error?.message ?? t("settings.whatsapp.saveError"));
+      // PR #14: 409 channel_account_conflict → testo tradotto.
+      setSaveError(
+        data?.error?.code === "channel_account_conflict"
+          ? t("settings.whatsapp.channelAccountConflict")
+          : (data?.error?.message ?? t("settings.whatsapp.saveError"))
+      );
       return;
     }
     setToken("");

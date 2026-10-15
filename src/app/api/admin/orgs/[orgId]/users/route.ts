@@ -5,6 +5,7 @@ import { getAuth, runInternalSignup } from "@/lib/auth";
 import { getDb, schema } from "@/lib/db";
 import { newId } from "@/lib/db/ids";
 import { withSuperadmin } from "@/server/auth/superadmin";
+import { EMAIL_UNAVAILABLE_MESSAGE, isEmailUnavailableError } from "@/server/auth/superadmin-email";
 
 export const dynamic = "force-dynamic";
 
@@ -85,10 +86,15 @@ export const POST = withSuperadmin(
             email: body.data.email,
             password: body.data.password,
           },
-        })
+        }),
+        { bySuperadmin: true }
       );
       newUserId = result.user.id;
     } catch (err) {
+      // 013: email di super-admin fuori da bootstrap e /admin → messaggio generico.
+      if (isEmailUnavailableError(err)) {
+        return apiError(403, "email_unavailable", EMAIL_UNAVAILABLE_MESSAGE);
+      }
       const message =
         err instanceof Error ? err.message : "No se pudo crear la cuenta";
       if (/exist/i.test(message)) {

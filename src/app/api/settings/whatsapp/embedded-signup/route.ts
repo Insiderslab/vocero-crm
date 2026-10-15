@@ -9,11 +9,12 @@ import {
 export const dynamic = "force-dynamic";
 
 /**
- * 009 — Config del Embedded Signup (App ID + Config ID, no secretos). Solo
+ * 009 — Config del Embedded Signup (App ID + Config ID, no secretos; 013:
+ * del entorno o de /admin → Piattaforma → Meta). Solo
  * owner/admin: es la única gente que ve y usa el botón.
  */
 export const GET = withAdminAuth(async () => {
-  return Response.json(getEmbeddedSignupConfig());
+  return Response.json(await getEmbeddedSignupConfig());
 });
 
 const postSchema = z.object({

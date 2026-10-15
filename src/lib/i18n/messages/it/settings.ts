@@ -134,15 +134,8 @@ const messages: typeof base = {
     forbidden:
       "Solo il proprietario o un amministratore dell'organizzazione gestisce la connessione WhatsApp.",
     reconnectTitle: "Il token di WhatsApp è scaduto o è stato revocato.",
-    reconnectBody:
-      "Gli invii sono in pausa. Incolla un nuovo token qui sotto e prova la connessione per riconnetterti.",
-    connectedNumber: "Numero connesso: {{number}}",
-    tokenTail: "token …{{last4}}",
+    reconnectBody: "Gli invii sono in pausa finché non ricolleghi il numero.",
     // 009 — Embedded Signup + coexistence
-    coexTitle: "Collega il numero dell'app WhatsApp Business",
-    coexDescription:
-      "Il numero resta nell'app del telefono e arriva anche nel CRM: rispondi da dove vuoi. Si apre una finestra di Meta: entra con Facebook, scegli il numero dell'app e conferma sul telefono.",
-    coexPoint1: "Apri l'app WhatsApp Business sul telefono almeno ogni 13 giorni, altrimenti Meta scollega il numero dal CRM.",
     coexPoint2: "Puoi condividere fino a 6 mesi di chat: entrano nel CRM come storico, senza attivare l'IA.",
     coexPoint3: "Gruppi, messaggi effimeri e liste broadcast non passano al CRM.",
     coexButton: "Collega con Meta",
@@ -150,15 +143,15 @@ const messages: typeof base = {
     coexCancelled: "Collegamento annullato nella finestra di Meta.",
     coexSdkFailed: "La finestra di Meta non si è caricata. Controlla i blocchi pubblicità o il dominio consentito nell'app Meta.",
     coexFailed: "Non è stato possibile completare il collegamento.",
+    channelAccountConflict:
+      "Il numero non è stato salvato: è in conflitto con un canale già registrato. Non è cambiato nulla; riprova o avvisa l'amministratore.",
     coexSuccess: "Numero {{number}} collegato (app + CRM).",
     coexSyncRequested: "Abbiamo chiesto a Meta rubrica e storico: arrivano nei prossimi minuti.",
     coexSyncFailed: "Non è stato possibile chiedere a Meta rubrica o storico: i messaggi nuovi arrivano comunque.",
-    coexBadge: "App + CRM",
     coexKeepAlive: "Ricorda di aprire l'app WhatsApp Business sul telefono almeno ogni 13 giorni.",
     disconnectedTitle: "Meta ha scollegato il numero dal CRM.",
     disconnectedBody:
       "Succede di solito se l'app WhatsApp Business non viene aperta per ~14 giorni, se è cambiato il telefono o se l'accesso è stato rimosso. Apri l'app e ricollega con Meta.",
-    connected: "Connesso",
     titleReconnect: "Riconnetti / aggiorna il numero",
     titleConnect: "Connetti il tuo numero di WhatsApp",
     connectDescription:
@@ -211,6 +204,82 @@ const messages: typeof base = {
       "Manca META_APP_SECRET: la firma è obbligatoria, quindi il webhook RIFIUTA tutti gli eventi (503) e nessun messaggio arriva in bacheca. Aggiungi all'istanza l'App Secret dell'app Meta che invia i webhook (quello della tua app — la modalità agenzia con override del callback non è supportata con la firma obbligatoria, non copiare mai qui l'App Secret dell'agenzia; dietro Wapi, il segreto dell'endpoint) e riavvia.",
     signatureTestMode:
       "Ambiente di prova (mock attivi): senza META_APP_SECRET si accettano eventi non firmati. In produzione la firma è sempre obbligatoria.",
+    // 013 — Collegamento guidato (3 passi + striscia di stato)
+    guide: {
+      title: "Collega WhatsApp in 3 passi",
+      intro:
+        "Ti servono il telefono con l'app WhatsApp Business e l'accesso a Facebook dell'attività. Bastano un paio di minuti.",
+      loadError: "Impossibile caricare lo stato di WhatsApp: ricarica la pagina.",
+      advanced: "Avanzate",
+      advancedHint:
+        "Collegamento manuale (WABA e token), webhook, override dell'agenzia e chiave Wapi. Solo per chi configura l'app Meta.",
+      stepState: {
+        done: "Fatto",
+        current: "Adesso",
+        todo: "Dopo",
+        blocked: "In attesa dell'amministratore",
+      },
+      steps: {
+        connect: {
+          title: "Collega il numero",
+          body: "Premi il pulsante ed entra con Facebook: l'app WhatsApp Business resta sul telefono e continua a funzionare, i messaggi arrivano anche qui.",
+          done: "Numero {{number}} collegato.",
+          reconnectHint: "Il numero va ricollegato: usa il pulsante qui sopra.",
+          reconnectManualHint: "Il numero va ricollegato con un token nuovo: usa il pulsante qui sopra.",
+        },
+        confirm: {
+          title: "Conferma sul telefono",
+          body: "Nella finestra di Meta scegli il numero, poi conferma dall'app WhatsApp Business sul telefono e tocca «Condividi la cronologia».",
+        },
+        test: {
+          title: "Prova",
+          body: "Scrivi al numero da un altro telefono: il messaggio compare qui e nella Posta.",
+          waiting: "In attesa del primo messaggio…",
+          received: "Ultimo messaggio ricevuto: {{when}}.",
+          openInbox: "Apri la Posta",
+          newMessage: "Nuovo messaggio ricevuto.",
+        },
+      },
+      notConfigured: {
+        title: "Il tuo amministratore deve completare la configurazione Meta.",
+        body: "Finché non lo fa, il pulsante «Collega con Meta» non compare.",
+        wapi: "Questa istanza usa il gateway Wapi: il numero si collega dalla sezione Avanzate.",
+        manual: "Hai già un token? Apri Avanzate.",
+      },
+      another: {
+        title: "Collega un altro numero con Meta",
+        body: "Sostituisce il numero attuale ({{number}}) con un altro numero dell'app WhatsApp Business.",
+        button: "Collega un altro numero con Meta",
+        confirm: "Il nuovo numero SOSTITUISCE {{number}} in questa azienda (e passa in modalità App + CRM). Continuare?",
+      },
+      banner: {
+        connected: "WhatsApp è collegato: {{number}}.",
+        ready: "Tutto pronto: segui i 3 passi qui sotto per collegare il tuo numero.",
+        reconnectButton: "Ricollega con Meta",
+        manualAlternative: "Oppure incolla un token nuovo in Avanzate.",
+        manualReconnectBody:
+          "Questo numero è collegato a mano (WABA e token): per ricollegarlo incolla un token nuovo. Non lo ricolleghiamo con Meta, per non cambiarne la modalità.",
+        manualReconnectButton: "Incolla un token nuovo",
+        platformNotReadyBody:
+          "Per ricollegarlo con Meta serve la configurazione Meta della piattaforma, che manca: chiedila al tuo amministratore. Intanto puoi incollare un token nuovo.",
+      },
+      status: {
+        label: "Stato di WhatsApp",
+        number: "Numero",
+        numberNone: "Nessun numero collegato",
+        mode: "Modalità",
+        mode_coexistence: "App + CRM (coexistence)",
+        mode_api: "Solo API",
+        signature: "Firma del webhook",
+        sigVerified: "Verificata {{when}}",
+        sig_waiting: "In attesa del primo evento firmato",
+        sig_rejected: "Firme rifiutate: l'App Secret non coincide",
+        sig_missing: "Manca l'App Secret (configurazione del server)",
+        sig_test_mode: "Ambiente di prova (mock)",
+        lastInbound: "Ultimo messaggio ricevuto",
+        lastInboundNone: "Nessuno ancora",
+      },
+    },
     wapi: {
       title: "Chiave Wapi di questa organizzazione",
       description:
