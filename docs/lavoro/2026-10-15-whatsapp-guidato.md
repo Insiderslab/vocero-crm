@@ -175,3 +175,53 @@ nuova `guida-4b-manuale-da-ricollegare.png` (numero manuale, solo «Incolla un t
 1394** · golden su base nuova (`vocero_waguide_golden_full2`) **16 file, 164/164**,
 istantanee invariate · E2E `e2e-selftest.mjs` su base nuova (`vocero_waguide_e2e3`)
 **225/225**, 0 SKIP · browser `e2e-whatsapp-guidato.mjs` **41/41** · V1–V6 = 0.
+
+## 2026-10-15 (notte) — Correzioni dalla revisione avversaria della PR #15
+
+Nessun bloccante; corretti tutti i punti, commit piccoli su `wa-guidato`, nessun push.
+
+| # | Rilievo | Correzione | Commit |
+|---|---|---|---|
+| 1 | **Sicurezza (preesistente, 013 alza la posta):** un owner poteva creare un account di equipo con un'email di `SUPERADMIN_EMAILS` → super-admin → configurazione Meta dell'istanza | Hook `databaseHooks.user.create.before` di Better Auth (TUTTE le creazioni di utente passano di lì: alta di equipo, registro pubblico e `ALLOW_SIGNUP`, `/admin`): con un'email di super-admin solo nel **bootstrap** (istanza senza organizzazioni) o **da /admin** (`runInternalSignup(fn, { bySuperadmin: true })`, solo nelle rotte `withSuperadmin`). Inviti (`/organization/invite-member`) bloccati nel middleware. Risposta generica **403 `email_unavailable` «Email non disponibile»**, nessuna riga scritta. Regola pura in `src/server/auth/superadmin-email.ts` (anche `isSuperadminEmail`, spostata lì per evitare un ciclo con `@/lib/auth`; `superadmin.ts` la riesporta) | `a3dc367` |
+| 2 | «Ultimo messaggio» e passo 3 contavano demo e numero vecchio | Solo conversazioni reali, non Laboratorio, sull'account WhatsApp attuale, senza i contatti demo (`DEMO_PHONES` esportato da `seed/demo.ts`); passo 3 fatto solo se l'entrante è DOPO `connectedAt` (= `meta_credentials.updated_at`, ultimo collegamento o aggiornamento) | `72f110e` |
+| 3 | Regressione: con un numero collegato non se ne poteva collegare un altro con Meta | «Avanzate» → «Collega un altro numero con Meta» con conferma («sostituisce {{numero}}… passa in App + CRM»), se la piattaforma è pronta; mai come «Ricollega» (Q3) e non quando l'avviso in alto offre già «Ricollega con Meta» | `1d75193` |
+| 4 | Nota di ritorno indietro | `docs/ops/collegare-whatsapp.md`: tenere `META_APP_ID`/`META_ES_CONFIG_ID` nel `.env` almeno una settimana; se tolti e si torna indietro, rimetterli (la versione precedente legge solo l'ambiente) | questo commit |
+| 5 | Rifiniture | regione viva solo all'arrivo di un messaggio (e in fondo alla vista: da primo figlio sr-only spostava la pagina col margine); refetch con debounce di 600 ms e solo su `message.new` entrante; `openAdvanced()` senza campo → fuoco su `<summary>`; coexistence con piattaforma non pronta: dice perché manca «Ricollega con Meta»; «Salvato» in `role="status"`; fonte fuori dalla `<label>` con `aria-describedby`; 409 `channel_account_conflict` (PR #14) tradotto | `24d0be0`, `c6c5693`, questo commit |
+
+**Controllo «robusto» del super-admin (punto 1, seconda parte): documentato, non implementato.**
+Con la guardia sulla creazione vale l'induzione: un account con un'email di super-admin
+nasce solo nel bootstrap o da un super-admin. Un flag «verificato» o un registro del
+bootstrap richiederebbero una migrazione e un passo di attivazione per i super-admin
+esistenti: troppo invasivo per questa PR. Resta un rischio solo per account creati
+**prima** di questa correzione. Da controllare una volta in produzione (sola lettura):
+
+```sql
+select u.email, u.created_at, m.organization_id, m.role
+from "user" u left join member m on m.user_id = u.id
+where lower(u.email) = any (string_to_array(lower(replace('<SUPERADMIN_EMAILS>', ' ', '')), ','))
+order by u.created_at;
+```
+
+Ogni riga deve essere una persona che deve davvero essere super-admin.
+
+**Sabotaggi (uno per guardia nuova, file ripristinato):**
+
+| # | Sabotaggio | Esito |
+|---|---|---|
+| S5 | hook `user.create.before` disattivato | golden rosso (2) |
+| S6 | ogni alta interna vale come super-admin (owner incluso) | golden rosso (1) |
+| S7 | nessun controllo sugli inviti | golden rosso (1) |
+| S8 | regola pura: super-admin sempre ammesso | unit rosso (2), golden rosso (2) |
+| S9 | demo non esclusa dall'ultimo entrante | golden rosso (1) |
+| S10 | passo 3 ignora `connectedAt` | unit rosso (2), golden rosso (1) |
+| S11 | «altro numero» anche con la piattaforma non pronta | unit rosso (1) |
+| S12 | Q3 tolta: numero manuale → «Ricollega con Meta» | unit rosso (5), golden rosso (1) |
+
+Non sabotato: il filtro «solo entranti» e il debounce del refetch (vivono nel
+contenitore con gli hook; li esercita solo l'E2E nel browser, che resta verde).
+
+**Prove:** `tsc`, `eslint .`, `next build` ok · `vitest run` **89 file, 1410** ·
+golden su base nuova (`vocero_waguide_golden_full3`) **17 file, 172/172**, istantanee
+invariate · E2E `e2e-selftest.mjs` su base nuova (`vocero_waguide_e2e4`) **225/225**,
+0 SKIP (l'operatore E2E super-admin nasce nel bootstrap: ammesso) · browser
+`e2e-whatsapp-guidato.mjs` **44/44** · V1–V6 = 0. Schermate rigenerate.

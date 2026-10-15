@@ -63,6 +63,13 @@ aziende in **Admin**).
    Non è obbligatorio: finché ci sono, valgono quelli del server e la scheda lo dice
    («dall'ambiente»). L'App Secret invece resta sempre sul server.
 
+   **Prudenza per il ritorno indietro:** conviene lasciare `META_APP_ID` e
+   `META_ES_CONFIG_ID` nel `.env` **almeno una settimana** dopo il rilascio di
+   questa versione, finché non è stabile. La versione precedente del CRM li legge
+   **solo** dal `.env`: se li hai già tolti e si torna alla versione di prima,
+   rimettili nel `.env` e riavvia, altrimenti il pulsante «Collega con Meta»
+   sparisce (i numeri già collegati continuano a funzionare).
+
 La scheda ripete l'elenco dei passi su Meta con i link, così non serve tenere questa
 guida aperta.
 
