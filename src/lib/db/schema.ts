@@ -965,3 +965,38 @@ export const waAddressBookEntry = pgTable(
     ),
   ]
 );
+
+/* ============================================================
+ * 013 — Configurazione dell'ISTANZA (non di un'organizzazione)
+ * ============================================================ */
+
+/**
+ * Chiavi accettate in `instance_setting`. Solo valori NON segreti: l'App ID e
+ * il Configuration ID dell'Embedded Signup di Meta. L'App Secret resta solo
+ * nell'ambiente (`META_APP_SECRET`) e il CHECK impedisce di salvarlo qui.
+ */
+export const INSTANCE_SETTING_KEYS = ["meta_app_id", "meta_es_config_id"] as const;
+export type InstanceSettingKey = (typeof INSTANCE_SETTING_KEYS)[number];
+const INSTANCE_SETTING_KEYS_SQL = sql.raw(INSTANCE_SETTING_KEYS.map((k) => `'${k}'`).join(", "));
+
+/**
+ * 013 — Impostazioni della piattaforma (una riga per chiave). Non è una
+ * tabella di dominio: vale per tutta l'istanza, la scrive solo il super-admin
+ * (/admin → Piattaforma → Meta) e non ha `organization_id` di proposito.
+ * Le variabili d'ambiente restano override: se sono impostate vincono loro.
+ */
+export const instanceSetting = pgTable(
+  "instance_setting",
+  {
+    key: text("key").primaryKey(),
+    value: text("value").notNull(),
+    /** Utente (super-admin) che l'ha salvata per ultimo. */
+    updatedBy: text("updated_by"),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    check("instance_setting_key_ck", sql`${t.key} in (${INSTANCE_SETTING_KEYS_SQL})`),
+    // Entrambe le chiavi sono ID numerici di Meta: niente testo libero.
+    check("instance_setting_value_ck", sql`${t.value} ~ '^[0-9]{6,25}$'`),
+  ]
+);
