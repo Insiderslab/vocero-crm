@@ -1,5 +1,5 @@
 /**
- * 005-livello-canali (M1.2, R1) — Avvio del database con il livello canali
+ * 005-livello-canali (M1.2 R1, M1.3 R2) — Avvio del database con il livello canali
  * (ADR 0001 §3.3). Lo chiama `scripts/migrate.mjs` (bundle della
  * immagine, Dockerfile) prima di `node server.js`.
  *
@@ -32,8 +32,14 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
 
-/** Modalità di QUESTO rilascio (R1). R2 la cambia in "blocca" nel codice. */
-export const RELEASE_MODE = "avvisa";
+/**
+ * Modalità di QUESTO rilascio: R2 (M1.3, T032) legge le strutture nuove,
+ * quindi «blocca»: una verifica V1–V7 ≠ 0 o un errore della riconciliazione
+ * → codice 1 e il container non parte. Costante del codice, nessuna variabile
+ * d'ambiente e nessun interruttore (Leggi: nessuna eccezione ai controlli).
+ * R1 era «avvisa».
+ */
+export const RELEASE_MODE = "blocca";
 
 /** Messaggi per lotto della fase C (ADR §3.3: un lotto = una transazione breve). */
 export const MESSAGE_BATCH = 5000;

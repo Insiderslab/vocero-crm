@@ -4,10 +4,10 @@
  * esbuild dentro de la imagen (incluye `migrate-channels.mjs`) y corre antes
  * de `node server.js`.
  *
- * 005 (R1): además de las migraciones de Drizzle, reconcilia y verifica el
+ * 005 (R1, R2): además de las migraciones de Drizzle, reconcilia y verifica el
  * livello canali en CADA arranque (ADR 0001 §3.3, `migrate-channels.mjs`). La
  * modalidad es una constante del release (`RELEASE_MODE`), nunca una variable
- * de entorno.
+ * de entorno: R2 = «blocca» (una anomalía → exit 1, el contenedor no arranca).
  */
 import path from "node:path";
 import { fileURLToPath } from "node:url";

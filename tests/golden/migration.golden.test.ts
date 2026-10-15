@@ -23,9 +23,9 @@ import { ORG_A, ORG_B, ORGS } from "./setup";
  * Aquí no hay instantáneas: son invariantes con aserciones explícitas sobre
  * PostgreSQL real, con el runner REAL (`scripts/migrate-channels.mjs`).
  *
- * - «R1» = `runStartup` en modo `avvisa` (la constante de este release);
- * - «R2» = el mismo runner en modo `blocca`: es lo que hará la imagen de R2
- *   (M1.3, T032), que no existe todavía;
+ * - «R1» = `runStartup` en modo `avvisa` (la constante del release R1);
+ * - «R2» = el mismo runner en modo `blocca`: la constante de la imagen de R2
+ *   (M1.3, T032; `scripts/migrate.mjs` la usa);
  * - «R0» = la imagen anterior: sus escrituras se simulan con la copia
  *   congelada de sus funciones (`legacy/r0-credentials.ts`) y, para
  *   contactos, conversaciones y mensajes, con INSERT solo de las columnas
@@ -470,20 +470,23 @@ describe("migration — T011 riconciliazione all'avvio (runner vero)", () => {
     expect((await startup("avvisa")).code).toBe(0);
     await sql()`delete from meta_credentials where organization_id = ${ORG_B}`;
 
-    const r2 = await startup("blocca");
-    expect(r2.code).toBe(1);
-    expect(r2.log).toMatch(/verifica fallita[^\n]*V1=1/);
-
-    // R1: la imagen verdadera (scripts/migrate.mjs, modo constante) arranca.
+    // R2: l'immagine VERA (scripts/migrate.mjs, modalità costante del
+    // rilascio, T032) non parte e nomina la verifica, senza valori.
     const run = spawnSync(process.execPath, [path.join(REPO_ROOT, "scripts", "migrate.mjs")], {
       cwd: REPO_ROOT,
       env: { ...process.env, DATABASE_URL: process.env.DATABASE_URL_GOLDEN, MIGRATIONS_DIR: MIGRATIONS },
       encoding: "utf8",
       timeout: 60_000,
     });
-    expect(run.status).toBe(0);
-    expect(`${run.stdout}${run.stderr}`).toMatch(/canali \(avvisa\): V1=1/);
-    expect(`${run.stdout}${run.stderr}`).toContain("modalità «avvisa»");
+    expect(run.status).toBe(1);
+    expect(`${run.stdout}${run.stderr}`).toMatch(/verifica fallita[^\n]*V1=1/);
+    expect(`${run.stdout}${run.stderr}`).not.toContain("modalità «avvisa»");
+
+    // R1 (modalità «avvisa»): parte e lo scrive nel log.
+    const r1 = await startup("avvisa");
+    expect(r1.code).toBe(0);
+    expect(r1.log).toMatch(/canali \(avvisa\): V1=1/);
+    expect(r1.log).toContain("modalità «avvisa»");
   });
 });
 
