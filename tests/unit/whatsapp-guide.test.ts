@@ -294,6 +294,14 @@ describe("WhatsappGuideView", () => {
     expect(out).not.toContain("Questo numero è collegato a mano");
   });
 
+  it("senza numero la firma nella striscia è «—» (il valore d'istanza sta in /admin)", () => {
+    for (const state of ["not_configured", "ready"] as const) {
+      const out = render(STATES[state], "it");
+      expect(out).toMatch(/data-testid="guide-signature">—</);
+      expect(out).not.toContain("Verificata");
+    }
+    expect(render(STATES.connected, "it")).toMatch(/data-testid="guide-signature">Verificata/);
+  });
 
   it("firma: manca il segreto → avviso nella striscia", () => {
     const out = render(

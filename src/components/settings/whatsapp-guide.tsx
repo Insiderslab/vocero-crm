@@ -289,11 +289,14 @@ function StatusStrip({
   const sig = signatureState(status.signature);
   const mode = c ? connectionMode(c.onboardingMode) : null;
 
-  const sigText =
-    sig === "verified"
+  // Senza numero la firma (dato dell'istanza) non dice nulla a questa azienda:
+  // «—». Il valore d'istanza resta nella scheda di /admin.
+  const sigText = !c
+    ? "—"
+    : sig === "verified"
       ? g("sigVerified", { when: formatAgo(status.signature.stats.lastVerifiedAt!, locale, now) })
       : g(`sig_${sig}`);
-  const sigTone = sig === "verified" ? "ok" : sig === "waiting" || sig === "test_mode" ? "muted" : "warn";
+  const sigTone = !c ? "muted" : sig === "verified" ? "ok" : sig === "waiting" || sig === "test_mode" ? "muted" : "warn";
 
   return (
     <dl
