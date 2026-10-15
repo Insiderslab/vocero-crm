@@ -171,6 +171,13 @@ describe("route /api/webhooks/[channel]/[webhookToken]", () => {
     expect(state.processed).toEqual([]);
   });
 
+  it("la firma viene PRIMA del JSON: body illeggibile senza firma valida → 401, non 200", async () => {
+    const route = await loadRoute();
+    expect((await post(route, { body: "{no-json", signature: null })).res.status).toBe(401);
+    expect((await post(route, { body: "{no-json", signature: sign("{no-json", "otro") })).res.status).toBe(401);
+    expect(state.processed).toEqual([]);
+  });
+
   it("senza META_APP_SECRET in produzione → 503 prima di leggere il body", async () => {
     vi.stubEnv("META_APP_SECRET", "");
     vi.spyOn(console, "error").mockImplementation(() => {});
