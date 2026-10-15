@@ -143,7 +143,10 @@ await page.fill("#meta-app-id", APP_ID);
 await page.fill("#meta-config-id", CONFIG_ID);
 await shot("admin-meta-compilata");
 await page.getByRole("button", { name: "Salva", exact: true }).click();
-ok("salvato", await until(() => page.getByText("Salvato ✓").isVisible()));
+ok("salvato (annunciato in role=status)", await until(() => page.getByRole("status").getByText("Salvato ✓").isVisible()));
+ok("la fonte descrive il campo (aria-describedby), fuori dalla label",
+  ((await page.locator("#meta-app-id").getAttribute("aria-describedby")) ?? "").includes("meta-app-id-source") &&
+    (await page.locator('label[for="meta-app-id"] [data-testid="meta-app-id-source"]').count()) === 0);
 ok("fonte «salvato qui» per entrambi", (await page.locator('[data-testid="meta-app-id-source"]').innerText()) === "salvato qui" &&
   (await page.locator('[data-testid="meta-config-id-source"]').innerText()) === "salvato qui");
 ok("badge Pronto", await page.getByText("Pronto", { exact: true }).isVisible());
@@ -207,7 +210,9 @@ ok(
   await until(() => page.locator('[data-testid="guide-last-inbound"]').getByText("Ultimo messaggio ricevuto").isVisible(), 15000)
 );
 ok("   i 3 passi fatti", (await page.locator('[data-step-status="done"]').count()) === 3);
+ok("   annuncio per i lettori di schermo all'arrivo", (await page.locator('[data-testid="guide-announcement"]').innerText()).includes("Nuovo messaggio ricevuto"));
 await shot("guida-3-collegata");
+ok("   in Avanzate: «Collega un altro numero con Meta»", (await page.locator('[data-testid="another-number"]').count()) === 1);
 await setTheme("dark");
 await page.reload();
 await until(async () => (await guideState()) === "connected");

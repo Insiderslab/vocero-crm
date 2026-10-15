@@ -143,7 +143,9 @@ export function MetaPlatformCard() {
           <Button disabled={saving || invalid(appId) || invalid(configId)} onClick={() => void save()}>
             {saving ? t("admin.platform.saving") : t("admin.platform.save")}
           </Button>
-          {saved && <span className="text-sm text-success">{t("admin.platform.saved")}</span>}
+          <span role="status" className="text-sm text-success">
+            {saved ? t("admin.platform.saved") : ""}
+          </span>
         </div>
 
         <SecretStatus status={status} t={t} locale={locale} />
@@ -200,12 +202,18 @@ function IdField({
   const envWins = resolved.source === "env";
   return (
     <div className="space-y-1.5">
-      <Label htmlFor={id} className="flex flex-wrap items-center gap-2">
-        {label}
-        <Badge variant={resolved.source === "none" ? "warning" : "secondary"} data-testid={`${id}-source`}>
+      {/* La fonte sta FUORI dalla <label> (non fa parte del nome del campo) e
+          si legge come descrizione (aria-describedby). */}
+      <div className="flex flex-wrap items-center gap-2">
+        <Label htmlFor={id}>{label}</Label>
+        <Badge
+          id={`${id}-source`}
+          variant={resolved.source === "none" ? "warning" : "secondary"}
+          data-testid={`${id}-source`}
+        >
           {t(`admin.platform.source.${resolved.source}`)}
         </Badge>
-      </Label>
+      </div>
       <Input
         id={id}
         inputMode="numeric"
@@ -213,7 +221,7 @@ function IdField({
         placeholder={t("admin.platform.placeholder")}
         value={value}
         aria-invalid={invalid || undefined}
-        aria-describedby={`${id}-help`}
+        aria-describedby={`${id}-source ${id}-help`}
         onChange={(e) => onChange(e.target.value)}
       />
       <p id={`${id}-help`} className={`text-xs ${invalid ? "text-destructive" : "text-muted-foreground"}`}>
