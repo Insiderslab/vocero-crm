@@ -16,11 +16,11 @@ import { whatsappMessageIds } from "@/server/channels/dual-write";
 import { publish } from "@/server/events/bus";
 import {
   getCredentialsByOrg,
-  getCredentialsByWabaId,
   markReconnectRequired,
 } from "@/server/whatsapp/credentials";
 import { callGraphSend, SendError } from "@/server/inbox/send";
 import { applyTemplateStatus, mapTemplateEvent } from "@/server/channels/core/templates";
+import { findAccountsByParent } from "@/server/channels/core/accounts";
 import { graphPayloadOf, whatsappRecipient } from "@/server/channels/whatsapp/send";
 import { serializeMessage } from "@/server/inbox/ingest";
 import type { WebhookValue } from "@/server/inbox/webhook";
@@ -252,14 +252,17 @@ export async function applyTemplateStatusEvent(
   value: WebhookValue
 ): Promise<void> {
   if (!wabaId) return;
-  const creds = await getCredentialsByWabaId(wabaId);
-  if (!creds) return;
-  await applyTemplateStatus(creds.organizationId, {
-    event: value.event,
-    name: value.message_template_name,
-    language: value.message_template_language,
-    reason: value.reason ?? null,
-  });
+  // Las plantillas son de la WABA: el estado vale para cada organización con
+  // un número en ella (revisión PR #14).
+  const accounts = await findAccountsByParent("whatsapp", wabaId);
+  for (const organizationId of new Set(accounts.map((a) => a.organizationId))) {
+    await applyTemplateStatus(organizationId, {
+      event: value.event,
+      name: value.message_template_name,
+      language: value.message_template_language,
+      reason: value.reason ?? null,
+    });
+  }
 }
 
 /** Envía una plantilla APROBADA a una conversación (ventana cerrada, FR-051). */

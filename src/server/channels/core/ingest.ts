@@ -6,7 +6,11 @@ import { publish } from "@/server/events/bus";
 import { ensureAssetAvailable } from "@/server/whatsapp/media";
 import { onLeadActivity } from "@/server/inbox/lead-activity";
 import { maybeRunAgentTurn } from "@/server/ai/trigger";
-import { findAccountByRef, type AccountRow } from "@/server/channels/core/accounts";
+import {
+  findAccountByRef,
+  findAccountsByParent,
+  type AccountRow,
+} from "@/server/channels/core/accounts";
 import {
   getOrCreateChannelContact,
   getOrCreateWhatsappContact,
@@ -430,6 +434,22 @@ export async function processInboundEvents(
   };
 
   for (const event of events) {
+    if (event.kind === "template_status" && event.account.by === "parent") {
+      // Evento de la cuenta padre (WABA): las plantillas son de la WABA, así
+      // que el estado vale para CADA organización con un número en ella
+      // (revisión PR #14: antes, una sola y sin orden).
+      const accountsOfParent = await findAccountsByParent(event.channel, event.account.externalParentId);
+      const orgs = [...new Set(accountsOfParent.map((a) => a.organizationId))];
+      for (const organizationId of orgs) {
+        await applyTemplateStatus(organizationId, {
+          event: event.event,
+          name: event.name,
+          language: event.language,
+          reason: event.reason,
+        });
+      }
+      continue;
+    }
     if (event.kind === "ignored") {
       if (event.reason === "no_identity") {
         console.warn(

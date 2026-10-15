@@ -34,8 +34,27 @@ export async function findAccountByRef(
     ref.by === "account"
       ? and(eq(t.channel, channel), eq(t.externalAccountId, ref.externalAccountId))
       : and(eq(t.channel, channel), eq(t.externalParentId, ref.externalParentId));
-  const rows = await getDb().select().from(t).where(where).limit(1);
+  // Orden determinista: con varias cuentas bajo el mismo padre (una WABA
+  // compartida) gana siempre la más antigua. Los eventos de padre que valen
+  // para TODAS (estado de plantillas) usan `findAccountsByParent`.
+  const rows = await getDb().select().from(t).where(where).orderBy(t.createdAt, t.id).limit(1);
   return rows[0] ?? null;
+}
+
+/**
+ * TODAS las cuentas del canal bajo una cuenta padre (WhatsApp: los números de
+ * una WABA, posiblemente de varias organizaciones), en orden determinista.
+ */
+export async function findAccountsByParent(
+  channel: ChannelKind,
+  externalParentId: string
+): Promise<AccountRow[]> {
+  const t = schema.channelAccount;
+  return getDb()
+    .select()
+    .from(t)
+    .where(and(eq(t.channel, channel), eq(t.externalParentId, externalParentId)))
+    .orderBy(t.createdAt, t.id);
 }
 
 /** La cuenta de un canal de la organización (en M1: una por canal, D4). */
