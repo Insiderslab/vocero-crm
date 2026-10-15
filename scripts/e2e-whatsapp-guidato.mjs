@@ -169,6 +169,7 @@ ok("1) non configurata", await until(async () => (await guideState()) === "not_c
 ok("   messaggio per l'amministratore",
   await page.getByText("Il tuo amministratore deve completare la configurazione Meta.").first().isVisible());
 ok("   nessun pulsante «Collega con Meta»", (await page.getByRole("button", { name: "Collega con Meta" }).count()) === 0);
+ok("   firma «—» finché non c'è un numero", (await page.locator('[data-testid="guide-signature"]').innerText()) === "—");
 const details = page.locator("details#avanzate");
 ok("   «Avanzate» chiusa per default", (await details.getAttribute("open")) === null);
 ok("   i campi tecnici non si vedono", !(await page.locator("#waba-id").isVisible()));
