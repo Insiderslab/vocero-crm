@@ -58,6 +58,10 @@ aziende in **Admin**).
      compaiono eventi **rifiutati** e nessuno verificato, il segreto sul server non è
      quello dell'app giusta;
    - in alto il bollino **Pronto**: da adesso il pulsante compare in tutte le aziende.
+5. **Facoltativo:** una volta salvati i due numeri qui, chi gestisce il server può
+   togliere `META_APP_ID` e `META_ES_CONFIG_ID` dal file `.env` del VPS (e riavviare).
+   Non è obbligatorio: finché ci sono, valgono quelli del server e la scheda lo dice
+   («dall'ambiente»). L'App Secret invece resta sempre sul server.
 
 La scheda ripete l'elenco dei passi su Meta con i link, così non serve tenere questa
 guida aperta.
@@ -95,7 +99,10 @@ Fatto: i tre passi diventano verdi e in alto c'è «WhatsApp è collegato».
 La pagina lo dice con un riquadro rosso e un pulsante:
 
 - **«Il token di WhatsApp è scaduto o è stato revocato»** — gli invii sono in pausa.
-  Premi **Ricollega con Meta** e rifai i passi.
+  Se il numero è collegato con l'app (coexistence), premi **Ricollega con Meta** e rifai
+  i passi. Se invece era stato collegato a mano (WABA e token, per esempio il numero di
+  prova di Meta), la pagina mostra **Incolla un token nuovo**: apre «Avanzate» sul
+  campo del token. Così il numero non cambia modalità per sbaglio.
 - **«Meta ha scollegato il numero dal CRM»** — di solito l'app non è stata aperta per
   ~14 giorni, è cambiato il telefono o è stato tolto l'accesso. Apri l'app sul
   telefono, poi **Ricollega con Meta**.

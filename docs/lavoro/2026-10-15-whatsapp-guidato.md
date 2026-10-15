@@ -135,7 +135,7 @@ di far rifiutare a Meta un token già salvato.
 | S1 | `admin/platform/meta` con `withAdminAuth` invece di `withSuperadmin` | rosso (6) | rosso (3: member/admin/owner) |
 | S2 | il DB vince sull'ambiente (ordine invertito in `pick`) | rosso (2) | rosso (1) |
 | S3 | lo stato della piattaforma espone `META_APP_SECRET` | rosso (2) | rosso (1) |
-| S4 | lo stato della guida espone il token WhatsApp | verde (non coperto da unit) | rosso (1) |
+| S4 | lo stato della guida espone il token WhatsApp | verde (non coperto da unit) → **rosso (2)** dopo il test aggiunto il 15/10 sera, vedi sotto | rosso (1) |
 
 Nota S2: con entrambi gli ID nell'ambiente il DB non si legge, quindi il canje usa
 l'ambiente anche col sabotaggio; lo vede il test della scheda (fonte e valore).
@@ -157,3 +157,21 @@ l'ambiente anche col sabotaggio; lo vede il test della scheda (fonte e valore).
 3. Ricollegare con Meta da «token scaduto» porta una connessione manuale in
    coexistence (il pulsante fa solo coexistence). Va bene così, o per le connessioni
    manuali mostrare solo la via di «Avanzate»?
+
+## 2026-10-15 (sera) — Decisioni del coordinatore sulle domande aperte
+
+| # | Decisione | Fatto | Commit |
+|---|---|---|---|
+| Q3 | Un numero collegato a mano (modalità non coexistence) da ricollegare NON offre «Ricollega con Meta» (il +1 555 di test di Meta non deve mai passare in coexistence con un clic) | regola pura `reconnectVia()` in `src/lib/whatsapp-guide.ts` (`manual` per ogni connessione non coexistence, `meta` solo coexistence con piattaforma pronta); avviso «Questo numero è collegato a mano…» + pulsante «Incolla un token nuovo» che apre «Avanzate» con il cursore sul campo del token (verificato nel browser: `details` aperto, focus su `#token`, 0 pulsanti Meta). Unit (7 casi) + golden (manuale → `manual`, coexistence → `meta`, con `markReconnectRequired` vero) | `ddb4e6e` |
+| Q2 | Senza numero, firma «—» nella striscia; il valore d'istanza resta in /admin | unit + controllo nel browser | `6de18aa`, `11a8002` |
+| S4 | Il buco di copertura unit | `tests/unit/guide-status-secrets.test.ts`: scansione ricorsiva delle chiavi (`token|secret|verify|last4|cipher|password`) + scansione dei valori (token della fixture, ultime 4, App Secret, verify token). S4 ripetuto in tre varianti (`token`, `tokenLast4`, token dentro un altro campo): **rosso, 2 su 4**, in tutte | `0249332` |
+| Q1 | Nessun cambio di codice: una volta salvati gli ID in /admin, si possono togliere `META_APP_ID`/`META_ES_CONFIG_ID` dal `.env` del VPS (facoltativo; finché ci sono, vince l'ambiente) | riga in `docs/ops/collegare-whatsapp.md` (Parte 1, punto 5) e qui | questo commit |
+| — | Commit non autoconsistente (`7a707b0` senza la riga dell'inventario, arrivata in `586dbc1`) | **lasciato com'è**: sistemarlo vuol dire riscrivere la storia con un rebase interattivo, non disponibile qui. A `7a707b0` da solo `settings-routes-guard.test.ts` sarebbe rosso; dal commit successivo in poi è verde | — |
+
+Schermate: `guida-1-non-configurata.png` e `guida-2-pronta.png` rigenerate (firma «—»);
+nuova `guida-4b-manuale-da-ricollegare.png` (numero manuale, solo «Incolla un token nuovo»).
+
+**Prove (stessi gate):** `tsc`, `eslint .`, `next build` ok · `vitest run` **88 file,
+1394** · golden su base nuova (`vocero_waguide_golden_full2`) **16 file, 164/164**,
+istantanee invariate · E2E `e2e-selftest.mjs` su base nuova (`vocero_waguide_e2e3`)
+**225/225**, 0 SKIP · browser `e2e-whatsapp-guidato.mjs` **41/41** · V1–V6 = 0.
