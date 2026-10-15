@@ -2,7 +2,8 @@
 
 Guion de comportamiento. La parte automatizada vive en la sección "009" de
 `scripts/e2e-selftest.mjs` (app con `WA_MOCK_ENABLED=true`, BD fresca y
-`META_APP_ID` + `META_ES_CONFIG_ID` + `META_APP_SECRET` definidos; sin ellos la
+`META_APP_SECRET` definido; App ID + Configuration ID los guarda la sección 013
+en /admin, o vienen de `META_APP_ID` + `META_ES_CONFIG_ID`; sin ellos la
 sección se salta). Spec: `specs/custom-heili/006-coexistence-embedded-signup.md`.
 
 | AC | Check del selftest |
