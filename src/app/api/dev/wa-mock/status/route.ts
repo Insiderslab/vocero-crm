@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { mockGuard } from "@/lib/dev-guard";
 import { apiError, parseBody } from "@/lib/api";
@@ -31,7 +31,14 @@ export async function POST(req: Request) {
   const rows = await db
     .select({ organizationId: schema.message.organizationId })
     .from(schema.message)
-    .where(eq(schema.message.waMessageId, body.data.waMessageId))
+    // 005 (R2): el wamid se lee en `external_message_id` (el campo
+    // `waMessageId` de la API del mock no cambia: lo usan los scripts E2E).
+    .where(
+      and(
+        eq(schema.message.channel, "whatsapp"),
+        eq(schema.message.externalMessageId, body.data.waMessageId)
+      )
+    )
     .limit(1);
   if (!rows[0]) return apiError(404, "not_found", "Mensaje no encontrado");
 
