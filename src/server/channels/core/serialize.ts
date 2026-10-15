@@ -2,7 +2,7 @@ import type { schema } from "@/lib/db";
 
 /**
  * DTO de un mensaje para la API y los eventos SSE (`message.new`). Contrato
- * publicado (FR-010): solo admite campos ADITIVOS.
+ * publicado (FR-010): solo admite campos ADITIVOS (M1.3: `channel`).
  */
 export function serializeMessage(
   m: typeof schema.message.$inferSelect,
@@ -19,6 +19,11 @@ export function serializeMessage(
     error: m.error,
     aiGenerated: m.aiGenerated,
     origin: m.origin,
+    /**
+     * 005 (M1.3, T033) — canal del mensaje. Campo ADITIVO declarado (FR-010):
+     * los golden lo aceptan solo porque está en `DECLARED_ADDITIVE_KEYS`.
+     */
+    channel: m.channel,
     media: media
       ? {
           assetId: media.id,
