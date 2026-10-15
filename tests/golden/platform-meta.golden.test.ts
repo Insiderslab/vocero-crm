@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { getSql } from "@/lib/db";
+import { reconnectVia } from "@/lib/whatsapp-guide";
+import { markReconnectRequired, saveCredentials } from "@/server/whatsapp/credentials";
 import { graphFails, recordedRequests } from "./harness";
 import { ORG_A, ORGS } from "./setup";
 
@@ -305,5 +307,44 @@ describe("013 — ninguna respuesta nueva lleva secretos", () => {
     await seedUsers();
     as("member");
     expect((await statusGet()).status).toBe(403);
+  });
+});
+
+describe("013 (Q3) — un número conectado a mano jamás se reconecta con Meta", () => {
+  async function guideVia() {
+    as("owner");
+    const status = await (await statusGet()).json();
+    return { status, via: reconnectVia({ platformReady: status.platform.ready, connection: status.connection }) };
+  }
+
+  it("manual + token caducado, con la plataforma lista → solo token nuevo (sin botón de Meta)", async () => {
+    await seedUsers();
+    as("root");
+    await put({ appId: APP_ID, configId: CONFIG_ID });
+    await markReconnectRequired(ORG_A);
+    const { status, via } = await guideVia();
+    expect(status.platform.ready).toBe(true);
+    expect(status.connection).toMatchObject({ status: "reconnect_required", onboardingMode: "manual" });
+    expect(via).toBe("manual");
+  });
+
+  it("coexistence + token caducado, con la plataforma lista → «Ricollega con Meta»", async () => {
+    await seedUsers();
+    as("root");
+    await put({ appId: APP_ID, configId: CONFIG_ID });
+    const a = ORGS.A;
+    await saveCredentials({
+      organizationId: a.id,
+      wabaId: a.wabaId,
+      phoneNumberId: a.phoneNumberId,
+      token: a.token,
+      displayPhoneNumber: a.displayPhoneNumber,
+      verifiedName: a.verifiedName,
+      onboardingMode: "coexistence",
+    });
+    await markReconnectRequired(ORG_A);
+    const { status, via } = await guideVia();
+    expect(status.connection).toMatchObject({ status: "reconnect_required", onboardingMode: "coexistence" });
+    expect(via).toBe("meta");
   });
 });

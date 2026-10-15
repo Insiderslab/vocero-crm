@@ -8,6 +8,7 @@ import {
   connectionMode,
   guideState,
   guideSteps,
+  reconnectVia,
   signatureState,
   type GuideConnection,
   type GuideState,
@@ -68,6 +69,28 @@ describe("guideSteps", () => {
   });
 });
 
+describe("reconnectVia (decisione Q3: mai coexistence con un clic su un numero manuale)", () => {
+  it.each<[string, { platformReady: boolean; connection: GuideConnection | null }, "meta" | "manual" | null]>([
+    ["collegata: niente da ricollegare", { platformReady: true, connection: conn() }, null],
+    ["nessun numero: niente da ricollegare", { platformReady: true, connection: null }, null],
+    ["coexistence da ricollegare, piattaforma pronta → Meta", { platformReady: true, connection: conn({ status: "reconnect_required" }) }, "meta"],
+    ["coexistence tagliata, piattaforma pronta → Meta", { platformReady: true, connection: conn({ appDisconnectedAt: ago(5) }) }, "meta"],
+    ["coexistence da ricollegare, piattaforma NON pronta → token", { platformReady: false, connection: conn({ status: "reconnect_required" }) }, "manual"],
+    [
+      "MANUALE da ricollegare, piattaforma pronta → token, mai Meta",
+      { platformReady: true, connection: conn({ status: "reconnect_required", onboardingMode: "manual" }) },
+      "manual",
+    ],
+    [
+      "Embedded Signup senza app da ricollegare → token, mai Meta",
+      { platformReady: true, connection: conn({ status: "reconnect_required", onboardingMode: "embedded" }) },
+      "manual",
+    ],
+  ])("%s", (_n, input, expected) => {
+    expect(reconnectVia(input)).toBe(expected);
+  });
+});
+
 describe("connectionMode", () => {
   it("coexistence = app + CRM; manuale ed Embedded Signup senza app = API", () => {
     expect(connectionMode("coexistence")).toBe("coexistence");
@@ -124,7 +147,7 @@ const connection = (over: Partial<GuideConnection> = {}) => ({
   verifiedName: "InsidersLab",
 });
 
-const STATES: Record<GuideState | "connected_waiting", WhatsappGuideStatus> = {
+const STATES: Record<GuideState | "connected_waiting" | "reconnect_manual", WhatsappGuideStatus> = {
   not_configured: {
     platform: { ready: false, reason: "not_configured" },
     connection: null,
@@ -146,9 +169,20 @@ const STATES: Record<GuideState | "connected_waiting", WhatsappGuideStatus> = {
   },
   reconnect_required: {
     platform: { ready: true, reason: null },
-    connection: connection({ status: "reconnect_required", onboardingMode: "manual" }),
+    connection: connection({ status: "reconnect_required" }),
     signature: verified,
     lastInboundAt: ago(60 * 24 * 3),
+  },
+  // Il numero di test di Meta (+1 555…), collegato a mano.
+  reconnect_manual: {
+    platform: { ready: true, reason: null },
+    connection: {
+      ...connection({ status: "reconnect_required", onboardingMode: "manual" }),
+      displayPhoneNumber: "+1 555 000 1111",
+      verifiedName: "Test Number",
+    },
+    signature: verified,
+    lastInboundAt: ago(60),
   },
   app_disconnected: {
     platform: { ready: true, reason: null },
@@ -219,6 +253,28 @@ describe("WhatsappGuideView", () => {
     expect(out).toMatch(/data-step-status="done"[\s\S]*data-step-status="done"[\s\S]*data-step-status="done"/);
   });
 
+  it("manuale da ricollegare: niente «Ricollega con Meta», messaggio chiaro e pulsante per il token", () => {
+    const messages = messagesFor("it") as unknown as Record<string, unknown>;
+    const t = ((key: string, vars?: Record<string, string | number>) => translate(messages, key, vars)) as never;
+    const out = renderToStaticMarkup(
+      createElement(WhatsappGuideView, {
+        status: STATES.reconnect_manual,
+        t,
+        locale: "it",
+        now: NOW,
+        onOpenAdvanced: () => undefined,
+        renderConnect: () => createElement("span", null, "[BOTTONE-META]"),
+      })
+    );
+    expect(out).toContain('data-guide-state="reconnect_required"');
+    expect(out).not.toContain("[BOTTONE-META");
+    expect(out).not.toContain("Ricollega con Meta");
+    expect(out).toContain("Questo numero è collegato a mano");
+    expect(out).toContain("Incolla un token nuovo");
+    expect(out).toContain('data-reconnect="manual"');
+    expect(out).toContain("Solo API");
+  });
+
   it.each([
     ["reconnect_required", "Il token di WhatsApp è scaduto"],
     ["app_disconnected", "Meta ha scollegato il numero dal CRM"],
@@ -230,15 +286,14 @@ describe("WhatsappGuideView", () => {
     expect(out).toContain("Oppure incolla un token nuovo in Avanzate");
   });
 
-  it("da ricollegare con piattaforma non pronta: solo la via manuale", () => {
+  it("coexistence da ricollegare con piattaforma non pronta: solo la via del token", () => {
     const out = render({ ...STATES.reconnect_required, platform: { ready: false, reason: "not_configured" } }, "it");
     expect(out).not.toContain("[BOTTONE-META");
-    expect(out).toContain("Apri Avanzate per incollare un token nuovo");
+    expect(out).toContain("Incolla un token nuovo");
+    // Il testo «collegato a mano» è solo per le connessioni manuali.
+    expect(out).not.toContain("Questo numero è collegato a mano");
   });
 
-  it("modalità API per una connessione manuale", () => {
-    expect(render(STATES.reconnect_required, "it")).toContain("Solo API");
-  });
 
   it("firma: manca il segreto → avviso nella striscia", () => {
     const out = render(

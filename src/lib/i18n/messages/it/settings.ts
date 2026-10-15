@@ -223,6 +223,7 @@ const messages: typeof base = {
           body: "Premi il pulsante ed entra con Facebook: l'app WhatsApp Business resta sul telefono e continua a funzionare, i messaggi arrivano anche qui.",
           done: "Numero {{number}} collegato.",
           reconnectHint: "Il numero va ricollegato: usa il pulsante qui sopra.",
+          reconnectManualHint: "Il numero va ricollegato con un token nuovo: usa il pulsante qui sopra.",
         },
         confirm: {
           title: "Conferma sul telefono",
@@ -247,7 +248,9 @@ const messages: typeof base = {
         ready: "Tutto pronto: segui i 3 passi qui sotto per collegare il tuo numero.",
         reconnectButton: "Ricollega con Meta",
         manualAlternative: "Oppure incolla un token nuovo in Avanzate.",
-        manualOnly: "Apri Avanzate per incollare un token nuovo.",
+        manualReconnectBody:
+          "Questo numero è collegato a mano (WABA e token): per ricollegarlo incolla un token nuovo. Non lo ricolleghiamo con Meta, per non cambiarne la modalità.",
+        manualReconnectButton: "Incolla un token nuovo",
       },
       status: {
         label: "Stato di WhatsApp",

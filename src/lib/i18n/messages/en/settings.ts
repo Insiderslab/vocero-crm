@@ -222,6 +222,7 @@ const messages: typeof base = {
           body: "Press the button and log in with Facebook: the WhatsApp Business app stays on the phone and keeps working, and messages also arrive here.",
           done: "Number {{number}} connected.",
           reconnectHint: "The number needs reconnecting: use the button above.",
+          reconnectManualHint: "The number needs a new token: use the button above.",
         },
         confirm: {
           title: "Confirm on the phone",
@@ -246,7 +247,9 @@ const messages: typeof base = {
         ready: "All set: follow the 3 steps below to connect your number.",
         reconnectButton: "Reconnect with Meta",
         manualAlternative: "Or paste a new token in Advanced.",
-        manualOnly: "Open Advanced to paste a new token.",
+        manualReconnectBody:
+          "This number was connected manually (WABA and token): paste a new token to reconnect it. We don't reconnect it with Meta, so its mode does not change.",
+        manualReconnectButton: "Paste a new token",
       },
       status: {
         label: "WhatsApp status",

@@ -223,6 +223,7 @@ const messages = {
           body: "Pulsa el botón y entra con Facebook: la app WhatsApp Business sigue en el teléfono y funcionando, y los mensajes llegan también aquí.",
           done: "Número {{number}} conectado.",
           reconnectHint: "Hay que volver a conectar el número: usa el botón de arriba.",
+          reconnectManualHint: "Hay que volver a conectar el número con un token nuevo: usa el botón de arriba.",
         },
         confirm: {
           title: "Confirma en el teléfono",
@@ -247,7 +248,9 @@ const messages = {
         ready: "Todo listo: sigue los 3 pasos de abajo para conectar tu número.",
         reconnectButton: "Reconectar con Meta",
         manualAlternative: "O pega un token nuevo en Avanzado.",
-        manualOnly: "Abre Avanzado para pegar un token nuevo.",
+        manualReconnectBody:
+          "Este número está conectado a mano (WABA y token): para reconectarlo pega un token nuevo. No lo reconectamos con Meta, para no cambiar su modo.",
+        manualReconnectButton: "Pegar un token nuevo",
       },
       status: {
         label: "Estado de WhatsApp",

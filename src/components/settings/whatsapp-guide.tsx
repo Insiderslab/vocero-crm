@@ -9,6 +9,7 @@ import {
   CircleDot,
   Clock,
   Info,
+  KeyRound,
   Lock,
   MessageCircle,
   Phone,
@@ -20,12 +21,14 @@ import type { Locale } from "@/lib/i18n";
 import {
   connectionMode,
   guideState,
+  reconnectVia,
   guideSteps,
   signatureState,
   type GuideState,
   type StepStatus,
 } from "@/lib/whatsapp-guide";
 import type { WhatsappGuideStatus } from "@/server/whatsapp/guide-status";
+import { Button } from "@/components/ui/button";
 import { CoexistenceConnect } from "@/components/settings/coexistence-connect";
 import { WhatsappAdvanced } from "@/components/settings/whatsapp-advanced";
 import { WapiKeyCard } from "@/components/settings/wapi-key-card";
@@ -71,11 +74,17 @@ export function WhatsappGuide() {
   // Passo 3 in diretta: ogni messaggio nuovo (SSE) aggiorna «ultimo messaggio ricevuto».
   useEvents({ onMessageNew: () => void refetch(), onReconnect: () => void refetch() });
 
-  function openAdvanced() {
+  function openAdvanced(focus?: "token") {
     setAdvancedOpen(true);
-    window.requestAnimationFrame(() =>
-      document.getElementById("avanzate")?.scrollIntoView({ behavior: "smooth", block: "start" })
-    );
+    window.requestAnimationFrame(() => {
+      const target = focus ? document.getElementById(focus) : null;
+      if (target) {
+        target.scrollIntoView({ behavior: "smooth", block: "center" });
+        target.focus({ preventScroll: true });
+      } else {
+        document.getElementById("avanzate")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    });
   }
 
   return (
@@ -145,12 +154,14 @@ export function WhatsappGuideView({
   now: number;
   /** Esito della richiesta di rubrica e storico dopo «Collega con Meta» (null = non appena fatto). */
   syncOk?: boolean | null;
-  onOpenAdvanced: () => void;
+  /** Apre «Avanzate»; con "token" mette il cursore sul campo del token. */
+  onOpenAdvanced: (focus?: "token") => void;
   /** Il pulsante «Collega con Meta» (iniettato: nei test basta un segnaposto). */
   renderConnect: (label?: string) => ReactNode;
 }) {
   const state = guideState({ platformReady: status.platform.ready, connection: status.connection });
   const steps = guideSteps(state, status.lastInboundAt);
+  const via = reconnectVia({ platformReady: status.platform.ready, connection: status.connection });
   const g = (key: string, vars?: Record<string, string | number>) =>
     t(`settings.whatsapp.guide.${key}`, vars);
   const number = status.connection
@@ -160,7 +171,7 @@ export function WhatsappGuideView({
   const advancedLink = (key: string) => (
     <button
       type="button"
-      onClick={onOpenAdvanced}
+      onClick={() => onOpenAdvanced()}
       className="font-medium text-brand-text underline-offset-2 hover:underline"
     >
       {g(key)}
@@ -174,6 +185,8 @@ export function WhatsappGuideView({
       <StateBanner
         state={state}
         status={status}
+        via={via}
+        onOpenToken={() => onOpenAdvanced("token")}
         t={t}
         g={g}
         renderConnect={renderConnect}
@@ -204,7 +217,9 @@ export function WhatsappGuideView({
                 {renderConnect()}
               </div>
             ) : (
-              <p className="text-sm text-muted-foreground">{g("steps.connect.reconnectHint")}</p>
+              <p className="text-sm text-muted-foreground">
+                {g(via === "meta" ? "steps.connect.reconnectHint" : "steps.connect.reconnectManualHint")}
+              </p>
             )}
           </Step>
 
@@ -343,6 +358,8 @@ function StripItem({
 function StateBanner({
   state,
   status,
+  via,
+  onOpenToken,
   t,
   g,
   renderConnect,
@@ -350,6 +367,8 @@ function StateBanner({
 }: {
   state: GuideState;
   status: WhatsappGuideStatus;
+  via: "meta" | "manual" | null;
+  onOpenToken: () => void;
   t: TFunction;
   g: (key: string, vars?: Record<string, string | number>) => string;
   renderConnect: (label?: string) => ReactNode;
@@ -402,13 +421,23 @@ function StateBanner({
           </p>
         </div>
       </div>
-      {status.platform.ready ? (
+      {via === "meta" ? (
         <div className="space-y-2">
           {renderConnect(g("banner.reconnectButton"))}
           <p className="text-xs text-danger-text">{advancedLink("banner.manualAlternative")}</p>
         </div>
       ) : (
-        <p className="text-danger-text">{advancedLink("banner.manualOnly")}</p>
+        // Connessione non in coexistence (o piattaforma non pronta): solo token
+        // nuovo. Mai il pulsante di Meta, che cambierebbe la modalità del numero.
+        <div className="space-y-2" data-reconnect="manual">
+          {status.connection?.onboardingMode !== "coexistence" && (
+            <p className="text-danger-text">{g("banner.manualReconnectBody")}</p>
+          )}
+          <Button variant="outline" onClick={onOpenToken}>
+            <KeyRound className="mr-2 h-4 w-4" aria-hidden="true" />
+            {g("banner.manualReconnectButton")}
+          </Button>
+        </div>
       )}
     </div>
   );

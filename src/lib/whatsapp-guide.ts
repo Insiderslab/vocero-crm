@@ -89,3 +89,23 @@ export function signatureState(s: SignatureInfo): SignatureState {
   if (rejectedLast) return "rejected";
   return lastVerifiedAt ? "verified" : "waiting";
 }
+
+/**
+ * Come si ricollega un numero da ricollegare (o tagliato da Meta):
+ * - `manual`: incollando un token nuovo in «Avanzate». Sempre così per una
+ *   connessione NON in coexistence (fatta a mano o con Embedded Signup senza
+ *   app): il pulsante di Meta fa solo coexistence e un clic cambierebbe la
+ *   modalità del numero (es. un numero di test di Meta collegato a mano);
+ * - `meta`: «Ricollega con Meta», solo per la coexistence e con la
+ *   piattaforma pronta;
+ * - `null`: niente da ricollegare.
+ */
+export function reconnectVia(input: {
+  platformReady: boolean;
+  connection: GuideConnection | null;
+}): "meta" | "manual" | null {
+  const state = guideState(input);
+  if (state !== "reconnect_required" && state !== "app_disconnected") return null;
+  if (input.connection?.onboardingMode !== "coexistence") return "manual";
+  return input.platformReady ? "meta" : "manual";
+}
