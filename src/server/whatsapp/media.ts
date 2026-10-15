@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { getEnv } from "@/lib/env";
 import { graphRequest, MetaApiError, resolveGraphTransport } from "@/lib/meta/client";
+import { MEDIA_LIMITS } from "@/server/channels/whatsapp/capabilities";
 import {
   getCredentialsByOrg,
   type Credentials,
@@ -18,37 +19,11 @@ import {
 
 export type MediaKind = (typeof schema.mediaAsset.$inferSelect)["kind"];
 
-/** Límites de la Cloud API por tipo (validados ANTES de tocar red, FR-007). */
-export const MEDIA_LIMITS: Record<
-  Exclude<MediaKind, "location" | "contacts">,
-  { maxBytes: number; mimes: RegExp; label: string }
-> = {
-  image: {
-    maxBytes: 5 * 1024 * 1024,
-    mimes: /^image\/(jpeg|png|webp)$/,
-    label: "imagen (jpeg/png/webp, máx. 5 MB)",
-  },
-  sticker: {
-    maxBytes: 100 * 1024,
-    mimes: /^image\/webp$/,
-    label: "sticker (webp, máx. 100 KB)",
-  },
-  audio: {
-    maxBytes: 16 * 1024 * 1024,
-    mimes: /^audio\/(aac|mp4|mpeg|amr|ogg|opus)/,
-    label: "audio (aac/mp4/mpeg/amr/ogg, máx. 16 MB)",
-  },
-  video: {
-    maxBytes: 16 * 1024 * 1024,
-    mimes: /^video\/(mp4|3gpp)$/,
-    label: "video (mp4/3gpp, máx. 16 MB)",
-  },
-  document: {
-    maxBytes: 100 * 1024 * 1024,
-    mimes: /^[\w.-]+\/[\w.+-]+$/,
-    label: "documento (máx. 100 MB)",
-  },
-};
+/**
+ * Límites de la Cloud API por tipo (validados ANTES de tocar red, FR-007).
+ * 005 (M1.3): la fuente son las capacidades del canal WhatsApp.
+ */
+export { MEDIA_LIMITS };
 
 /** Clasifica un MIME de archivo saliente al tipo de mensaje de la Cloud API. */
 export function kindFromMime(mime: string): "image" | "audio" | "video" | "document" {
@@ -265,7 +240,7 @@ export async function ensureAssetAvailable(
  * capa de envío los traduce con las mismas reglas que el texto).
  */
 export async function uploadGraphMedia(
-  credentials: Credentials,
+  credentials: Pick<Credentials, "organizationId" | "phoneNumberId" | "token">,
   file: { data: Buffer | Uint8Array; mimeType: string; fileName?: string }
 ): Promise<string> {
   const env = getEnv();
