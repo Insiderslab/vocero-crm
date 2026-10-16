@@ -30,7 +30,7 @@ Limiti rispettati:
 
 ## Cosa è stato fatto
 
-### Dati — `drizzle/0016_team_broadcast.sql`
+### Dati — `drizzle/0017_team_broadcast.sql` (era 0016, rinumerata nella catena CRM)
 
 Tabella `team_broadcast`, una riga per ronda inviata (mai per un `dryRun`):
 
