@@ -24,7 +24,7 @@ const CHANNEL_KINDS_SQL = sql.raw(CHANNEL_KINDS.map((c) => `'${c}'`).join(", "))
  * 008 (custom heili) — Canales de un MENSAJE: los de arriba más `web` (una
  * solicitud del formulario del sitio). Solo el mensaje: `web` no es una
  * cuenta (`channel_account`) ni una identidad (`contact_identity`), porque al
- * sitio no se le responde. drizzle/0015 cambia el CHECK NOT VALID y el runner
+ * sitio no se le responde. drizzle/0018 cambia el CHECK NOT VALID y el runner
  * lo valida (fase B, por nombre).
  */
 export const MESSAGE_CHANNELS = [...CHANNEL_KINDS, "web"] as const;

@@ -130,8 +130,8 @@ async function doCheck(organizationId: string, maxAge: number): Promise<WebhookR
 }
 
 /**
- * Per il silenzio insolito: l'ultimo messaggio in entrata vero (non
- * Laboratorio) e quanti ne erano arrivati nei 14 giorni PRIMA di quello.
+ * Per il silenzio insolito: l'ultimo messaggio WhatsApp in entrata vero (non
+ * Laboratorio, non richiesta del sito) e quanti ne erano arrivati nei 14 giorni PRIMA di quello.
  * La media si misura prima del silenzio, non fino ad adesso: altrimenti più
  * dura il silenzio, più la media scende e l'avviso si spegne da solo.
  */
@@ -141,7 +141,16 @@ export async function inboundStats(
   const m = schema.message;
   const c = schema.conversation;
   const real = (...more: SQL[]) =>
-    scoped(m.organizationId, organizationId, eq(m.direction, "in"), sql`${c.isTest} = false`, ...more);
+    scoped(
+      m.organizationId,
+      organizationId,
+      eq(m.direction, "in"),
+      // 008 — Le richieste del sito (`web`) non passano da Meta: se contassero,
+      // il modulo del sito coprirebbe proprio il silenzio di WhatsApp.
+      eq(m.channel, "whatsapp"),
+      sql`${c.isTest} = false`,
+      ...more
+    );
   const join = and(eq(c.id, m.conversationId), eq(c.organizationId, m.organizationId));
   const [lastRow] = await getDb().select({ last: max(m.createdAt) }).from(m).innerJoin(c, join).where(real());
   if (!lastRow?.last) return { inbound14d: 0, lastInboundAt: null };
