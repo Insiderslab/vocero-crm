@@ -5,6 +5,8 @@ import {
   EmbeddedSignupError,
   getEmbeddedSignupConfig,
 } from "@/server/whatsapp/embedded-signup";
+import { ChannelMirrorError } from "@/server/channels/dual-write";
+import { channelMirrorConflict } from "@/server/channels/http";
 
 export const dynamic = "force-dynamic";
 
@@ -52,6 +54,8 @@ export const POST = withAdminAuth(async (session, req: Request) => {
     if (err instanceof EmbeddedSignupError) {
       return apiError(err.status, err.code, err.message);
     }
+    // 005 (R2): copia estricta en channel_account rechazada → nada guardado.
+    if (err instanceof ChannelMirrorError) return channelMirrorConflict();
     throw err;
   }
 });

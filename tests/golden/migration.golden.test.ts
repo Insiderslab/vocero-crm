@@ -12,6 +12,7 @@ import {
 } from "@/server/whatsapp/credentials";
 import { runStartup } from "../../scripts/migrate-channels.mjs";
 import { getOrCreateContactByIdentity } from "@/server/inbox/identity";
+import { insertContactIfAbsent } from "@/server/channels/dual-write";
 import { waFixture } from "./fixtures/whatsapp";
 import { conversationIdOf, postWebhook } from "./harness";
 import * as r0 from "./legacy/r0-credentials";
@@ -23,9 +24,9 @@ import { ORG_A, ORG_B, ORGS } from "./setup";
  * Aquí no hay instantáneas: son invariantes con aserciones explícitas sobre
  * PostgreSQL real, con el runner REAL (`scripts/migrate-channels.mjs`).
  *
- * - «R1» = `runStartup` en modo `avvisa` (la constante de este release);
- * - «R2» = el mismo runner en modo `blocca`: es lo que hará la imagen de R2
- *   (M1.3, T032), que no existe todavía;
+ * - «R1» = `runStartup` en modo `avvisa` (la constante del release R1);
+ * - «R2» = el mismo runner en modo `blocca`: la constante de la imagen de R2
+ *   (M1.3, T032; `scripts/migrate.mjs` la usa);
  * - «R0» = la imagen anterior: sus escrituras se simulan con la copia
  *   congelada de sus funciones (`legacy/r0-credentials.ts`) y, para
  *   contactos, conversaciones y mensajes, con INSERT solo de las columnas
@@ -59,6 +60,8 @@ async function startup(mode: "avvisa" | "blocca") {
     log: { log: capture, warn: capture, error: capture },
     attempts: 1,
     retryMs: 10,
+    // «blocca» ritenta riconciliazione+verifiche (2 s, 5 s in produzione).
+    checkRetryDelaysMs: [10, 10],
   });
   return { code, log: lines.join("\n") };
 }
@@ -470,20 +473,23 @@ describe("migration — T011 riconciliazione all'avvio (runner vero)", () => {
     expect((await startup("avvisa")).code).toBe(0);
     await sql()`delete from meta_credentials where organization_id = ${ORG_B}`;
 
-    const r2 = await startup("blocca");
-    expect(r2.code).toBe(1);
-    expect(r2.log).toMatch(/verifica fallita[^\n]*V1=1/);
-
-    // R1: la imagen verdadera (scripts/migrate.mjs, modo constante) arranca.
+    // R2: l'immagine VERA (scripts/migrate.mjs, modalità costante del
+    // rilascio, T032) non parte e nomina la verifica, senza valori.
     const run = spawnSync(process.execPath, [path.join(REPO_ROOT, "scripts", "migrate.mjs")], {
       cwd: REPO_ROOT,
       env: { ...process.env, DATABASE_URL: process.env.DATABASE_URL_GOLDEN, MIGRATIONS_DIR: MIGRATIONS },
       encoding: "utf8",
       timeout: 60_000,
     });
-    expect(run.status).toBe(0);
-    expect(`${run.stdout}${run.stderr}`).toMatch(/canali \(avvisa\): V1=1/);
-    expect(`${run.stdout}${run.stderr}`).toContain("modalità «avvisa»");
+    expect(run.status).toBe(1);
+    expect(`${run.stdout}${run.stderr}`).toMatch(/verifica fallita[^\n]*V1=1/);
+    expect(`${run.stdout}${run.stderr}`).not.toContain("modalità «avvisa»");
+
+    // R1 (modalità «avvisa»): parte e lo scrive nel log.
+    const r1 = await startup("avvisa");
+    expect(r1.code).toBe(0);
+    expect(r1.log).toMatch(/canali \(avvisa\): V1=1/);
+    expect(r1.log).toContain("modalità «avvisa»");
   });
 });
 
@@ -520,33 +526,54 @@ describe("migration — revisione avversaria (PR #7)", () => {
     expect(await accountMismatches()).toEqual([]);
   });
 
-  it("un'identità residua con lo stesso ID esterno NON blocca l'alta di un contatto: la scrittura vecchia vince, V3 lo segnala, l'avvio lo ripara", async () => {
-    expect((await startup("avvisa")).code).toBe(0);
-    const [other] = await sql()<{ id: string }[]>`
-      select id from contact where organization_id = ${ORG_A} order by created_at limit 1
-    `;
-    let otherId = other?.id;
-    if (!otherId) {
-      otherId = "ct_golden_other";
-      await sql()`insert into contact (id, organization_id, wa_identity, phone, name)
-                  values (${otherId}, ${ORG_A}, '5215599990000', '5215599990000', 'Altro')`;
-    }
-    // Identità "sporca": punta a un altro contatto con l'ID esterno che arriverà.
+  // 005 (M1.3, R2, revisione PR #14): un'identità «sporca» (external_id
+  // diverso dal wa_identity del suo contatto) NON deve catturare in silenzio
+  // i messaggi di un'altra persona. Scelta: RIFIUTARE. La lettura nuova vede
+  // l'incoerenza e non assegna il messaggio (errore nel log, nessuna
+  // scrittura); V3 la conta e R2 non riparte finché non si risolve. Anche
+  // l'alta diretta di un contatto con quell'ID esterno viene rifiutata dalla
+  // doppia scrittura stretta (postcondizione).
+  it("R2: un'identità residua con lo stesso ID esterno NON cattura i messaggi: ingesta e alta rifiutate senza scritture; V3 la segnala e R2 non riparte", async () => {
+    expect((await startup("blocca")).code).toBe(0);
+    const otherId = "ct_golden_other";
+    await sql()`insert into contact (id, organization_id, wa_identity, phone, name)
+                values (${otherId}, ${ORG_A}, '5215599990000', '5215599990000', 'Altro')`;
     await sql()`insert into contact_identity (id, organization_id, contact_id, channel, external_id)
-                values ('ci_golden_stale', ${ORG_A}, ${otherId}, 'whatsapp', '5215512340000')`;
+                values ('ci_golden_other', ${ORG_A}, ${otherId}, 'whatsapp', '5215599990000')`;
+    // Identità "sporca": punta ad Altro con l'ID esterno di un'altra persona.
+    await sql()`insert into contact_identity (id, organization_id, contact_id, channel, external_id)
+                values ('ci_golden_stale', ${ORG_A}, ${otherId}, 'whatsapp', '525512345678')`;
 
-    const { contact } = await getOrCreateContactByIdentity(ORG_A, {
-      identity: "5215512340000",
-      phone: "5215512340000",
-      waUserId: null,
-      profileName: "Nuovo",
-    });
-    expect(contact.waIdentity).toBe("5215512340000");
-    const [row] = await sql()<{ n: string }[]>`
-      select count(*)::text as n from contact where organization_id = ${ORG_A} and wa_identity = '5215512340000'
-    `;
-    expect(row?.n).toBe("1");
+    const counts = async () =>
+      (await sql()<{ contacts: number; messages: number }[]>`
+        select (select count(*)::int from contact where organization_id = ${ORG_A}) as contacts,
+               (select count(*)::int from message where organization_id = ${ORG_A}) as messages
+      `)[0];
+    const before = await counts();
+
+    // Ingesta: il messaggio di 525512345678 non finisce ad «Altro».
+    await expect(
+      getOrCreateContactByIdentity(ORG_A, {
+        identity: "525512345678",
+        phone: "525512345678",
+        waUserId: null,
+        profileName: "Ana",
+      })
+    ).rejects.toMatchObject({ name: "IdentityConflictError" });
+    expect((await postWebhook(waFixture("inbound-text-mx"))).status).toBe(200);
+    expect(await counts()).toEqual(before);
+
+    // Alta diretta (manuale, Laboratorio, seed): la postcondizione della
+    // doppia scrittura la rifiuta e annulla anche il contatto.
+    await expect(
+      insertContactIfAbsent({ id: "ct_golden_new", organizationId: ORG_A, waIdentity: "525512345678", name: "Ana" })
+    ).rejects.toMatchObject({ name: "ChannelMirrorError" });
+    expect(await counts()).toEqual(before);
+
     expect((await legacyCheck()).V3).toBeGreaterThan(0);
+    const restart = await startup("blocca");
+    expect(restart.code).toBe(1);
+    expect(restart.log).toMatch(/verifica fallita[^\n]*V3=[1-9]/);
   });
 });
 

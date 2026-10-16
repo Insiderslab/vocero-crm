@@ -8,11 +8,13 @@ import { beforeAll, describe, expect, it, vi } from "vitest";
 const insertedRows: Record<string, unknown>[] = [];
 /** 005 (R1): sentencias de la doble escritura, y si corrieron DENTRO de la transacción. */
 const mirrorCalls: { inTransaction: boolean }[] = [];
+/** Filas divergentes que la postcondición de la copia devolverá (0 = idénticas). */
+const mirror = { diverging: 0 };
 
 vi.mock("@/lib/db", () => {
   // La escritura vieja y la doble escritura (channel_account) van en la
-  // misma transacción; la doble escritura, además, en un SAVEPOINT
-  // (`tx.transaction`) para que un fallo suyo no cancele la vieja.
+  // misma transacción. Desde R2 la copia es ESTRICTA: función SQL de la copia
+  // + postcondición V1/V2 de esas filas (0 = idénticas), sin SAVEPOINT.
   const tx: Record<string, unknown> = {
     insert: () => ({
       values: (v: Record<string, unknown>) => {
@@ -26,7 +28,7 @@ vi.mock("@/lib/db", () => {
     }),
     execute: () => {
       mirrorCalls.push({ inTransaction: true });
-      return Promise.resolve([]);
+      return Promise.resolve([{ diverging: mirror.diverging }]);
     },
   };
   tx.transaction = (fn: (t: typeof tx) => Promise<unknown>) => fn(tx);
@@ -75,8 +77,31 @@ describe("credenciales de WhatsApp", () => {
       })
     ).toBe(token);
 
-    // 005 (R1): la copia a channel_account corre en la misma transacción.
-    expect(mirrorCalls).toEqual([{ inTransaction: true }]);
+    // 005: la copia a channel_account y su postcondición corren en la misma
+    // transacción (R2: estricta).
+    expect(mirrorCalls).toEqual([{ inTransaction: true }, { inTransaction: true }]);
+  });
+
+  it("005 (R2): si la copia en channel_account no queda idéntica, saveCredentials falla (y la transacción se deshace)", async () => {
+    const { saveCredentials } = await import("@/server/whatsapp/credentials");
+    const { ChannelMirrorError } = await import("@/server/channels/dual-write");
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    mirror.diverging = 1;
+    try {
+      const err = await saveCredentials({
+        organizationId: "org_1",
+        wabaId: "waba1",
+        phoneNumberId: "pn1",
+        token: "EAAG-token-otro-wxyz",
+      }).catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(ChannelMirrorError);
+      const line = String(log.mock.calls[0]?.[0]);
+      expect(line).toContain("channel_account");
+      expect(line).not.toContain("EAAG-token-otro-wxyz");
+    } finally {
+      mirror.diverging = 0;
+      log.mockRestore();
+    }
   });
 
   it("tokenLast4 expone solo los últimos 4 caracteres", async () => {

@@ -7,13 +7,13 @@ import { GOLDEN_HOSTS } from "./env";
 import { getSql } from "@/lib/db";
 import { subscribe } from "@/server/events/bus";
 import { getCredentialsByOrg } from "@/server/whatsapp/credentials";
-// La ruta pública del webhook. En M1.3 (T029) pasa a
-// `src/app/api/webhooks/[channel]/[webhookToken]/route.ts` con el slug `wa`:
-// se cambia SOLO este import (y `params`), nunca los archivos __golden__.
+// La ruta pública del webhook. M1.3 (T029): la route única por canal
+// `src/app/api/webhooks/[channel]/[webhookToken]/route.ts` con el slug `wa`
+// (misma URL). Solo cambian este import y `params`, nunca los __golden__.
 import {
   GET as webhookGet,
   POST as webhookPost,
-} from "@/app/api/webhooks/wa/[webhookToken]/route";
+} from "@/app/api/webhooks/[channel]/[webhookToken]/route";
 import { FIXED_NOW_MS, Normalizer, type Secrets } from "./normalize";
 import {
   AI_TOKEN,
@@ -367,7 +367,7 @@ export async function postWebhook(
     headers,
     body: raw,
   });
-  const res = await webhookPost(req, { params: Promise.resolve({ webhookToken: token }) });
+  const res = await webhookPost(req, { params: Promise.resolve({ channel: "wa", webhookToken: token }) });
   const out = await describeResponse(res);
   await drainAfter();
   await settle();
@@ -381,7 +381,7 @@ export async function getWebhook(
   const token = opts.token ?? process.env.META_WEBHOOK_VERIFY_TOKEN!;
   const qs = new URLSearchParams(query).toString();
   const req = new Request(`http://localhost:3000/api/webhooks/wa/${token}?${qs}`);
-  const res = await webhookGet(req, { params: Promise.resolve({ webhookToken: token }) });
+  const res = await webhookGet(req, { params: Promise.resolve({ channel: "wa", webhookToken: token }) });
   return describeResponse(res);
 }
 

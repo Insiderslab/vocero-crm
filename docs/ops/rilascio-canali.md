@@ -1,8 +1,8 @@
 # Procedura di rilascio del livello canali — R1, R2, R3 (005-livello-canali)
 
 **Per chi:** l'owner (unico autorizzato ad agire in produzione, Legge Zero). **Nessun agente esegue questi passi.**
-**Cosa cambia:** il CRM prepara il modello dati multicanale (ADR 0001 §3.2) in tre rilasci. **R1 «espandi»** (questo pacchetto, M1.2) aggiunge tabelle e colonne nuove, le riempie e le tiene allineate, ma **legge ancora le colonne vecchie**: il comportamento di WhatsApp non cambia. R2 (M1.3) passa le letture alle strutture nuove. R3 (rilascio successivo) toglie le colonne vecchie.
-**Riferimenti:** ADR `docs/adr/0001-livello-canali.md` §3.3 (meccanismo, V1–V7, sequenza dei lock), `specs/005-livello-canali/plan.md` §6, registro `docs/lavoro/2026-10-10-m1-fase2-espandi.md` (prove e misure), `scripts/migrate-channels.mjs` (runner), `drizzle/0013_loving_stone_men.sql` (fase A).
+**Cosa cambia:** il CRM prepara il modello dati multicanale (ADR 0001 §3.2) in tre rilasci. **R1 «espandi»** (M1.2, in produzione dal 13/10/2026) aggiunge tabelle e colonne nuove, le riempie e le tiene allineate, ma **legge ancora le colonne vecchie**: il comportamento di WhatsApp non cambia. **R2** (M1.3, §5) passa le letture alle strutture nuove, senza migrazioni. R3 (rilascio successivo) toglie le colonne vecchie.
+**Riferimenti:** ADR `docs/adr/0001-livello-canali.md` §3.3 (meccanismo, V1–V7, sequenza dei lock), `specs/005-livello-canali/plan.md` §6, registri `docs/lavoro/2026-10-10-m1-fase2-espandi.md` (R1: prove e misure) e `docs/lavoro/2026-10-14-m1.3-r2.md` (R2), `scripts/migrate-channels.mjs` (runner), `drizzle/0013_loving_stone_men.sql` (fase A).
 
 > In questo documento non ci sono segreti. I comandi leggono **conteggi**, mai token o contenuti. Non incollare in chat righe di `meta_credentials`, `channel_account` o `message`.
 
@@ -115,14 +115,81 @@ Sicuro e **senza ripristino del backup**: R0 non conosce le colonne nuove e non 
 3. **Non cancellare nulla** (tabelle, colonne, funzioni): servono al ritorno.
 4. Ritorno a R1 (o, più avanti, a R2): di nuovo **stop-first**. Al primo avvio la riconciliazione riallinea tutto ciò che R0 ha scritto o aggiornato (numeri, token, stato, contatti, conversazioni, messaggi) **prima** di servire traffico; la riga di riepilogo deve tornare a `V1=0 … V7=0`.
 
-## 5. R2 — letture nuove (M1.3, da scrivere quando esiste)
+## 5. R2 — letture nuove (M1.3)
 
-- **Nessuna migrazione Drizzle.** L'immagine di R2 ha la modalità `blocca`: se una verifica è diversa da 0 o la riconciliazione fallisce, il runner esce con codice 1 e il container **non parte** (il log nomina la verifica, per esempio `verifica fallita prima delle migrazioni: V1=1`).
-- Prerequisiti: R1 in produzione da almeno 7 giorni (D10) con il riepilogo `V…=0` a ogni avvio; durate dell'avvio annotate.
-- Passaggio R1 → R2: può essere rolling (R1 scrive anche le strutture nuove).
-- Rollback R2 → R1: sicuro, anche rolling.
-- **R2 → R0: da non fare.** Se succede lo stesso: stop-first, e al ritorno a R2 la riconciliazione riallinea prima di servire traffico.
-- Se R2 non parte per un'anomalia: tornare a R1 (che parte e scrive le anomalie nel log), poi leggere «Come leggere V1–V7».
+**Cosa cambia con R2** (registro `docs/lavoro/2026-10-14-m1.3-r2.md`):
+- **nessuna migrazione Drizzle**: lo schema resta quello di R1 (`0013`), il registro delle migrazioni non cambia;
+- il CRM **legge** le strutture nuove: account da `channel_account`, contatti da `contact_identity`, stati e «sta scrivendo» da `external_message_id`. Continua a **scrivere** anche le colonne vecchie (doppia scrittura), che restano la fonte di verità fino a R3;
+- il runner all'avvio è in modalità **`blocca`**: se una verifica V1–V7 è diversa da 0, la riconciliazione fallisce o la fase B è incompleta, esce con codice 1 e **il container non parte** (il log nomina la verifica, per esempio `verifica fallita prima delle migrazioni: V1=1`);
+- WhatsApp passa dall'adattatore del livello canali, con lo **stesso URL** del webhook: `/api/webhooks/wa/<token>` (ora servito dalla route unica `/api/webhooks/[channel]/[token]` con lo slug `wa`). **In Meta e in Wapi non si riconfigura nulla**;
+- il DTO dei messaggi (API e SSE) riceve un campo **additivo** `channel` (sempre `whatsapp`). Il cervello esterno (`/api/bot/*`) e l'export non cambiano.
+
+### 5.0 Prerequisiti (checklist R2)
+
+- [ ] **D10: R1 in produzione da almeno 7 giorni.** R1 è uscito il **13/10/2026**: R2 si può rilasciare **dal 20/10/2026**, non prima.
+- [ ] A ogni avvio di R1 in questi giorni il riepilogo era `canali (avvisa): V1=0 V2=0 V3=0 V4=0 V5=0 V6=0 V7=0` e **non** compare nessuna riga di fase B incompleta né di verifica fallita (R1 parte comunque, R2 no):
+  ```sh
+  docker compose logs app --since 168h | grep -E "\[migrate\] canali \(avvisa\)|non completato|verifica fallita"
+  ```
+  Atteso: solo righe `canali (avvisa): V1=0 … V7=0`. Una sola riga con V ≠ 0, `non completato` o `verifica fallita`: **fermarsi e chiedere**, R2 non partirebbe. Annotare le durate.
+- [ ] Oggetti della fase B validi (la stessa query del §3, passo 3; sola lettura):
+  ```sh
+  docker compose exec postgres psql -U postgres -d vocero -c "select c.relname, i.indisvalid from pg_class c join pg_index i on i.indexrelid = c.oid where c.relname in ('contact_org_id_uq', 'message_org_channel_ext_uq');" -c "select conname, convalidated from pg_constraint where conname in ('contact_identity_contact_fk', 'message_channel_ck', 'conversation_channel_account_fk');"
+  ```
+  Atteso: due indici con `indisvalid = t`, tre vincoli con `convalidated = t`. Altrimenti R2 (che esige la fase B completa) non parte: fermarsi e chiedere.
+- [ ] Il branch di M1.3 è stato rivisto da un agente diverso dall'autore e unito su `main` dall'owner; CI verde (compreso `test:golden`).
+- [ ] Subito prima del rilascio, con R1 in esecuzione (sola lettura, conteggi):
+  ```sh
+  docker compose exec postgres psql -U postgres -d vocero -c "select * from channels_legacy_check();"
+  ```
+  Atteso: V1…V6 tutte a `0`. Se una è diversa da 0, R2 non partirà: non procedere, leggere «Come leggere V1–V7».
+- [ ] Backup come al §1 (raccomandato anche se R2 non ha migrazioni: è il punto di ritorno se qualcosa va storto più avanti).
+
+### 5.1 Rilascio R1 → R2
+
+Il passaggio R1 → R2 **può essere rolling**: R1 scrive già anche le strutture nuove, quindi un container R1 che serve ancora traffico mentre R2 parte non lascia dati disallineati.
+
+- **docker compose (Ruta B):** `docker compose up -d --build app` (stop-first, va bene lo stesso).
+- **Coolify (Ruta A):** Deploy normale. *Non verificato:* cosa fa Coolify se il container nuovo esce con codice 1 (se tiene in piedi il vecchio, come in un rolling con healthcheck, o se resta senza servizio). Per non dipenderne: guardare il log del deploy (§5.2) prima di considerarlo concluso; se R2 non parte, eseguire subito il §5.3.
+
+Durata attesa dell'avvio: come gli avvii successivi di R1 (riconciliazione e verifiche due volte, nessuna fase nuova): circa 3–3,5 s fino a 1 milione di messaggi (§«Durata attesa»).
+
+### 5.2 Controlli dopo il rilascio R2
+
+1. Log di avvio:
+   ```sh
+   docker compose logs app --since 15m | grep -E "\[migrate\]"
+   ```
+   Atteso, in ordine: `canali: riconciliazione prima delle migrazioni…`, `canali: fase A`, `migraciones aplicadas`, `canali: fase B`, `canali: fase C`, poi **`canali (blocca): V1=0 V2=0 V3=0 V4=0 V5=0 V6=0 V7=0 | …`**. Annotare le durate nel registro di rilascio.
+   - Una riga `canali (pre|post): tentativo N/3 non riuscito, nuovo tentativo tra …s` vuol dire che la riconciliazione ha trovato un lock o un'anomalia e ritenta (2 s, poi 5 s): se dopo c'è il riepilogo `V…=0` il container è partito, annotarlo.
+   - Se compare `verifica fallita …` il container **non** è partito: §5.3.
+2. Verifiche a mano (sola lettura): `select * from channels_legacy_check();` → V1…V6 a `0`.
+3. Configurazione → WhatsApp: stesso numero, stesso stato, stessa URL del webhook (`…/api/webhooks/wa/…`), contatori della firma che si muovono quando arriva un messaggio.
+4. Prova funzionale dell'owner su un numero di prova: un messaggio in entrata (compare in bandeja), una risposta dal CRM (spunte che diventano blu), un'immagine in entrata, un modello se la finestra è chiusa. Se c'è la coexistence: un messaggio scritto dall'app del telefono compare come «manuale» e mette in pausa l'AI.
+5. Nei log dell'app, nessuna riga `[webhook] error procesando payload`, `[canali] copia en channel_account rechazada`, `[canali] copia en contact_identity rechazada` o `[canali] identidad WhatsApp incoherente`.
+
+**Copia stretta (R2).** In R2 la doppia scrittura non è più «best effort»: se la copia su `channel_account` o `contact_identity` non può restare identica alla riga vecchia, **l'intera operazione si annulla** e si vede:
+- salvataggio della connessione (Configurazione → WhatsApp, Embedded Signup) → **409 `channel_account_conflict`** («No se cambió nada…») e nel log `[canali] copia en channel_account rechazada: … — la escritura de meta_credentials se deshace`. Causa tipica: il numero è ancora nell'account di un'altra organizzazione (riga di `meta_credentials` cancellata a mano). Non toccare le tabelle: chiedere, con `channels_legacy_check()`;
+- un `account_update` della coexistence che non si può registrare → `[webhook] account_update …: no se pudo registrar …` (quel payload si annulla; Meta non lo ripete);
+- un messaggio il cui mittente ha un'identità incoerente con `wa_identity` → `[canali] identidad WhatsApp incoherente … mensaje rechazado`: il messaggio **non** viene assegnato a un altro contatto; V3 lo conta e il prossimo avvio di R2 non parte. Fermarsi e chiedere.
+
+### 5.3 Se R2 non parte (V ≠ 0)
+
+1. Tornare a **R1** (l'immagine precedente): R1 parte anche con un'anomalia e la scrive nel log (`canali (avvisa): V…`), quindi il CRM torna in servizio subito.
+2. Leggere quale verifica è diversa da 0 (log o `channels_legacy_check()`) e il paragrafo «Come leggere V1–V7». Non cancellare e non correggere righe a mano: chiedere, con i soli conteggi.
+3. Ritentare R2 solo quando `channels_legacy_check()` dà tutto 0 con R1 in esecuzione.
+
+### 5.4 Rollback di R2
+
+- **R2 → R1: sicuro, anche rolling.** R2 continua la doppia scrittura, quindi le colonne vecchie che R1 legge sono sempre aggiornate. R1 ignora il campo `channel` del DTO.
+- **R2 → R0: da non fare.** R0 non scrive le strutture nuove. Se succede lo stesso: **stop-first** (D18) sia all'andata sia al ritorno; al ritorno a R2 la riconciliazione all'avvio riallinea tutto prima di servire traffico, oppure R2 non parte e si applica il §5.3.
+- In ogni caso **non cancellare nulla** (tabelle, colonne, funzioni `channels_legacy_*`): servono fino a R3.
+
+### 5.5 Non verificato per R2
+
+- Nessun passo eseguito in produzione né su una copia della produzione: prove su PostgreSQL usa e getta con dati sintetici (registro M1.3: golden, E2E su base nuova e su base migrata dal runner di R1, riavvio in `blocca`).
+- Comportamento di Coolify quando il container nuovo esce con codice 1.
+- Il self-test E2E non è ripetibile sulla stessa base (crea organizzazioni e chiavi): è un limite dell'arnese, uguale con R1 (registro M1.3).
 
 ## 6. R3 — contrazione (rilascio successivo, non in M1)
 

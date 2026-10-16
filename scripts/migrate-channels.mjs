@@ -1,5 +1,5 @@
 /**
- * 005-livello-canali (M1.2, R1) — Avvio del database con il livello canali
+ * 005-livello-canali (M1.2 R1, M1.3 R2) — Avvio del database con il livello canali
  * (ADR 0001 §3.3). Lo chiama `scripts/migrate.mjs` (bundle della
  * immagine, Dockerfile) prima di `node server.js`.
  *
@@ -32,8 +32,14 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
 
-/** Modalità di QUESTO rilascio (R1). R2 la cambia in "blocca" nel codice. */
-export const RELEASE_MODE = "avvisa";
+/**
+ * Modalità di QUESTO rilascio: R2 (M1.3, T032) legge le strutture nuove,
+ * quindi «blocca»: una verifica V1–V7 ≠ 0 o un errore della riconciliazione
+ * → codice 1 e il container non parte. Costante del codice, nessuna variabile
+ * d'ambiente e nessun interruttore (Leggi: nessuna eccezione ai controlli).
+ * R1 era «avvisa».
+ */
+export const RELEASE_MODE = "blocca";
 
 /** Messaggi per lotto della fase C (ADR §3.3: un lotto = una transazione breve). */
 export const MESSAGE_BATCH = 5000;
@@ -42,6 +48,13 @@ export const MESSAGE_BATCH = 5000;
 const STARTUP_LOCK_KEY = 5_005_001;
 
 const LOCK_TIMEOUT = "5s";
+
+/**
+ * Modalità «blocca» (revisione PR #14): prima di uscire con 1, riconciliazione
+ * + verifiche si ritentano dopo queste attese (un lock transitorio, una
+ * scrittura concorrente appena finita). Poi exit 1.
+ */
+export const CHECK_RETRY_DELAYS_MS = [2000, 5000];
 
 /**
  * Fase B: gli oggetti che `schema.ts` dichiara ma che drizzle/0013 NON crea,
@@ -85,6 +98,8 @@ const noopLog = { log() {}, warn() {}, error() {} };
  * @param {Pick<Console,"log"|"warn"|"error">} [opts.log]
  * @param {number} [opts.attempts] tentativi per DB non pronta o lock (oggi 15 × 2 s)
  * @param {number} [opts.retryMs]
+ * @param {number[]} [opts.checkRetryDelaysMs] attese tra i tentativi di riconciliazione+verifiche in «blocca»
+ * @param {string} [opts.lockTimeout] lock_timeout della riconciliazione (default 5s)
  */
 export async function runStartup({
   url,
@@ -93,6 +108,8 @@ export async function runStartup({
   log = console,
   attempts = 15,
   retryMs = 2000,
+  checkRetryDelaysMs = CHECK_RETRY_DELAYS_MS,
+  lockTimeout = LOCK_TIMEOUT,
 }) {
   if (mode !== "avvisa" && mode !== "blocca") {
     throw new Error(`[migrate] modalità sconosciuta: ${mode}`);
@@ -100,7 +117,14 @@ export async function runStartup({
   for (let attempt = 1; attempt <= attempts; attempt++) {
     const sql = postgres(url, { max: 1, onnotice: () => {} });
     try {
-      const code = await startupOnce(sql, { migrationsFolder, mode, log, retryMs });
+      const code = await startupOnce(sql, {
+        migrationsFolder,
+        mode,
+        log,
+        retryMs,
+        checkRetryDelaysMs,
+        lockTimeout,
+      });
       await sql.end();
       return code;
     } catch (err) {
@@ -122,7 +146,9 @@ export async function runStartup({
  * Un tentativo completo. Le eccezioni (BD non pronta, lock della fase A)
  * risalgono e `runStartup` ritenta, come il runner di prima.
  */
-async function startupOnce(sql, { migrationsFolder, mode, log, retryMs }) {
+async function startupOnce(sql, { migrationsFolder, mode, log, retryMs, checkRetryDelaysMs, lockTimeout }) {
+  const reconcile = (prefix) =>
+    reconcileWithRetries(sql, { mode, log, timings, prefix, delaysMs: checkRetryDelaysMs, lockTimeout });
   await acquireStartupLock(sql, log);
   const timings = {};
   const wapiBefore = await readWapiState(sql);
@@ -130,7 +156,7 @@ async function startupOnce(sql, { migrationsFolder, mode, log, retryMs }) {
   // Passo 1 — prima delle migrazioni, se il livello canali c'è già.
   if (await channelFunctionsExist(sql)) {
     log.log("[migrate] canali: riconciliazione prima delle migrazioni…");
-    const pre = await reconcileAndCheck(sql, { log, timings, prefix: "pre" });
+    const pre = await reconcile("pre");
     if (mode === "blocca" && !pre.ok) {
       reportFailure(log, "prima delle migrazioni", pre);
       return 1;
@@ -157,7 +183,7 @@ async function startupOnce(sql, { migrationsFolder, mode, log, retryMs }) {
 
   // Passo 4 — fase C + V7.
   log.log("[migrate] canali: fase C (riconciliazione e verifiche)…");
-  const post = await reconcileAndCheck(sql, { log, timings, prefix: "post" });
+  const post = await reconcile("post");
   const wapiAfter = await readWapiState(sql);
   const v7 = diffCount(wapiBefore, wapiAfter);
   post.checks.V7 = v7;
@@ -183,9 +209,36 @@ async function startupOnce(sql, { migrationsFolder, mode, log, retryMs }) {
   return 0;
 }
 
+/**
+ * Riconciliazione + verifiche con i nuovi tentativi della modalità «blocca»
+ * (in «avvisa» un solo tentativo: R1 parte comunque).
+ */
+export async function reconcileWithRetries(
+  sql,
+  { mode, log = noopLog, timings = {}, prefix = "", delaysMs = CHECK_RETRY_DELAYS_MS, lockTimeout = LOCK_TIMEOUT } = {}
+) {
+  let result = await reconcileAndCheck(sql, { log, timings, prefix, lockTimeout });
+  if (mode !== "blocca") return result;
+  for (let i = 0; i < delaysMs.length && !result.ok; i++) {
+    log.warn(
+      `[migrate] canali (${prefix}): tentativo ${i + 1}/${delaysMs.length + 1} non riuscito, ` +
+        `nuovo tentativo tra ${delaysMs[i] / 1000}s…`
+    );
+    await sleep(delaysMs[i]);
+    result = await reconcileAndCheck(sql, { log, timings, prefix, lockTimeout });
+  }
+  return result;
+}
+
 /** Passi 1 e 4: riconciliazione + V1–V6. In «avvisa» un errore non risale. */
-export async function reconcileAndCheck(sql, { log = noopLog, timings = {}, prefix = "" } = {}) {
+export async function reconcileAndCheck(
+  sql,
+  { log = noopLog, timings = {}, prefix = "", lockTimeout = LOCK_TIMEOUT } = {}
+) {
   const result = { ok: true, errors: [], checks: {} };
+  // Come le fasi A e B: un lock lungo di qualcun altro non blocca l'avvio
+  // all'infinito (errore → nuovo tentativo in «blocca»).
+  await sql.unsafe(`SET lock_timeout = '${lockTimeout}'`);
   try {
     let t = Date.now();
     await sql`select channels_legacy_sync()`;
@@ -220,6 +273,7 @@ export async function reconcileAndCheck(sql, { log = noopLog, timings = {}, pref
     result.ok = false;
     result.errors.push(`verifiche: ${describeError(err)}`);
   }
+  await sql.unsafe("RESET lock_timeout").catch(() => {});
   if (!result.ok) {
     log.warn(
       `[migrate] canali (${prefix}): ` +

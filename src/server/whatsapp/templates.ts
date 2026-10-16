@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import {
   countVariables,
   renderBody,
@@ -9,7 +9,6 @@ import { newId } from "@/lib/db/ids";
 import {
   graphRequest,
   MetaApiError,
-  normalizeRecipient,
   WAPI_KEY_MISSING_MESSAGE,
 } from "@/lib/meta/client";
 import { scoped } from "@/lib/db/tenant";
@@ -17,10 +16,12 @@ import { whatsappMessageIds } from "@/server/channels/dual-write";
 import { publish } from "@/server/events/bus";
 import {
   getCredentialsByOrg,
-  getCredentialsByWabaId,
   markReconnectRequired,
 } from "@/server/whatsapp/credentials";
 import { callGraphSend, SendError } from "@/server/inbox/send";
+import { applyTemplateStatus, mapTemplateEvent } from "@/server/channels/core/templates";
+import { findAccountsByParent } from "@/server/channels/core/accounts";
+import { graphPayloadOf, whatsappRecipient } from "@/server/channels/whatsapp/send";
 import { serializeMessage } from "@/server/inbox/ingest";
 import type { WebhookValue } from "@/server/inbox/webhook";
 
@@ -174,17 +175,8 @@ export async function createTemplate(
   return inserted[0]!;
 }
 
-function mapMetaStatus(
-  status: string | undefined
-): TemplateRow["status"] | null {
-  const s = (status ?? "").toUpperCase();
-  if (s === "APPROVED") return "approved";
-  if (s === "REJECTED") return "rejected";
-  if (s === "PENDING" || s === "IN_APPEAL" || s === "PENDING_DELETION") {
-    return "pending";
-  }
-  return null;
-}
+/** Estado de Meta → estado local (fuente: el núcleo, `channels/core/templates.ts`). */
+const mapMetaStatus = mapTemplateEvent;
 
 /**
  * Sincroniza estados desde Graph (`GET {waba}/message_templates`). Cubre el
@@ -260,29 +252,17 @@ export async function applyTemplateStatusEvent(
   value: WebhookValue
 ): Promise<void> {
   if (!wabaId) return;
-  const creds = await getCredentialsByWabaId(wabaId);
-  if (!creds) return;
-
-  const status = mapMetaStatus(value.event);
-  const name = value.message_template_name;
-  const language = value.message_template_language;
-  if (!status || !name || !language) return;
-
-  const db = getDb();
-  await db
-    .update(schema.template)
-    .set({
-      status,
-      rejectionReason: status === "rejected" ? (value.reason ?? null) : null,
-      updatedAt: new Date(),
-    })
-    .where(
-      and(
-        eq(schema.template.organizationId, creds.organizationId),
-        eq(schema.template.name, name),
-        eq(schema.template.language, language)
-      )
-    );
+  // Las plantillas son de la WABA: el estado vale para cada organización con
+  // un número en ella (revisión PR #14).
+  const accounts = await findAccountsByParent("whatsapp", wabaId);
+  for (const organizationId of new Set(accounts.map((a) => a.organizationId))) {
+    await applyTemplateStatus(organizationId, {
+      event: value.event,
+      name: value.message_template_name,
+      language: value.message_template_language,
+      reason: value.reason ?? null,
+    });
+  }
 }
 
 /** Envía una plantilla APROBADA a una conversación (ventana cerrada, FR-051). */
@@ -359,9 +339,10 @@ export async function sendTemplate(input: {
   }
 
   // 003: destinatario = teléfono normalizado o BSUID.
-  const templateRecipient = row.contact.phone
-    ? normalizeRecipient(row.contact.phone)
-    : row.contact.waUserId;
+  const templateRecipient = whatsappRecipient({
+    phone: row.contact.phone,
+    providerUserId: row.contact.waUserId,
+  });
   if (!templateRecipient) {
     throw new TemplateError(
       "meta_error",
@@ -369,25 +350,16 @@ export async function sendTemplate(input: {
     );
   }
 
-  const waMessageId = await callGraphSend(creds, {
-    messaging_product: "whatsapp",
-    to: templateRecipient,
-    type: "template",
-    template: {
+  // 005 (M1.3): el cuerpo de Graph lo arma el adaptador de WhatsApp.
+  const waMessageId = await callGraphSend(
+    creds,
+    graphPayloadOf(templateRecipient, {
+      kind: "template",
       name: template.name,
-      language: { code: template.language },
-      ...(variableCount > 0
-        ? {
-            components: [
-              {
-                type: "body",
-                parameters: values.map((text) => ({ type: "text", text })),
-              },
-            ],
-          }
-        : {}),
-    },
-  });
+      language: template.language,
+      variables: values,
+    })
+  );
 
   const inserted = await db
     .insert(schema.message)

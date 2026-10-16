@@ -94,24 +94,26 @@ description: "Compiti del livello canali comune (M1.2–M1.6)"
 
 ### Test prima del codice
 
-- [ ] T022 [P] [US4] `tests/unit/channels/contract.ts`: suite di contratto (`plan.md` §7.2)
-- [ ] T023 [P] [US4] `tests/unit/channels/fake/fake.test.ts`: un `FakeChannelAdapter` (solo nei test) passa la suite e l'ingesta del nucleo (US4, scenari 1–4)
-- [ ] T024 [P] [US1] Golden puri `tests/unit/channels/whatsapp/parse.test.ts`: fixture → `InboundEvent[]`, ordine stati→messaggi
-- [ ] T025 [P] [US4] Test della route `[channel]`: slug sconosciuto 404 senza leggere il body; token errato 404; firma errata 401
+- [x] T022 [P] [US4] `tests/unit/channels/contract.ts`: suite di contratto (`plan.md` §7.2)
+- [x] T023 [P] [US4] `tests/unit/channels/fake/fake.test.ts`: un `FakeChannelAdapter` (solo nei test) passa la suite e l'ingesta del nucleo (US4, scenari 1–4)
+- [x] T024 [P] [US1] Golden puri `tests/unit/channels/whatsapp/parse.test.ts`: fixture → `InboundEvent[]`, ordine stati→messaggi
+- [x] T025 [P] [US4] Test della route `[channel]`: slug sconosciuto 404 senza leggere il body; token errato 404; firma errata 401
 
 ### Implementazione
 
-- [ ] T026 [US4] `src/server/channels/types.ts` (ADR §3.1) e `src/server/channels/registry.ts`
-- [ ] T027 [US1] `src/server/channels/whatsapp/{parse,send,capabilities,adapter}.ts`, spostando la logica di `src/server/inbox/ingest.ts:195-356`, `src/server/inbox/send.ts:373-406` e `src/server/whatsapp/template-events.ts`, a comportamento identico
-- [ ] T028 [US1] `src/server/channels/core/*`: ingesta, identità, invio (ordine dei controlli di `send.ts:52-112`), stati, account, finestra da capacità (WhatsApp = `WINDOW_MS`)
-- [ ] T029 [US1] `src/app/api/webhooks/[channel]/[webhookToken]/route.ts` con lo slug `wa`; rimuovi `src/app/api/webhooks/wa/` (stesso URL, ADR §3.5)
-- [ ] T030 [US1] Letture nuove nei punti di `plan.md` §5.1–5.3 (`identity.ts`, `status.ts:43`, `bot/context`, `bot/typing`, `start-conversation`, `credentials.ts` come vista di `channel_account`). I contratti pubblicati restano invariati (FR-010)
-- [ ] T031 [US1] `src/server/inbox/*` e `src/server/whatsapp/*` diventano moduli sottili con le stesse firme esportate (`plan.md` §4); nessun chiamante cambia import in questo pacchetto
-- [ ] T032 [US3] Modalità `blocca` nel runner di R2 (costante, nessuna variabile d'ambiente): un'anomalia di V1–V7 o un errore della riconciliazione → exit 1, il container non parte. Nessuna migrazione Drizzle per R2. Sabotaggio: modalità rimessa ad `avvisa` → il test dell'account orfano (T011) fallisce
-- [ ] T033 [US1] DTO dei messaggi: campo **additivo** `channel` in `serializeMessage` (`src/server/inbox/ingest.ts:437`); i golden HTTP accettano solo campi additivi dichiarati nel registro
-- [ ] T034 [US1] Sabotaggi di `plan.md` §7.3: slug sconosciuto, ordine nel gestore, sandbox nel nucleo
+- [x] T026 [US4] `src/server/channels/types.ts` (ADR §3.1) e `src/server/channels/registry.ts`
+- [x] T027 [US1] `src/server/channels/whatsapp/{parse,send,capabilities,adapter}.ts`, spostando la logica di `src/server/inbox/ingest.ts:195-356`, `src/server/inbox/send.ts:373-406` e `src/server/whatsapp/template-events.ts`, a comportamento identico
+- [x] T028 [US1] `src/server/channels/core/*`: ingesta, identità, invio (ordine dei controlli di `send.ts:52-112`), stati, account, finestra da capacità (WhatsApp = `WINDOW_MS`)
+- [x] T029 [US1] `src/app/api/webhooks/[channel]/[webhookToken]/route.ts` con lo slug `wa`; rimuovi `src/app/api/webhooks/wa/` (stesso URL, ADR §3.5)
+- [x] T030 [US1] Letture nuove nei punti di `plan.md` §5.1–5.3 (`identity.ts`, `status.ts:43`, `bot/context`, `bot/typing`, `start-conversation`, `credentials.ts` come vista di `channel_account`). I contratti pubblicati restano invariati (FR-010)
+- [x] T031 [US1] `src/server/inbox/*` e `src/server/whatsapp/*` diventano moduli sottili con le stesse firme esportate (`plan.md` §4); nessun chiamante cambia import in questo pacchetto
+- [x] T032 [US3] Modalità `blocca` nel runner di R2 (costante, nessuna variabile d'ambiente): un'anomalia di V1–V7 o un errore della riconciliazione → exit 1, il container non parte. Nessuna migrazione Drizzle per R2. Sabotaggio: modalità rimessa ad `avvisa` → il test dell'account orfano (T011) fallisce
+- [x] T033 [US1] DTO dei messaggi: campo **additivo** `channel` in `serializeMessage` (`src/server/inbox/ingest.ts:437`); i golden HTTP accettano solo campi additivi dichiarati nel registro
+- [x] T034 [US1] Sabotaggi di `plan.md` §7.3: slug sconosciuto, ordine nel gestore, sandbox nel nucleo
 
 **Checkpoint:** golden **senza modifiche** verdi; suite di contratto verde per WhatsApp e finto; `pnpm test:e2e` verde; test C3 verdi. **Rilascio R2** (owner) dopo D10.
+
+> Esito M1.3 (14/10/2026): registro `docs/lavoro/2026-10-14-m1.3-r2.md`. T023 scenario 1 provato con lo schema di M1.6 simulato nel test (domanda aperta Q3); domande aperte Q1–Q7 nel registro.
 
 ---
 
