@@ -33,6 +33,7 @@ import { Button } from "@/components/ui/button";
 import { CoexistenceConnect } from "@/components/settings/coexistence-connect";
 import { WhatsappAdvanced } from "@/components/settings/whatsapp-advanced";
 import { WapiKeyCard } from "@/components/settings/wapi-key-card";
+import { WebhookRouteAlert } from "@/components/settings/webhook-route-alert";
 import { formatAgo } from "@/components/settings/webhook-signature-status";
 import { useEvents } from "@/components/use-events";
 
@@ -140,7 +141,14 @@ export function WhatsappGuide() {
           {t("settings.whatsapp.guide.loadError")}
         </p>
       ) : (
-        <WhatsappGuideView
+        <>
+          {/* 014 — Meta manda davvero i messaggi al CRM? (solo con un numero collegato) */}
+          {status.connection && (
+            <WebhookRouteAlert
+              number={status.connection.displayPhoneNumber ?? status.connection.phoneNumberId}
+            />
+          )}
+          <WhatsappGuideView
           status={status}
           t={t}
           locale={locale}
@@ -149,7 +157,8 @@ export function WhatsappGuide() {
           announcement={announcement}
           onOpenAdvanced={openAdvanced}
           renderConnect={renderConnect}
-        />
+          />
+        </>
       )}
 
       <details

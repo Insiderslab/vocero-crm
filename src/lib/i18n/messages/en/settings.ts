@@ -203,6 +203,41 @@ const messages: typeof base = {
       "META_APP_SECRET is missing: the signature is mandatory, so the webhook REJECTS every event (503) and no message reaches the inbox. Add the App Secret of the Meta app that sends the webhooks (your own app's — agency mode with a callback override is not supported with mandatory signatures, never copy the agency's App Secret here; behind Wapi, the endpoint secret) to the instance and restart.",
     signatureTestMode:
       "Test environment (mocks enabled): without META_APP_SECRET unsigned events are accepted. In production the signature is always mandatory.",
+    // 014 — Webhook guard: does Meta send the messages to the CRM?
+    route: {
+      elsewhereTitle: "Meta is sending WhatsApp messages to another system",
+      elsewhereBody:
+        "Messages for {{number}} go to {{host}}, not to the CRM: they don't show up in the Inbox and the assistant doesn't reply. This happens when another tool (n8n, Zapier, another CRM) connects to the same Meta app.",
+      sameHostBody:
+        "Meta calls the CRM with an old address: messages for {{number}} are rejected and don't show up in the Inbox.",
+      overrideTitle: "A Meta setting is diverting WhatsApp messages",
+      overrideBody:
+        "An override on the {{level}} sends messages for {{number}} to {{host}}, not to the CRM. Whoever set it must remove it in Meta (WhatsApp Manager → Configuration).",
+      missingTitle: "Meta doesn't know where to send WhatsApp messages",
+      missingBody: "Meta has no address for {{number}}: messages don't reach the CRM.",
+      level_phone_number: "phone number",
+      level_whatsapp_business_account: "WhatsApp Business account (WABA)",
+      restoreNote:
+        "First turn off the WhatsApp-connected flow in the other system (for example n8n's «WhatsApp Trigger» node), otherwise it takes the messages back.",
+      restoreButton: "Restore the connection to the CRM",
+      restoreConfirm:
+        "Meta will send WhatsApp messages for ALL businesses connected to this app to the CRM again. The other system will stop receiving them. Continue?",
+      restoring: "Restoring…",
+      restored: "Done: Meta sends the messages to the CRM again.",
+      restoreFailed: "Meta rejected the restore: {{message}}",
+      restoreFailed_no_app_secret: "The App Secret is missing from the server configuration: restore isn't possible.",
+      restoreFailed_no_app_id: "The App ID is missing: save it in /admin → Platform → Meta.",
+      restoreFailed_wapi_gateway: "With the Wapi gateway, the gateway manages the webhook, not the CRM.",
+      askSuperadmin: "Restoring needs the platform super-admin: let them know.",
+      ok: "Meta sends the messages to the CRM (checked {{when}}).",
+      quietTitle: "No messages since {{when}}",
+      quietBody:
+        "This number usually gets messages every day. If this isn't normal, check the connection.",
+      checkNow: "Check now",
+      checking: "Checking…",
+      shellTitle: "WhatsApp: messages are not reaching the CRM.",
+      shellLink: "Open Settings → WhatsApp",
+    },
     // 013 — Guided connection (3 steps + status strip)
     guide: {
       title: "Connect WhatsApp in 3 steps",

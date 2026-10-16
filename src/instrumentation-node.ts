@@ -97,3 +97,13 @@ export function warnWebhookSignatureConfig(): void {
   const warning = webhookSecretMissingWarning(appSecret);
   if (warning) console.error(`[boot] ${warning}`);
 }
+
+/**
+ * 014 — Guardia del webhook: ogni ora controlla che Meta mandi gli eventi
+ * WhatsApp al CRM e lo scrive nei log quando un numero smette (o torna).
+ */
+export function startWebhookRouteGuard(): void {
+  void import("@/server/whatsapp/webhook-route")
+    .then((m) => m.startWebhookRouteWatch())
+    .catch((err) => console.error("[boot] guardia del webhook non avviata:", err));
+}
