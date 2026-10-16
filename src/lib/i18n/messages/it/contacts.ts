@@ -27,6 +27,7 @@ const messages: typeof base = {
     referido: "Referral",
     conocido: "Conoscente",
     otro: "Altro",
+    sito: "Sito web",
     desconocida: "Non identificata",
   },
   empty: {

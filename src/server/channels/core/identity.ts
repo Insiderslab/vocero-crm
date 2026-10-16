@@ -1,4 +1,4 @@
-import { and, eq, inArray, or, TransactionRollbackError } from "drizzle-orm";
+import { and, eq, inArray, or, sql, TransactionRollbackError } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { newId } from "@/lib/db/ids";
 import { insertContactIfAbsent } from "@/server/channels/dual-write";
@@ -134,7 +134,16 @@ async function whatsappContactByIdentity(
 export async function getOrCreateWhatsappContact(
   organizationId: string,
   resolved: ResolvedIdentity,
-  opts: { reactivate?: boolean } = {}
+  opts: {
+    /** 009 — el historial de coexistence no reactiva archivados. */
+    reactivate?: boolean;
+    /**
+     * 008 — El mensaje es un entrante de WhatsApp EN VIVO (Meta verificó el
+     * número). Un contacto nacido del formulario del sitio (`source = sito`)
+     * recibe aquí su nombre verificado la primera vez.
+     */
+    verifiedInbound?: boolean;
+  } = {}
 ): Promise<{ contact: ContactRow; isNew: boolean }> {
   const reactivate = opts.reactivate ?? true;
   const db = getDb();
@@ -175,6 +184,23 @@ export async function getOrCreateWhatsappContact(
       patch.waUserId = resolved.waUserId;
     if (resolved.phone && !existing.phone) patch.phone = resolved.phone;
     if (existing.archivedAt && reactivate) patch.archivedAt = null;
+    // 008 — Un formulario público pudo crear este contacto con el teléfono de
+    // otra persona y un nombre inventado. Con el PRIMER entrante de WhatsApp
+    // (número verificado por Meta), el nombre pasa a ser el verificado: el de
+    // la agenda si existe, si no el de perfil, si no el teléfono. Una sola vez:
+    // después manda el que ponga el operador.
+    if (
+      opts.verifiedInbound &&
+      existing.source === "sito" &&
+      !(await hasWhatsappInbound(organizationId, existing.id))
+    ) {
+      const addressBookName = existing.phone
+        ? await lookupAddressBookName(organizationId, existing.phone)
+        : null;
+      const verified =
+        addressBookName || resolved.profileName?.trim() || displayFallback(resolved);
+      if (verified !== existing.name) patch.name = verified;
+    }
     if (Object.keys(patch).length > 0) {
       patch.updatedAt = new Date();
       await db
@@ -280,6 +306,24 @@ export async function getOrCreateChannelContact(
   const raced = await contactByIdentity(organizationId, channel, ref.externalId);
   if (!raced) throw new Error("contacto no encontrado tras upsert");
   return { contact: raced, isNew: false };
+}
+
+/** ¿El contacto ya recibió algún entrante de WhatsApp (de cualquier conversación)? */
+async function hasWhatsappInbound(organizationId: string, contactId: string): Promise<boolean> {
+  const rows = await getDb()
+    .select({ one: sql<number>`1` })
+    .from(schema.message)
+    .innerJoin(schema.conversation, eq(schema.conversation.id, schema.message.conversationId))
+    .where(
+      and(
+        eq(schema.message.organizationId, organizationId),
+        eq(schema.conversation.contactId, contactId),
+        eq(schema.message.direction, "in"),
+        eq(schema.message.channel, "whatsapp")
+      )
+    )
+    .limit(1);
+  return rows.length > 0;
 }
 
 async function lookupAddressBookName(
