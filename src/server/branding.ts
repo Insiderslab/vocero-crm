@@ -48,6 +48,10 @@ async function instanceOrganization(): Promise<OrgRow | null> {
       .from(schema.organization)
       .where(eq(schema.organization.id, configured))
       .limit(1);
+    if (!rows[0]) {
+      // Seguro (marca por defecto), pero visible: suele ser un error al escribir el id.
+      console.warn(`[branding] BRANDING_ORGANIZATION_ID no corresponde a ninguna organización: ${configured}`);
+    }
     return rows[0] ?? null;
   }
   const rows = await db

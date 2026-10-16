@@ -1,5 +1,5 @@
 import { readMediaFile } from "@/server/whatsapp/media";
-import { getBrandingContext } from "@/server/branding";
+import { getRequestBrandingContext } from "@/server/branding-request";
 import { DEFAULT_BRANDING } from "@/lib/branding";
 import { FAVICON_ASSET, generatedFaviconSvg } from "@/lib/favicon";
 
@@ -20,22 +20,24 @@ function cabeceras(mime: string, cacheable: boolean): HeadersInit {
     "x-content-type-options": "nosniff",
     // La URL lleva `?v=` y cambia con la marca, así que se puede cachear
     // fuerte. Sin ese sufijo —alguien pidiendo la ruta pelada— no.
+    // `private`: el icono depende de la sesión (CRM-1, cada organización el
+    // suyo); una caché compartida no debe servir el de una a otra.
     "cache-control": cacheable
-      ? "public, max-age=31536000, immutable"
-      : "public, max-age=60",
+      ? "private, max-age=31536000, immutable"
+      : "private, max-age=60",
+    vary: "Cookie",
   };
 }
 
 /**
  * El icono de la pestaña. **Ruta pública**: el login también tiene pestaña, y
- * ahí todavía no hay sesión. Es la misma decisión que ya toma el GET de la
- * marca — en una instancia de un solo negocio, su nombre y su logo no son un
- * secreto.
+ * ahí todavía no hay sesión. Con sesión, el de su organización; sin sesión, el
+ * de la instancia (CRM-1: nunca el de una organización cualquiera).
  */
 export async function GET(req: Request) {
   const cacheable = new URL(req.url).searchParams.has("v");
 
-  const ctx = await getBrandingContext().catch(() => null);
+  const ctx = await getRequestBrandingContext().catch(() => null);
   const branding = ctx?.branding ?? DEFAULT_BRANDING;
 
   if (ctx?.organizationId && branding.favicon) {

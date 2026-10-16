@@ -9,7 +9,15 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
  */
 
 type Org = { id: string; metadata: string | null; createdAt: number };
-const state = vi.hoisted(() => ({ orgs: [] as Org[], queries: [] as string[] }));
+const state = vi.hoisted(() => ({
+  orgs: [] as Org[],
+  queries: [] as string[],
+  session: null as { organizationId: string } | null,
+}));
+
+vi.mock("@/lib/auth/session", () => ({
+  getSessionOrNull: async () => state.session,
+}));
 
 vi.mock("@/lib/db", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/db")>();
@@ -62,6 +70,7 @@ const brand = (name: string) => JSON.stringify({ branding: { name } });
 
 beforeEach(() => {
   state.queries.length = 0;
+  state.session = null;
   delete process.env.BRANDING_ORGANIZATION_ID;
   // getEnv() se memoriza: módulos nuevos en cada test para releer el entorno.
   vi.resetModules();
@@ -121,5 +130,46 @@ describe("con sesión: la marca de SU organización", () => {
     expect((await context("org_b")).branding.name).toBe("Azienda B");
     expect((await context("org_a")).branding.name).toBe("Azienda A");
     expect(state.queries).toEqual(["where:org_b:limit1", "where:org_a:limit1"]);
+  });
+});
+
+describe("CRM-1: configuración que no existe", () => {
+  it("BRANDING_ORGANIZATION_ID inexistente → marca por defecto (nunca la primera) y aviso en el log", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    process.env.BRANDING_ORGANIZATION_ID = "org_borrada";
+    state.orgs = [{ id: "org_a", metadata: brand("Azienda A"), createdAt: 1 }];
+    const ctx = await context();
+    expect(ctx.organizationId).toBeNull();
+    expect(JSON.stringify(ctx)).not.toMatch(/Azienda/);
+    expect(warn).toHaveBeenCalledOnce();
+    expect(String(warn.mock.calls[0]![0])).toContain("org_borrada");
+    warn.mockRestore();
+  });
+});
+
+describe("CRM-1: marca de la petición (layout raíz y favicon)", () => {
+  async function request() {
+    const { getRequestBrandingContext } = await import("@/server/branding-request");
+    return getRequestBrandingContext();
+  }
+
+  it("con sesión: la de SU organización, aunque haya varias y nada configurado", async () => {
+    state.orgs = [
+      { id: "org_a", metadata: brand("Azienda A"), createdAt: 1 },
+      { id: "org_b", metadata: brand("Azienda B"), createdAt: 2 },
+    ];
+    state.session = { organizationId: "org_b" };
+    const ctx = await request();
+    expect(ctx.organizationId).toBe("org_b");
+    expect(ctx.branding.name).toBe("Azienda B");
+  });
+
+  it("sin sesión: la de la instancia (aquí, por defecto con varias organizaciones)", async () => {
+    state.orgs = [
+      { id: "org_a", metadata: brand("Azienda A"), createdAt: 1 },
+      { id: "org_b", metadata: brand("Azienda B"), createdAt: 2 },
+    ];
+    const ctx = await request();
+    expect(ctx.organizationId).toBeNull();
   });
 });
