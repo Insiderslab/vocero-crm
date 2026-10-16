@@ -11,6 +11,8 @@ import { AppNav } from "@/components/app-nav";
 import { HandoffAlerts } from "@/components/handoff-alerts";
 import { HeiliMark } from "@/components/heili-mark";
 import { RoleProvider } from "@/components/role-context";
+import { WebhookRouteShellAlert } from "@/components/settings/webhook-route-alert";
+import { canManageWhatsapp } from "@/lib/roles";
 
 /**
  * Cascarón de la app en dos modos:
@@ -111,6 +113,12 @@ export function AppShell({
             {branding.name}
           </span>
         </header>
+
+        {/* 014 — I messaggi WhatsApp non arrivano al CRM: barra rossa ovunque
+            (owner/admin), tranne nella pagina WhatsApp che ha l'avviso completo. */}
+        {canManageWhatsapp(role) && !pathname.startsWith("/settings/whatsapp") && (
+          <WebhookRouteShellAlert />
+        )}
 
         <main className="min-h-0 min-w-0 flex-1 overflow-hidden">
           <RoleProvider value={role}>{children}</RoleProvider>
