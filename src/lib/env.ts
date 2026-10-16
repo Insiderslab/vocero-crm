@@ -40,6 +40,9 @@ const envSchema = z.object({
   // organización: vale únicamente si WAPI_ORG_IDS (csv) contiene exactamente
   // esa organización; con varias o vacía no se usa (fail-closed).
   WAPI_BASE_URL: z.string().url().optional(),
+  // CRM-1: organización cuya marca se muestra SIN sesión (login, favicon) en
+  // una instancia con varias organizaciones. Con una sola no hace falta.
+  BRANDING_ORGANIZATION_ID: z.string().min(1).optional(),
   WAPI_API_KEY: z.string().optional(),
   WAPI_ORG_IDS: z.string().optional(),
   OPENROUTER_API_TOKEN: z.string().optional(),
