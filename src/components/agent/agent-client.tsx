@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useT } from "@/lib/i18n/client";
 import { CardsSkeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
+import { rondaLine, type LastBroadcast } from "./ronda-line";
 import {
   createLatestGate,
   initServerForm,
@@ -34,6 +35,8 @@ type Restriction = {
   restrictToAllowlist: boolean;
   allowedIdentities: string[];
   outsiderReply: string | null;
+  /** 012: ultima ronda del team (solo nel GET). */
+  lastBroadcast?: LastBroadcast | null;
 };
 
 type KbEntry = {
@@ -345,7 +348,7 @@ function RestrictedSection({
   restriction: Restriction;
   onSave: (patch: Record<string, unknown>) => Promise<SaveResult>;
 }) {
-  const { t } = useT();
+  const { t, locale } = useT();
   const [state, dispatch] = useReducer(
     serverFormReducer<RestrictionForm>,
     restrictionFormOf(restriction),
@@ -392,6 +395,11 @@ function RestrictedSection({
           <div>
             <CardTitle>{t("agent.restricted.title")}</CardTitle>
             <CardDescription>{t("agent.restricted.description")}</CardDescription>
+            {restriction.lastBroadcast !== undefined && (
+              <p id="ronda-last" className="mt-1.5 text-xs text-muted-foreground">
+                {rondaLine(t, locale, restriction.lastBroadcast)}
+              </p>
+            )}
           </div>
           <Badge variant="secondary">
             {t("agent.restricted.count", {

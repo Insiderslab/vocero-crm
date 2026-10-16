@@ -30,6 +30,8 @@ const prefixes = {
   // 005 — livello canali (ADR 0001 §3.2)
   channelAccount: "cha",
   contactIdentity: "ci",
+  // 012 — ronda del team
+  teamBroadcast: "tb",
 } as const;
 
 export type IdKind = keyof typeof prefixes;

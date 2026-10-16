@@ -48,6 +48,14 @@ const messages: typeof base = {
     invalid: "Numeri non validi: {{lines}}. Scrivi ogni numero con «+» e il prefisso internazionale, es. +39 347 123 4567.",
     saveError: "Impossibile salvare l'accesso riservato",
     count: "{{count}} numeri autorizzati",
+    ronda: {
+      none: "Ronda: ancora nessuna inviata.",
+      last: "Ronda: ultima inviata il {{date}} a {{count}} persone ({{outcome}}).",
+      lastOne: "Ronda: ultima inviata il {{date}} a 1 persona ({{outcome}}).",
+      allSent: "tutte inviate",
+      partial: "inviate {{sent}} su {{total}}",
+      running: "in corso",
+    },
   },
   kb: {
     title: "Knowledge base",

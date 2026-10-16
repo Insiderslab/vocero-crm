@@ -133,6 +133,7 @@ const ROWS: Row[] = [
   ["bot/profile", ["GET"], "bot-key", "clave de servicio del bot"],
   ["bot/reset", ["POST"], "bot-key", "clave de servicio del bot"],
   ["bot/typing", ["POST"], "bot-key", "clave de servicio del bot"],
+  ["bot/team-broadcast", ["POST"], "bot-key", "012: ronda del team — clave de servicio del bot; destinatari SOLO la lista del team (Accesso riservato)"],
   ["export/contacts", ["GET"], "export-key", "clave de exportación"],
   ["export/conversations", ["GET"], "export-key", "clave de exportación"],
   ["export/leads", ["GET"], "export-key", "clave de exportación"],

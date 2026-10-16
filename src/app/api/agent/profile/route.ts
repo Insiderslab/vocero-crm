@@ -5,6 +5,7 @@ import { scoped } from "@/lib/db/tenant";
 import { isAiConfigured } from "@/lib/env";
 import { isOrgAdmin } from "@/lib/roles";
 import { ALLOWLIST_MAX, parseAllowlist } from "@/server/ai/allowlist";
+import { getLastTeamBroadcast } from "@/server/team-broadcast/service";
 
 export const dynamic = "force-dynamic";
 
@@ -35,6 +36,8 @@ export const GET = withAuth(async (session) => {
             restrictToAllowlist: p.restrictToAllowlist,
             allowedIdentities: p.allowedIdentities,
             outsiderReply: p.outsiderReply,
+            // 012: riga «Ronda: ultima inviata…» (sola lettura).
+            lastBroadcast: await getLastTeamBroadcast(session.organizationId),
           },
         }
       : {}),
