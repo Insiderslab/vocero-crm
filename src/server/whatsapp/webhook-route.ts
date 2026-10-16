@@ -1,4 +1,4 @@
-import { and, count, eq, gte, max, sql } from "drizzle-orm";
+import { and, count, eq, gte, lte, max, sql, type SQL } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { scoped } from "@/lib/db/tenant";
 import { getEnv } from "@/lib/env";
@@ -32,11 +32,17 @@ import { getCredentialsByOrg } from "@/server/whatsapp/credentials";
 
 export const CACHE_TTL_MS = 10 * 60 * 1000;
 
-type CacheEntry = { at: number; check: WebhookRouteCheck };
+type CacheEntry = { at: number; check: WebhookRouteCheck; phoneNumberId: string };
 
 const globalForGuard = globalThis as unknown as {
   __webhookRouteCache?: Map<string, CacheEntry>;
+  __webhookRouteInFlight?: Map<string, Promise<WebhookRouteCheck | null>>;
 };
+
+function inFlight(): Map<string, Promise<WebhookRouteCheck | null>> {
+  if (!globalForGuard.__webhookRouteInFlight) globalForGuard.__webhookRouteInFlight = new Map();
+  return globalForGuard.__webhookRouteInFlight;
+}
 
 function cache(): Map<string, CacheEntry> {
   if (!globalForGuard.__webhookRouteCache) globalForGuard.__webhookRouteCache = new Map();
@@ -74,14 +80,26 @@ export async function checkWebhookRoute(
   organizationId: string,
   opts: { maxAgeMs?: number } = {}
 ): Promise<WebhookRouteCheck | null> {
-  const prev = cache().get(organizationId);
-  const maxAge = opts.maxAgeMs ?? CACHE_TTL_MS;
-  if (prev && Date.now() - prev.at < maxAge) return prev.check;
+  // Più schede aperte insieme alla scadenza della cache: una sola chiamata a Meta.
+  const running = inFlight().get(organizationId);
+  if (running) return running;
+  const p = doCheck(organizationId, opts.maxAgeMs ?? CACHE_TTL_MS).finally(() => {
+    inFlight().delete(organizationId);
+  });
+  inFlight().set(organizationId, p);
+  return p;
+}
 
+async function doCheck(organizationId: string, maxAge: number): Promise<WebhookRouteCheck | null> {
   const creds = await getCredentialsByOrg(organizationId);
+  const prev = cache().get(organizationId);
   if (!creds) {
     cache().delete(organizationId);
     return null;
+  }
+  // La cache vale solo per lo STESSO numero: dopo un cambio di numero si ricontrolla.
+  if (prev && prev.phoneNumberId === creds.phoneNumberId && Date.now() - prev.at < maxAge) {
+    return prev.check;
   }
   const env = getEnv();
   let check: WebhookRouteCheck;
@@ -105,32 +123,36 @@ export async function checkWebhookRoute(
       check = { ...classifyWebhookRoute(undefined, expectedUrl()), reason: "meta_error" };
     }
   }
-  logTransition(organizationId, creds.displayPhoneNumber ?? creds.phoneNumberId, prev?.check, check);
-  cache().set(organizationId, { at: Date.now(), check });
+  const prevSameNumber = prev?.phoneNumberId === creds.phoneNumberId ? prev.check : undefined;
+  logTransition(organizationId, creds.displayPhoneNumber ?? creds.phoneNumberId, prevSameNumber, check);
+  cache().set(organizationId, { at: Date.now(), check, phoneNumberId: creds.phoneNumberId });
   return check;
 }
 
 /**
- * Messaggi in entrata veri (non Laboratorio) degli ultimi 14 giorni e
- * l'ultimo arrivato: bastano per dire se il silenzio è insolito.
+ * Per il silenzio insolito: l'ultimo messaggio in entrata vero (non
+ * Laboratorio) e quanti ne erano arrivati nei 14 giorni PRIMA di quello.
+ * La media si misura prima del silenzio, non fino ad adesso: altrimenti più
+ * dura il silenzio, più la media scende e l'avviso si spegne da solo.
  */
 export async function inboundStats(
-  organizationId: string,
-  now: Date = new Date()
+  organizationId: string
 ): Promise<{ inbound14d: number; lastInboundAt: string | null }> {
-  const since = new Date(now.getTime() - 14 * 86_400_000);
   const m = schema.message;
   const c = schema.conversation;
-  const rows = await getDb()
-    .select({ n: count(), last: max(m.createdAt) })
+  const real = (...more: SQL[]) =>
+    scoped(m.organizationId, organizationId, eq(m.direction, "in"), sql`${c.isTest} = false`, ...more);
+  const join = and(eq(c.id, m.conversationId), eq(c.organizationId, m.organizationId));
+  const [lastRow] = await getDb().select({ last: max(m.createdAt) }).from(m).innerJoin(c, join).where(real());
+  if (!lastRow?.last) return { inbound14d: 0, lastInboundAt: null };
+  const last = new Date(lastRow.last);
+  const since = new Date(last.getTime() - 14 * 86_400_000);
+  const [countRow] = await getDb()
+    .select({ n: count() })
     .from(m)
-    .innerJoin(c, and(eq(c.id, m.conversationId), eq(c.organizationId, m.organizationId)))
-    .where(scoped(m.organizationId, organizationId, eq(m.direction, "in"), gte(m.createdAt, since), sql`${c.isTest} = false`));
-  const last = rows[0]?.last;
-  return {
-    inbound14d: Number(rows[0]?.n ?? 0),
-    lastInboundAt: last ? new Date(last).toISOString() : null,
-  };
+    .innerJoin(c, join)
+    .where(real(gte(m.createdAt, since), lte(m.createdAt, last)));
+  return { inbound14d: Number(countRow?.n ?? 0), lastInboundAt: last.toISOString() };
 }
 
 /** Organizzazioni con un numero collegato (per il giro orario). */

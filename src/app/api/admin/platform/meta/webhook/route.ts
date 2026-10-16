@@ -14,5 +14,6 @@ export const POST = withSuperadmin(async () => {
   const r = await restoreAppWebhook();
   if (r.ok) return Response.json({ ok: true });
   const status = r.code === "meta_rejected" ? 502 : 409;
-  return apiError(status, r.code, r.message ?? r.code);
+  // Il codice decide il testo nell'interfaccia; il messaggio di Meta (ripulito) solo con meta_rejected.
+  return apiError(status, r.code, r.message ?? "");
 });

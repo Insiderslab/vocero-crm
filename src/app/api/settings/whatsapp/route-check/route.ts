@@ -16,18 +16,22 @@ const REFRESH_MIN_AGE_MS = 30_000;
  * indirizzo estraneo solo l'host, del nostro niente.
  */
 export const GET = withAdminAuth(async (session, req: Request) => {
-  const refresh = new URL(req.url).searchParams.get("refresh") === "1";
+  const q = new URL(req.url).searchParams;
+  const refresh = q.get("refresh") === "1";
+  // Le statistiche (una query sui messaggi) solo per la pagina WhatsApp
+  // (`?stats=1`): la barra in alto guarda solo l'instradamento.
+  const withStats = q.get("stats") === "1";
   const [route, stats, authSession] = await Promise.all([
     checkWebhookRoute(session.organizationId, refresh ? { maxAgeMs: REFRESH_MIN_AGE_MS } : {}),
-    inboundStats(session.organizationId),
+    withStats ? inboundStats(session.organizationId) : Promise.resolve(null),
     // Dentro una funzione async: se `headers()` lancia, è un rifiuto gestito
     // da Promise.all e non lascia le altre due promesse senza gestore.
     (async () => getAuth().api.getSession({ headers: await headers() }))(),
   ]);
   const body: WebhookRouteCheckResponse = {
     route,
-    quiet: route !== null && isUnusuallyQuiet(stats),
-    lastInboundAt: stats.lastInboundAt,
+    quiet: route !== null && stats !== null && isUnusuallyQuiet(stats),
+    lastInboundAt: stats?.lastInboundAt ?? null,
     canRestore: isSuperadminEmail(authSession?.user.email),
   };
   return Response.json(body);

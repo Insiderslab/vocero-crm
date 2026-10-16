@@ -29,15 +29,26 @@ const URL_RESTORE = "/api/admin/platform/meta/webhook";
 /** La barra in alto si ricontrolla ogni 15 minuti (il server tiene 10 minuti in cache). */
 const SHELL_POLL_MS = 15 * 60 * 1000;
 
-async function fetchCheck(refresh = false): Promise<WebhookRouteCheckResponse | null> {
-  const res = await fetch(refresh ? `${URL_CHECK}?refresh=1` : URL_CHECK, { cache: "no-store" }).catch(
-    () => null
-  );
+async function fetchCheck(opts: { refresh?: boolean; stats?: boolean } = {}): Promise<WebhookRouteCheckResponse | null> {
+  const qs = new URLSearchParams();
+  if (opts.refresh) qs.set("refresh", "1");
+  if (opts.stats) qs.set("stats", "1");
+  const query = qs.toString();
+  const url = query ? `${URL_CHECK}?${query}` : URL_CHECK;
+  const res = await fetch(url, { cache: "no-store" }).catch(() => null);
   if (!res?.ok) return null;
   return (await res.json().catch(() => null)) as WebhookRouteCheckResponse | null;
 }
 
-type RestoreState = { kind: "idle" } | { kind: "busy" } | { kind: "done" } | { kind: "failed"; message: string };
+/** Codici di errore del ripristino che hanno un testo proprio. */
+const RESTORE_CODES = ["no_app_id", "no_app_secret", "wapi_gateway", "meta_rejected"] as const;
+type RestoreCode = (typeof RESTORE_CODES)[number];
+
+type RestoreState =
+  | { kind: "idle" }
+  | { kind: "busy" }
+  | { kind: "done" }
+  | { kind: "failed"; code: RestoreCode; message: string };
 
 export function WebhookRouteAlert({ number }: { number: string }) {
   const { t, locale } = useT();
@@ -48,7 +59,7 @@ export function WebhookRouteAlert({ number }: { number: string }) {
 
   const load = useCallback(async (refresh = false) => {
     setChecking(true);
-    const d = await fetchCheck(refresh);
+    const d = await fetchCheck({ refresh, stats: true });
     if (d) setData(d);
     setNow(Date.now());
     setChecking(false);
@@ -67,8 +78,9 @@ export function WebhookRouteAlert({ number }: { number: string }) {
       await load(true);
       return;
     }
-    const body = (await res?.json().catch(() => null)) as { error?: { message?: string } } | null;
-    setRestore({ kind: "failed", message: body?.error?.message ?? String(res?.status ?? "—") });
+    const body = (await res?.json().catch(() => null)) as { error?: { code?: string; message?: string } } | null;
+    const code = RESTORE_CODES.find((c) => c === body?.error?.code) ?? "meta_rejected";
+    setRestore({ kind: "failed", code, message: body?.error?.message || String(res?.status ?? "—") });
   }
 
   if (!data) return null;
@@ -156,7 +168,11 @@ export function WebhookRouteAlertView({
                 {restore.kind === "busy" ? k("restoring") : k("restoreButton")}
               </Button>
               {restore.kind === "failed" && (
-                <p className="text-xs text-danger-text">{k("restoreFailed", { message: restore.message })}</p>
+                <p className="text-xs text-danger-text" data-testid="webhook-route-restore-failed">
+                  {restore.code === "meta_rejected"
+                    ? k("restoreFailed", { message: restore.message })
+                    : k(`restoreFailed_${restore.code}`)}
+                </p>
               )}
             </div>
           ) : (

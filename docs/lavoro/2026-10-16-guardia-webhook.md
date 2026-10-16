@@ -32,8 +32,8 @@ di ripristino, avviso di silenzio).
 |---|---|
 | `tsc --noEmit` | pulito |
 | `eslint src tests/unit/webhook-route-guard.test.ts` | pulito |
-| `vitest run tests/unit` | 90 file, 1447 test verdi (28 nuovi) |
-| `vitest -c vitest.golden.config.ts` (PostgreSQL 16 vero) | 18 file, 182 test verdi (10 nuovi); istantanee invariate |
+| `vitest run tests/unit` | 90 file, 1450 test verdi (31 nuovi) |
+| `vitest -c vitest.golden.config.ts` (PostgreSQL 16 vero) | 18 file, 183 test verdi (11 nuovi); istantanee invariate |
 | `next build` | ok (le due rotte nuove compaiono come dinamiche) |
 
 Nota golden: `message.created_at` lo scrive PostgreSQL (orologio reale) mentre l'arnés
@@ -45,6 +45,19 @@ congela l'orologio JS al 2030; il test allinea la riga all'orologio del test.
 | `foreignHost` = indirizzo completo (con percorso) | 5 test unit (host/percorso, vista) |
 | tolto `scrubSecrets` dal messaggio di Meta | «Meta rifiuta: il messaggio torna senza segreti» |
 | rotta di ripristino con `withAdminAuth` invece di `withSuperadmin` | `settings-routes-guard` (inventario per AST) |
+
+## Revisione indipendente (agente separato) e correzioni
+| Punto | Gravità | Correzione |
+|---|---|---|
+| La media del silenzio si misurava fino ad ADESSO: più durava il silenzio, prima l'avviso si spegneva | media | media nei 14 giorni **prima** dell'ultimo messaggio (golden: −20 d e −10 d → 2; il sabotaggio «fino ad adesso» lo fa fallire) |
+| La barra in alto faceva a ogni caricamento una query sui messaggi che non usava | bassa-media | statistiche solo con `?stats=1` (pagina WhatsApp) |
+| Ripristino non possibile (manca App Secret/App ID, Wapi) mostrato come «Meta ha rifiutato: no_app_secret» | bassa | testo proprio per ogni codice (es/en/it) |
+| Cache per organizzazione anche dopo un cambio di numero; più schede = più chiamate a Meta | bassa | cache legata al `phoneNumberId`; una sola chiamata in corso per organizzazione |
+
+Non verificato (segnalato dalla revisione): con un numero manuale il cui token è di
+**un'altra** app Meta, `application` può essere il callback di quell'app; il ripristino
+agisce sull'app della piattaforma e l'avviso resterebbe. Caso raro: il testo dell'avviso
+nomina l'host, che basta per capirlo.
 
 ## Da verificare in produzione
 - Dopo il rilascio: Impostazioni → WhatsApp di «Negocio de Stefano Finoti» mostra la riga

@@ -197,6 +197,27 @@ describe("checkWebhookRoute", () => {
     expect(calls).toHaveLength(2);
   });
 
+  it("numero cambiato: la cache del numero vecchio non vale, si ricontrolla", async () => {
+    const calls = stubFetch(() => ({ webhook_configuration: { application: EXPECTED } }));
+    const { checkWebhookRoute, clearWebhookRouteCache } = await import("@/server/whatsapp/webhook-route");
+    clearWebhookRouteCache();
+    await checkWebhookRoute("org_a");
+    fixture.creds = { ...fixture.creds, phoneNumberId: "999999999999999" };
+    await checkWebhookRoute("org_a");
+    expect(calls).toHaveLength(2);
+    expect(calls[1]!.url).toContain("/999999999999999?fields=webhook_configuration");
+  });
+
+  it("due richieste contemporanee: una sola chiamata a Meta", async () => {
+    const calls = stubFetch(() => ({ webhook_configuration: { application: EXPECTED } }));
+    const { checkWebhookRoute, clearWebhookRouteCache } = await import("@/server/whatsapp/webhook-route");
+    clearWebhookRouteCache();
+    const [a, b] = await Promise.all([checkWebhookRoute("org_a"), checkWebhookRoute("org_a")]);
+    expect(a?.state).toBe("ok");
+    expect(b?.state).toBe("ok");
+    expect(calls).toHaveLength(1);
+  });
+
   it("Meta in errore → unknown (meta_error), nessun allarme", async () => {
     stubFetch(() => ({ error: { message: "boom", code: 2 } }), 500);
     vi.spyOn(console, "warn").mockImplementation(() => {});
@@ -356,6 +377,24 @@ describe("WebhookRouteAlertView", () => {
     });
     expect(out).toContain('data-testid="webhook-route-quiet"');
     expect(out).toContain("settings.whatsapp.route.checkNow");
+  });
+
+  it("ripristino fallito senza App Secret: testo proprio, non «Meta ha rifiutato»", async () => {
+    const { WebhookRouteAlertView } = await import("@/components/settings/webhook-route-alert");
+    const out = renderToStaticMarkup(
+      WebhookRouteAlertView({
+        data: { route: elsewhere, quiet: false, lastInboundAt: null, canRestore: true },
+        number: "+1 555-779-6249",
+        t,
+        locale: "it",
+        now: NOW.getTime(),
+        restore: { kind: "failed", code: "no_app_secret", message: "" },
+        onCheckNow: () => {},
+        onRestore: () => {},
+      })
+    );
+    expect(out).toContain("settings.whatsapp.route.restoreFailed_no_app_secret");
+    expect(out).not.toContain("settings.whatsapp.route.restoreFailed(");
   });
 
   it("unknown (Meta non risponde): non mostra niente di allarmante", async () => {

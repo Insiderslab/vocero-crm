@@ -134,6 +134,20 @@ describe("014 — GET /api/settings/whatsapp/route-check", () => {
     const body = await (await check()).json();
     expect(body.route.state).toBe("ok");
     expect(body.canRestore).toBe(true);
+    // Sin `?stats=1` (la barra de arriba) no se cuentan mensajes.
+    expect(body.lastInboundAt).toBeNull();
+    expect(body.quiet).toBe(false);
+  });
+
+  it("?stats=1 (página WhatsApp): incluye el último entrante", async () => {
+    await seedUsers();
+    clearWebhookRouteCache();
+    await postWebhook(waFixture("inbound-text-mx"));
+    metaSays(expected());
+    as("admin");
+    const res = await routeCheckGet(new Request("http://localhost/api/settings/whatsapp/route-check?stats=1"));
+    const body = await res.json();
+    expect(body.lastInboundAt).not.toBeNull();
   });
 });
 
@@ -201,11 +215,21 @@ describe("014 — inboundStats: PostgreSQL real, por organización", () => {
     expect(b).toEqual({ inbound14d: 0, lastInboundAt: null });
   });
 
-  it("un entrante de hace 15 días ya no cuenta", async () => {
+  it("la media se mide en los 14 días ANTES del último entrante, no hasta ahora", async () => {
+    // Uno de hace 20 días y otro de hace 10: la ventana es [−24 d, −10 d] → 2.
+    // Medida hasta ahora ([−14 d, ahora]) daría 1: el silencio bajaría la media
+    // y el aviso se apagaría solo.
     await postWebhook(waFixture("inbound-text-mx"));
-    const old = new Date(Date.now() - 15 * 86_400_000).toISOString();
-    await sql()`update message set created_at = ${old}::timestamp`;
-    expect((await inboundStats(ORG_A)).inbound14d).toBe(0);
+    const d20 = new Date(Date.now() - 20 * 86_400_000).toISOString();
+    const d10 = new Date(Date.now() - 10 * 86_400_000);
+    await sql()`update message set created_at = ${d20}::timestamp`;
+    await postWebhook(waFixture("inbound-text-mx-again"));
+    // La segunda fila llega con el reloj real de PostgreSQL: se mueve todo lo que no es la primera.
+    await sql()`update message set created_at = ${d10.toISOString()}::timestamp
+                where created_at <> ${d20}::timestamp`;
+    const a = await inboundStats(ORG_A);
+    expect(a.lastInboundAt).toBe(d10.toISOString());
+    expect(a.inbound14d).toBe(2);
   });
 
   it("las conversaciones de prueba (Laboratorio) no cuentan", async () => {

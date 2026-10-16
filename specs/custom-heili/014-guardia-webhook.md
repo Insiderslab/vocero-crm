@@ -27,8 +27,9 @@ servito uno script di diagnosi sul VPS; per sistemarlo, un altro script
    contenere il token di un altro sistema), del nostro niente.
 4. Cache in memoria di 10 minuti per organizzazione; `?refresh=1` («Controlla adesso»)
    ricontrolla, ma non più di una volta ogni 30 secondi.
-5. **Silenzio insolito**: media degli ultimi 14 giorni ≥ 3 messaggi in entrata al giorno
-   (conversazioni vere, non Laboratorio) e nessun messaggio da ≥ 24 ore. Un numero nuovo
+5. **Silenzio insolito**: media ≥ 3 messaggi in entrata al giorno nei 14 giorni **prima
+   dell'ultimo messaggio** (conversazioni vere, non Laboratorio) e nessun messaggio da
+   ≥ 24 ore. Le statistiche si calcolano solo con `?stats=1` (pagina WhatsApp). Un numero nuovo
    o poco usato non fa mai scattare l'avviso.
 
 ### B. Interfaccia
@@ -64,9 +65,9 @@ torna. Niente email, Slack o push (Constitución II). Spento con il gateway Wapi
 - Togliere Clientify Inbox o altre app iscritte al WABA (non deviano il callback dell'app).
 
 ## Prove
-- `tests/unit/webhook-route-guard.test.ts` (28): classificazione, silenzio, controllo con
+- `tests/unit/webhook-route-guard.test.ts` (31): classificazione, silenzio, controllo con
   Meta (doppio di fetch), cache, ripristino, niente segreti, vista.
-- `tests/golden/webhook-route-guard.golden.test.ts` (10, PostgreSQL vero): ruoli delle due
+- `tests/golden/webhook-route-guard.golden.test.ts` (11, PostgreSQL vero): ruoli delle due
   rotte, chiamate a Graph registrate, statistiche per organizzazione, Laboratorio escluso.
 - Inventario dei ruoli: `settings/whatsapp/route-check` (admin),
   `admin/platform/meta/webhook` (superadmin).
