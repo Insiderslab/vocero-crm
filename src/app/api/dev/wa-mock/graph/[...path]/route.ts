@@ -256,6 +256,11 @@ export async function POST(req: Request, ctx: Params) {
     return Response.json({ messaging_product: "whatsapp", request_id: `sync_${nextN()}` });
   }
 
+  // 014 — POST {appId}/subscriptions → callback de la app (ripristino).
+  if (path.length === 2 && path[1] === "subscriptions") {
+    return Response.json({ success: true });
+  }
+
   // POST {wabaId}/subscribed_apps → suscripción (con o sin override)
   if (path.length === 2 && path[1] === "subscribed_apps") {
     return Response.json({ success: true });

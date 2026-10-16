@@ -9,6 +9,7 @@ export async function register(): Promise<void> {
       cleanupOrphanRuns,
       recoverPendingAgentRetries,
       startAutomationScheduler,
+      startWebhookRouteGuard,
       warnWapiLegacyConfig,
       warnWebhookSignatureConfig,
     } = await import("./instrumentation-node");
@@ -17,5 +18,6 @@ export async function register(): Promise<void> {
     await cleanupOrphanRuns();
     await recoverPendingAgentRetries();
     startAutomationScheduler();
+    startWebhookRouteGuard();
   }
 }

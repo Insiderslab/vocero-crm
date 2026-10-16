@@ -204,6 +204,38 @@ const messages = {
       "Falta META_APP_SECRET: la firma es obligatoria, así que el webhook RECHAZA todos los eventos (503) y no llega ningún mensaje a la bandeja. Agrega a la instancia el App Secret de la app de Meta que envía los webhooks (el de tu propia app — el modo agencia con override de callback no está soportado con la firma obligatoria, nunca copies aquí el App Secret de la agencia; detrás de Wapi, el secreto del endpoint) y reinicia.",
     signatureTestMode:
       "Entorno de pruebas (mocks activos): sin META_APP_SECRET se aceptan eventos sin firma. En producción la firma es siempre obligatoria.",
+    // 014 — Guardia del webhook: ¿Meta manda los mensajes al CRM?
+    route: {
+      elsewhereTitle: "Meta está enviando los mensajes de WhatsApp a otro sistema",
+      elsewhereBody:
+        "Los mensajes de {{number}} van a {{host}}, no al CRM: no aparecen en la Bandeja y el asistente no responde. Pasa cuando otra herramienta (n8n, Zapier, otro CRM) se conecta a la misma app de Meta.",
+      sameHostBody:
+        "Meta llama al CRM con una dirección vieja: los mensajes de {{number}} se rechazan y no aparecen en la Bandeja.",
+      overrideTitle: "Un ajuste en Meta desvía los mensajes de WhatsApp",
+      overrideBody:
+        "Un override en el {{level}} manda los mensajes de {{number}} a {{host}}, no al CRM. Debe quitarlo en Meta (WhatsApp Manager → Configuración) quien lo puso.",
+      missingTitle: "Meta no sabe adónde mandar los mensajes de WhatsApp",
+      missingBody: "Para {{number}} no hay ninguna dirección en Meta: los mensajes no llegan al CRM.",
+      level_phone_number: "número",
+      level_whatsapp_business_account: "cuenta de WhatsApp Business (WABA)",
+      restoreNote:
+        "Antes apaga en el otro sistema el flujo conectado a WhatsApp (por ejemplo el nodo «WhatsApp Trigger» de n8n); si no, vuelve a quedarse con los mensajes.",
+      restoreButton: "Restablecer la conexión con el CRM",
+      restoreConfirm:
+        "Meta volverá a mandar al CRM los mensajes de WhatsApp de TODAS las empresas conectadas a esta app. El otro sistema dejará de recibirlos. ¿Continuar?",
+      restoring: "Restableciendo…",
+      restored: "Listo: Meta vuelve a mandar los mensajes al CRM.",
+      restoreFailed: "Meta rechazó el restablecimiento: {{message}}",
+      askSuperadmin: "Para restablecerlo hace falta el super-admin de la plataforma: avísale.",
+      ok: "Meta manda los mensajes al CRM (comprobado {{when}}).",
+      quietTitle: "Ningún mensaje desde {{when}}",
+      quietBody:
+        "Normalmente a este número llegan mensajes todos los días. Si no es normal, revisa la conexión.",
+      checkNow: "Comprobar ahora",
+      checking: "Comprobando…",
+      shellTitle: "WhatsApp: los mensajes no llegan al CRM.",
+      shellLink: "Abrir Configuración → WhatsApp",
+    },
     // 013 — Conexión guiada (3 pasos + franja de estado)
     guide: {
       title: "Conecta WhatsApp en 3 pasos",
