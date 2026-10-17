@@ -46,6 +46,14 @@ const messages = {
     invalid: "Números no válidos: {{lines}}. Escribe cada número con «+» y el código de país, p. ej. +39 347 123 4567.",
     saveError: "No se pudo guardar el acceso reservado",
     count: "{{count}} números permitidos",
+    ronda: {
+      none: "Ronda: todavía no se ha enviado ninguna.",
+      last: "Ronda: último envío el {{date}} a {{count}} personas ({{outcome}}).",
+      lastOne: "Ronda: último envío el {{date}} a 1 persona ({{outcome}}).",
+      allSent: "todas enviadas",
+      partial: "enviadas {{sent}} de {{total}}",
+      running: "en curso",
+    },
   },
   kb: {
     title: "Knowledge base",

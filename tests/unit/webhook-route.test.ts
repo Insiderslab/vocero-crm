@@ -44,28 +44,11 @@ vi.mock("@/lib/auth/session", async (importOriginal) => {
   };
 });
 
-vi.mock("@/server/inbox/ingest", () => ({
-  processMessagesValue: async (value: unknown) => {
-    state.ingested.push(value);
-  },
-  processEchoesValue: async (value: unknown) => {
-    state.ingested.push(value);
-  },
-}));
-vi.mock("@/server/whatsapp/template-events", () => ({
-  processTemplateStatusValue: async (_id: unknown, value: unknown) => {
-    state.ingested.push(value);
-  },
-}));
-vi.mock("@/server/inbox/coexistence", () => ({
-  processHistoryValue: async (value: unknown) => {
-    state.ingested.push(value);
-  },
-  processStateSyncValue: async (value: unknown) => {
-    state.ingested.push(value);
-  },
-  processAccountUpdateValue: async (_id: unknown, value: unknown) => {
-    state.ingested.push(value);
+// 005 (M1.3): la route `[channel]` entrega los eventos ya parseados al
+// núcleo; aquí el núcleo es una espía (una llamada = un payload procesado).
+vi.mock("@/server/channels/core/ingest", () => ({
+  processInboundEvents: async (_registration: unknown, events: unknown[]) => {
+    state.ingested.push(events);
   },
 }));
 
@@ -111,7 +94,8 @@ async function loadRoutes(env: EnvCase) {
   vi.stubEnv("WA_MOCK_ENABLED", env.mocks ? "true" : "");
   vi.stubEnv("META_APP_SECRET", env.secret ?? "");
   vi.resetModules();
-  const webhook = await import("@/app/api/webhooks/wa/[webhookToken]/route");
+  // 005 (M1.3, T029): la route única por canal sirve la MISMA URL (slug `wa`).
+  const webhook = await import("@/app/api/webhooks/[channel]/[webhookToken]/route");
   const settings = await import("@/app/api/settings/webhook/route");
   return { webhook, settings };
 }
@@ -130,7 +114,7 @@ function post(
       headers,
       body,
     }),
-    { params: Promise.resolve({ webhookToken: token }) }
+    { params: Promise.resolve({ channel: "wa", webhookToken: token }) }
   );
 }
 
@@ -139,7 +123,7 @@ function handshake(routes: Awaited<ReturnType<typeof loadRoutes>>, token = VERIF
     `https://crm.example.com/api/webhooks/wa/${token}` +
     `?hub.mode=subscribe&hub.verify_token=${VERIFY_TOKEN}&hub.challenge=reto-123`;
   return routes.webhook.GET(new Request(url), {
-    params: Promise.resolve({ webhookToken: token }),
+    params: Promise.resolve({ channel: "wa", webhookToken: token }),
   });
 }
 
@@ -364,7 +348,7 @@ describe("handshake GET: verify token comparado en tiempo constante", () => {
     if (verify !== null) q.set("hub.verify_token", verify);
     return routes.webhook.GET(
       new Request(`https://crm.example.com/api/webhooks/wa/${VERIFY_TOKEN}?${q}`),
-      { params: Promise.resolve({ webhookToken: VERIFY_TOKEN }) }
+      { params: Promise.resolve({ channel: "wa", webhookToken: VERIFY_TOKEN }) }
     );
   }
 
@@ -382,8 +366,9 @@ describe("handshake GET: verify token comparado en tiempo constante", () => {
 
   it("estructural: el GET compara hub.verify_token con safeEqual, nunca con ===", async () => {
     const { readFileSync } = await import("node:fs");
-    const src = readFileSync("src/app/api/webhooks/wa/[webhookToken]/route.ts", "utf8");
-    const get = src.slice(src.indexOf("export async function GET"), src.indexOf("export async function POST"));
+    // 005 (M1.3): el handshake de Meta vive en el adaptador de WhatsApp.
+    const src = readFileSync("src/server/channels/whatsapp/adapter.ts", "utf8");
+    const get = src.slice(src.indexOf("handshake(query)"), src.indexOf("verifySignature(rawBody"));
     expect(get).toMatch(/safeEqual\(\s*token\s*,\s*env\.META_WEBHOOK_VERIFY_TOKEN\s*\)/);
     expect(get).not.toMatch(/token\s*[!=]==?\s*env\.META_WEBHOOK_VERIFY_TOKEN/);
     expect(get).not.toMatch(/env\.META_WEBHOOK_VERIFY_TOKEN\s*[!=]==?\s*token/);
@@ -405,7 +390,7 @@ describe("cuerpo: tope de 5 MB antes del HMAC y firma sobre los bytes crudos", (
         body,
         duplex: "half",
       } as RequestInit),
-      { params: Promise.resolve({ webhookToken: VERIFY_TOKEN }) }
+      { params: Promise.resolve({ channel: "wa", webhookToken: VERIFY_TOKEN }) }
     );
   }
 

@@ -1,8 +1,14 @@
 import { and, eq, sql } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { newId } from "@/lib/db/ids";
-import { decryptSecret, encryptSecret } from "@/lib/crypto";
-import { scoped } from "@/lib/db/tenant";
+import { encryptSecret } from "@/lib/crypto";
+import {
+  accountSecret,
+  findAccountByRef,
+  findAccountForOrg,
+  markWhatsappReconnectRequired,
+  type AccountRow,
+} from "@/server/channels/core/accounts";
 import { mirrorWhatsappAccounts } from "@/server/channels/dual-write";
 
 export type Credentials = {
@@ -22,24 +28,38 @@ export type Credentials = {
 
 export type OnboardingMode = Credentials["onboardingMode"];
 
-type Row = typeof schema.metaCredentials.$inferSelect;
+/**
+ * 005 (R2, T030): `Credentials` es la VISTA de la cuenta WhatsApp en
+ * `channel_account` (mismos campos que antes). Los campos 009 de la
+ * coexistence viven en `channel_account.config`, en el formato de la función
+ * SQL `channels_legacy_wa_config` (la fecha como `to_jsonb(timestamp)`: ISO sin
+ * zona = UTC). Las ESCRITURAS siguen yendo a `meta_credentials` (fuente de
+ * verdad hasta R3) con la copia en la misma transacción.
+ */
+function configDate(value: unknown): Date | null {
+  if (typeof value !== "string" || !value) return null;
+  const iso = /(Z|[+-]\d{2}:?\d{2})$/.test(value) ? value : `${value}Z`;
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
 
-function toCredentials(row: Row): Credentials {
+const ONBOARDING_MODES = new Set<OnboardingMode>(["manual", "embedded", "coexistence"]);
+
+function toCredentials(row: AccountRow): Credentials {
+  const config = (row.config ?? {}) as Record<string, unknown>;
+  const mode = config.onboardingMode as OnboardingMode;
   return {
-    id: row.id,
+    id: row.legacyMetaCredentialsId ?? row.id,
     organizationId: row.organizationId,
-    wabaId: row.wabaId,
-    phoneNumberId: row.phoneNumberId,
-    displayPhoneNumber: row.displayPhoneNumber,
+    wabaId: row.externalParentId ?? "",
+    phoneNumberId: row.externalAccountId,
+    displayPhoneNumber: row.displayName,
     verifiedName: row.verifiedName,
-    status: row.status,
-    onboardingMode: row.onboardingMode,
-    appDisconnectedAt: row.appDisconnectedAt,
-    token: decryptSecret({
-      cipher: row.tokenCipher,
-      iv: row.tokenIv,
-      tag: row.tokenTag,
-    }),
+    // WhatsApp solo conoce dos estados (los otros dos son de canales nuevos).
+    status: row.status === "reconnect_required" ? "reconnect_required" : "connected",
+    onboardingMode: ONBOARDING_MODES.has(mode) ? mode : "manual",
+    appDisconnectedAt: configDate(config.appDisconnectedAt),
+    token: accountSecret(row) ?? "",
   };
 }
 
@@ -47,38 +67,29 @@ function toCredentials(row: Row): Credentials {
 export async function getCredentialsByPhoneNumberId(
   phoneNumberId: string
 ): Promise<Credentials | null> {
-  const db = getDb();
-  const rows = await db
-    .select()
-    .from(schema.metaCredentials)
-    .where(eq(schema.metaCredentials.phoneNumberId, phoneNumberId))
-    .limit(1);
-  return rows[0] ? toCredentials(rows[0]) : null;
+  const row = await findAccountByRef("whatsapp", {
+    by: "account",
+    externalAccountId: phoneNumberId,
+  });
+  return row ? toCredentials(row) : null;
 }
 
 /** Resuelve la conexión por WABA ID (eventos a nivel WABA, ej. plantillas). */
 export async function getCredentialsByWabaId(
   wabaId: string
 ): Promise<Credentials | null> {
-  const db = getDb();
-  const rows = await db
-    .select()
-    .from(schema.metaCredentials)
-    .where(eq(schema.metaCredentials.wabaId, wabaId))
-    .limit(1);
-  return rows[0] ? toCredentials(rows[0]) : null;
+  const row = await findAccountByRef("whatsapp", {
+    by: "parent",
+    externalParentId: wabaId,
+  });
+  return row ? toCredentials(row) : null;
 }
 
 export async function getCredentialsByOrg(
   organizationId: string
 ): Promise<Credentials | null> {
-  const db = getDb();
-  const rows = await db
-    .select()
-    .from(schema.metaCredentials)
-    .where(scoped(schema.metaCredentials.organizationId, organizationId))
-    .limit(1);
-  return rows[0] ? toCredentials(rows[0]) : null;
+  const row = await findAccountForOrg(organizationId, "whatsapp");
+  return row ? toCredentials(row) : null;
 }
 
 export async function saveCredentials(input: {
@@ -190,24 +201,12 @@ export async function setAppDisconnected(input: {
   return rows.map((r) => r.organizationId);
 }
 
-/** Marca la conexión como vencida (token inválido detectado en runtime). */
-export async function markReconnectRequired(
-  organizationId: string
-): Promise<void> {
-  const db = getDb();
-  // 005 (R1): doble escritura del estado en channel_account, misma transacción.
-  await db.transaction(async (tx) => {
-    const updated = await tx
-      .update(schema.metaCredentials)
-      .set({ status: "reconnect_required", updatedAt: new Date() })
-      .where(scoped(schema.metaCredentials.organizationId, organizationId))
-      .returning({ id: schema.metaCredentials.id });
-    await mirrorWhatsappAccounts(
-      tx,
-      updated.map((r) => r.id)
-    );
-  });
-}
+/**
+ * Marca la conexión como vencida (token inválido detectado en runtime).
+ * 005 (M1.3): implementada en el núcleo (`markWhatsappReconnectRequired`),
+ * misma escritura y misma doble escritura que en R1.
+ */
+export const markReconnectRequired = markWhatsappReconnectRequired;
 
 /** Últimos 4 caracteres del token para mostrar en UI (jamás el token). */
 export function tokenLast4(token: string): string {

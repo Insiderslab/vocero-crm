@@ -14,7 +14,7 @@
  *   export-key     withExport      (clave de export)  @/server/export/handler
  *   bot-key        authenticateBot (clave de bot)     @/server/bot/auth
  *   session-stream requireSession  (canal SSE)        @/lib/auth/session
- *   webhook-token  isValidWebhookToken (+ firma)      @/server/inbox/webhook
+ *   webhook-token  handleChannelWebhook (slug → token → firma, 005 M1.3)  @/server/channels/core/webhook
  *   dev-mock       mockGuard       (404 en producción) @/lib/dev-guard
  *   public         ninguna, a propósito
  *
@@ -48,7 +48,9 @@ export const POLICY_IMPL: Record<Policy, { name: string; module: string; via: "w
   "export-key": { name: "withExport", module: "@/server/export/handler", via: "wrapper" },
   "bot-key": { name: "authenticateBot", module: "@/server/bot/auth", via: "call" },
   "session-stream": { name: "requireSession", module: "@/lib/auth/session", via: "call" },
-  "webhook-token": { name: "isValidWebhookToken", module: "@/server/inbox/webhook", via: "call" },
+  // 005 (M1.3): la route única por canal delega en el gestor del núcleo, que
+  // valida slug, token (`isValidWebhookToken`) y firma, en ese orden.
+  "webhook-token": { name: "handleChannelWebhook", module: "@/server/channels/core/webhook", via: "call" },
   "dev-mock": { name: "mockGuard", module: "@/lib/dev-guard", via: "call" },
   public: null,
 };
@@ -131,12 +133,13 @@ const ROWS: Row[] = [
   ["bot/profile", ["GET"], "bot-key", "clave de servicio del bot"],
   ["bot/reset", ["POST"], "bot-key", "clave de servicio del bot"],
   ["bot/typing", ["POST"], "bot-key", "clave de servicio del bot"],
+  ["bot/team-broadcast", ["POST"], "bot-key", "012: ronda del team — clave de servicio del bot; destinatari SOLO la lista del team (Accesso riservato)"],
   ["export/contacts", ["GET"], "export-key", "clave de exportación"],
   ["export/conversations", ["GET"], "export-key", "clave de exportación"],
   ["export/leads", ["GET"], "export-key", "clave de exportación"],
   ["export/messages", ["GET"], "export-key", "clave de exportación"],
   ["events", ["GET"], "session-stream", "canal SSE de la organización de la sesión"],
-  ["webhooks/wa/[webhookToken]", ["GET", "POST"], "webhook-token", "Meta llama sin sesión: segmento secreto en la URL y firma"],
+  ["webhooks/[channel]/[webhookToken]", ["GET", "POST"], "webhook-token", "Meta llama sin sesión: slug del canal, segmento secreto en la URL y firma (wa = la URL de siempre)"],
 
   // Públicas o solo de desarrollo
   ["auth/[...all]", ["GET", "POST"], "public", "Better Auth: registro, login, cierre de sesión"],

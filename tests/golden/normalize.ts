@@ -19,9 +19,11 @@ export const FIXED_NOW_S = FIXED_NOW_MS / 1000;
 /**
  * Campos ADITIVOS declarados (FR-010, T033): un campo nuevo en un DTO solo se
  * acepta si está aquí Y anotado en el registro de trabajo del paquete que lo
- * añade. Se quitan antes de comparar. Hoy: ninguno.
+ * añade. Se quitan antes de comparar.
+ * - `channel`: DTO del mensaje (`serializeMessage`, eventos SSE `message.new`
+ *   y API), M1.3 — registro `docs/lavoro/2026-10-14-m1.3-r2.md`, T033.
  */
-export const DECLARED_ADDITIVE_KEYS: readonly string[] = [];
+export const DECLARED_ADDITIVE_KEYS: readonly string[] = ["channel"];
 
 /** Prefijos de `newId` (src/lib/db/ids.ts) + los que añada el plan (cha, ci). */
 const ID_RE =

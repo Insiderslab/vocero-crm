@@ -3,6 +3,7 @@ import { getDb, schema } from "@/lib/db";
 import { apiError } from "@/lib/api";
 import { authenticateBot } from "@/server/bot/auth";
 import { serializeFicha } from "@/server/bot/ficha";
+import { findContactByWhatsappIdentity } from "@/server/channels/core/identity";
 import { isWindowOpen, windowRemainingMs } from "@/server/inbox/window";
 
 export const dynamic = "force-dynamic";
@@ -50,17 +51,9 @@ export async function GET(req: Request) {
     contact = rows[0]?.contact;
     conversation = rows[0]?.conversation;
   } else if (waIdentity) {
-    const contacts = await db
-      .select()
-      .from(schema.contact)
-      .where(
-        and(
-          eq(schema.contact.organizationId, organizationId),
-          eq(schema.contact.waIdentity, waIdentity)
-        )
-      )
-      .limit(1);
-    contact = contacts[0];
+    // 005 (R2): el contacto por su identidad WhatsApp en `contact_identity`
+    // (contrato `?waIdentity=` invariado, FR-010).
+    contact = await findContactByWhatsappIdentity(organizationId, waIdentity);
     if (contact) {
       // La conversación del Laboratorio jamás se resuelve por identidad: ese
       // camino es para el bot de producción, que nunca debe hablarle a un

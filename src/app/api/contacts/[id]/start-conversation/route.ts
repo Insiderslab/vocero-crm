@@ -4,6 +4,7 @@ import { apiError, parseBody, withAuth } from "@/lib/api";
 import { getDb, schema } from "@/lib/db";
 import { scoped } from "@/lib/db/tenant";
 import { getContactById } from "@/server/contacts";
+import { hasWhatsappIdentity } from "@/server/channels/core/identity";
 import { getOrCreateConversation } from "@/server/inbox/ingest";
 import { SendError } from "@/server/inbox/send";
 import { isWindowOpen } from "@/server/inbox/window";
@@ -34,7 +35,8 @@ export const POST = withAuth(async (session, req: Request, ctx: Params) => {
   const { id } = await ctx.params;
   const contact = await getContactById(session.organizationId, id);
   if (!contact) return apiError(404, "not_found", "Contacto no encontrado");
-  if (!contact.phone && !contact.waIdentity) {
+  // 005 (R2): «tiene teléfono o identidad WhatsApp» (`contact_identity`).
+  if (!contact.phone && !(await hasWhatsappIdentity(session.organizationId, contact.id))) {
     return apiError(422, "no_identity", "Este contacto no tiene a dónde escribir");
   }
 

@@ -6,6 +6,8 @@ import {
   tokenLast4,
 } from "@/server/whatsapp/credentials";
 import { subscribeAppToWaba, testConnection } from "@/server/whatsapp/connect";
+import { ChannelMirrorError } from "@/server/channels/dual-write";
+import { channelMirrorConflict } from "@/server/channels/http";
 
 export const dynamic = "force-dynamic";
 
@@ -44,14 +46,22 @@ export const PUT = withAdminAuth(async (session, req: Request) => {
     return apiError(status, check.code, check.message);
   }
 
-  await saveCredentials({
-    organizationId: session.organizationId,
-    wabaId: body.data.wabaId,
-    phoneNumberId: body.data.phoneNumberId,
-    token: body.data.token,
-    displayPhoneNumber: check.displayPhoneNumber,
-    verifiedName: check.verifiedName,
-  });
+  try {
+    await saveCredentials({
+      organizationId: session.organizationId,
+      wabaId: body.data.wabaId,
+      phoneNumberId: body.data.phoneNumberId,
+      token: body.data.token,
+      displayPhoneNumber: check.displayPhoneNumber,
+      verifiedName: check.verifiedName,
+    });
+  } catch (err) {
+    // 005 (R2): la copia en channel_account es estricta. Si no puede quedar
+    // idéntica (p. ej. el número sigue en la cuenta de otra organización), no
+    // se guarda NADA: mejor un error visible que mensajes a la org equivocada.
+    if (err instanceof ChannelMirrorError) return channelMirrorConflict();
+    throw err;
+  }
 
   // Best-effort: necesaria en modo directo; el modo agencia usa su override.
   await subscribeAppToWaba(body.data.wabaId, body.data.token);

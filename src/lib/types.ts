@@ -49,6 +49,8 @@ export type MessageDto = {
   aiGenerated: boolean;
   /** 008 — Origen del saliente (en entrantes viene 'operator' y se ignora). */
   origin: "ai" | "operator" | "manual" | "template" | "system";
+  /** 005 (M1.3) — canal del mensaje (campo aditivo del DTO). */
+  channel?: "whatsapp" | "instagram" | "messenger" | "email";
   media: MessageMediaDto | null;
   createdAt: string;
 };
