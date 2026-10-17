@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, ne } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { scoped } from "@/lib/db/tenant";
 import { isAiConfigured } from "@/lib/env";
@@ -67,13 +67,15 @@ export async function prepareManualRetry(
 
   if (row.conversation.handoffReason !== "error") return { status: "not_retryable" };
 
+  // 008: las solicitudes `web` no cuentan como «último entrante» (como en el turno).
   const recent = await db
     .select({ direction: schema.message.direction, text: schema.message.text })
     .from(schema.message)
     .where(
       and(
         eq(schema.message.organizationId, organizationId),
-        eq(schema.message.conversationId, conversationId)
+        eq(schema.message.conversationId, conversationId),
+        ne(schema.message.channel, "web")
       )
     )
     .orderBy(...MESSAGE_CHRONOLOGY_DESC)

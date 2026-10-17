@@ -199,7 +199,12 @@ export async function resolveContact(
   organizationId: string,
   channel: ChannelKind,
   ref: ContactRef,
-  opts: { reactivate?: boolean; accountScope?: { id: string } | null } = {}
+  opts: {
+    reactivate?: boolean;
+    accountScope?: { id: string } | null;
+    /** 008 — entrante en vivo: el número lo verificó el proveedor. */
+    verifiedInbound?: boolean;
+  } = {}
 ) {
   if (channel === "whatsapp") {
     return getOrCreateWhatsappContact(
@@ -210,7 +215,7 @@ export async function resolveContact(
         waUserId: ref.providerUserId ?? null,
         profileName: ref.displayName ?? null,
       },
-      { reactivate: opts.reactivate }
+      { reactivate: opts.reactivate, verifiedInbound: opts.verifiedInbound }
     );
   }
   return getOrCreateChannelContact(
@@ -240,6 +245,7 @@ export async function ingestInboundMessage(input: InboundMessageInput): Promise<
 
   const { contact } = await resolveContact(organizationId, input.channel, input.from, {
     accountScope: input.identityScopeAccount ?? null,
+    verifiedInbound: true,
   });
   const conversation = await getOrCreateConversation(
     organizationId,

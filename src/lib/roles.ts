@@ -19,6 +19,11 @@ export function canManageApiKeys(role: string): boolean {
   return isOrgAdmin(role);
 }
 
+/** 008 — Formulario del sitio (clave vsk_ y orígenes): solo owner/admin. */
+export function canManageSiteForm(role: string): boolean {
+  return isOrgAdmin(role);
+}
+
 /** Conexión de WhatsApp (credenciales, prueba, datos del webhook): solo owner/admin. */
 export function canManageWhatsapp(role: string): boolean {
   return isOrgAdmin(role);

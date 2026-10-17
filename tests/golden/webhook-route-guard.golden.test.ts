@@ -239,4 +239,12 @@ describe("014 — inboundStats: PostgreSQL real, por organización", () => {
     await sql()`update conversation set is_test = true where organization_id = ${ORG_A}`;
     expect((await inboundStats(ORG_A)).inbound14d).toBe(0);
   });
+
+  it("las solicitudes del sitio (channel = web) no cuentan: no tapan el silencio de WhatsApp", async () => {
+    await postWebhook(waFixture("inbound-text-mx"));
+    await alignCreatedAt();
+    expect((await inboundStats(ORG_A)).inbound14d).toBe(1);
+    await sql()`update message set channel = 'web' where organization_id = ${ORG_A}`;
+    expect(await inboundStats(ORG_A)).toEqual({ inbound14d: 0, lastInboundAt: null });
+  });
 });

@@ -13,6 +13,7 @@
  *   superadmin     withSuperadmin                     @/server/auth/superadmin
  *   export-key     withExport      (clave de export)  @/server/export/handler
  *   bot-key        authenticateBot (clave de bot)     @/server/bot/auth
+ *   site-key       authenticateSiteKey (clave del sitio, 008) @/server/site-requests/auth
  *   session-stream requireSession  (canal SSE)        @/lib/auth/session
  *   webhook-token  handleChannelWebhook (slug → token → firma, 005 M1.3)  @/server/channels/core/webhook
  *   dev-mock       mockGuard       (404 en producción) @/lib/dev-guard
@@ -34,6 +35,7 @@ export type Policy =
   | "superadmin"
   | "export-key"
   | "bot-key"
+  | "site-key"
   | "session-stream"
   | "webhook-token"
   | "dev-mock"
@@ -47,6 +49,7 @@ export const POLICY_IMPL: Record<Policy, { name: string; module: string; via: "w
   superadmin: { name: "withSuperadmin", module: "@/server/auth/superadmin", via: "wrapper" },
   "export-key": { name: "withExport", module: "@/server/export/handler", via: "wrapper" },
   "bot-key": { name: "authenticateBot", module: "@/server/bot/auth", via: "call" },
+  "site-key": { name: "authenticateSiteKey", module: "@/server/site-requests/auth", via: "call" },
   "session-stream": { name: "requireSession", module: "@/lib/auth/session", via: "call" },
   // 005 (M1.3): la route única por canal delega en el gestor del núcleo, que
   // valida slug, token (`isValidWebhookToken`) y firma, en ese orden.
@@ -70,6 +73,8 @@ const ROWS: Row[] = [
   ["settings/bot-keys/[id]", ["DELETE"], "admin", "revoca una clave del bot"],
   ["settings/export-keys", ["GET", "POST"], "admin", "claves de exportación"],
   ["settings/export-keys/[id]", ["DELETE"], "admin", "revoca una clave de exportación"],
+  ["settings/site", ["GET", "PUT"], "admin", "formulario del sitio (008): clave activa y orígenes autorizados"],
+  ["settings/site/key", ["POST", "DELETE"], "admin", "crea/rota o revoca la clave del sitio (008)"],
   ["settings/branding", ["PUT"], "owner", "marca de la organización: solo el propietario"],
   ["settings/branding/favicon", ["PUT", "DELETE"], "owner", "icono de la marca: solo el propietario"],
   ["settings/team", ["POST"], "owner", "alta de cuentas de equipo: solo el propietario"],
@@ -138,6 +143,7 @@ const ROWS: Row[] = [
   ["export/conversations", ["GET"], "export-key", "clave de exportación"],
   ["export/leads", ["GET"], "export-key", "clave de exportación"],
   ["export/messages", ["GET"], "export-key", "clave de exportación"],
+  ["public/site-requests", ["POST"], "site-key", "formulario del sitio (008): la organización sale de la clave vsk_"],
   ["events", ["GET"], "session-stream", "canal SSE de la organización de la sesión"],
   ["webhooks/[channel]/[webhookToken]", ["GET", "POST"], "webhook-token", "Meta llama sin sesión: slug del canal, segmento secreto en la URL y firma (wa = la URL de siempre)"],
 
@@ -145,6 +151,7 @@ const ROWS: Row[] = [
   ["auth/[...all]", ["GET", "POST"], "public", "Better Auth: registro, login, cierre de sesión"],
   ["health", ["GET"], "public", "comprobación de salud y versión, sin datos de clientes"],
   ["branding/favicon", ["GET"], "public", "icono de la pestaña; el login también lo necesita"],
+  ["public/site-requests", ["OPTIONS"], "public", "preflight CORS del formulario del sitio (008): el navegador no manda la clave; solo responde a orígenes autorizados y no escribe nada"],
   ["dev/ai-mock/chat/completions", ["POST"], "dev-mock", "re-exporta el mock de v1, que lleva el guard"],
   ["dev/ai-mock/v1/chat/completions", ["POST"], "dev-mock", "mock de IA, 404 en producción"],
   ["dev/wa-mock/coexistence", ["POST"], "dev-mock", "mock de los webhooks de coexistence (009), 404 en producción"],

@@ -1,4 +1,4 @@
-import { and, asc, eq, isNotNull, isNull } from "drizzle-orm";
+import { and, asc, eq, isNotNull, isNull, ne } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { newId } from "@/lib/db/ids";
 import { scoped } from "@/lib/db/tenant";
@@ -283,13 +283,17 @@ export async function fireAgentRetry(
   const conversation = rows[0];
   if (!conversation?.agentRetryAt) return "nothing";
 
+  // 008: una solicitud del sitio (`web`) no es un entrante de WhatsApp ni una
+  // respuesta: no invalida el segundo intento (si contara como «entrante
+  // distinto», el segundo intento no hablaría y nadie respondería al cliente).
   const newest = await db
     .select({ id: schema.message.id, direction: schema.message.direction })
     .from(schema.message)
     .where(
       and(
         eq(schema.message.organizationId, conversation.organizationId),
-        eq(schema.message.conversationId, conversationId)
+        eq(schema.message.conversationId, conversationId),
+        ne(schema.message.channel, "web")
       )
     )
     .orderBy(...MESSAGE_CHRONOLOGY_DESC)
@@ -459,10 +463,18 @@ export async function runAgentTurn(
     }
   }
 
+  // 008 — Las solicitudes web se excluyen EN LA CONSULTA, antes del LIMIT:
+  // 20 solicitudes del formulario no pueden empujar fuera el historial de
+  // WhatsApp (ni dejar al agente sin el último entrante de WhatsApp).
   const history = await db
     .select()
     .from(schema.message)
-    .where(eq(schema.message.conversationId, conversationId))
+    .where(
+      and(
+        eq(schema.message.conversationId, conversationId),
+        ne(schema.message.channel, "web")
+      )
+    )
     .orderBy(...MESSAGE_CHRONOLOGY_DESC)
     .limit(20);
   // 009 (E1a): el segundo intento solo responde si el entrante del turno
@@ -476,7 +488,14 @@ export async function runAgentTurn(
     return;
   }
   history.reverse();
-  const lastInbound = [...history].reverse().find((m) => m.direction === "in");
+  // 008 — Una solicitud del formulario del sitio (`channel = web`) NO es un
+  // mensaje de WhatsApp: no abre la ventana de 24 h y el agente jamás le
+  // contesta por WhatsApp (la responde el equipo a mano). La consulta ya las
+  // excluye; el filtro se repite aquí como segunda barrera. Si solo hay
+  // solicitudes web, no hay turno (ni handoff "ventana").
+  const lastInbound = [...history]
+    .reverse()
+    .find((m) => m.direction === "in" && m.channel !== "web");
   if (!lastInbound) return;
 
   // Ventana cerrada: el agente JAMÁS envía texto libre → handoff 'ventana'.
@@ -508,7 +527,9 @@ export async function runAgentTurn(
       content: buildAgentSystemPrompt({ profile, kb, stages }),
     },
     ...history
-      .filter((m) => m.text)
+      // 008: las solicitudes web las atiende el equipo; no van al proveedor
+      // de IA (traen email, página y campos del formulario).
+      .filter((m) => m.text && m.channel !== "web")
       .map((m) => ({
         role: m.direction === "in" ? ("user" as const) : ("assistant" as const),
         content: m.text!,

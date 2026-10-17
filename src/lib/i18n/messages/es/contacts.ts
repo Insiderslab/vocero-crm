@@ -25,6 +25,7 @@ const messages = {
     referido: "Referido",
     conocido: "Conocido",
     otro: "Otro",
+    sito: "Sitio web",
     desconocida: "Sin identificar",
   },
   empty: {

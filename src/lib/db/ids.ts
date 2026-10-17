@@ -32,6 +32,8 @@ const prefixes = {
   contactIdentity: "ci",
   // 012 — ronda del team
   teamBroadcast: "tb",
+  // 008 — formulario del sitio
+  siteRequestConfig: "src",
 } as const;
 
 export type IdKind = keyof typeof prefixes;

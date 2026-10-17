@@ -28,7 +28,7 @@ export { BSUID_PREFIX, resolveIdentity, type ResolvedIdentity };
 export async function getOrCreateContactByIdentity(
   organizationId: string,
   resolved: ResolvedIdentity,
-  opts: { reactivate?: boolean } = {}
+  opts: { reactivate?: boolean; verifiedInbound?: boolean } = {}
 ) {
   return getOrCreateWhatsappContact(organizationId, resolved, opts);
 }
