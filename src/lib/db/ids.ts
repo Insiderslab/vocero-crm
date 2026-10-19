@@ -34,6 +34,8 @@ const prefixes = {
   teamBroadcast: "tb",
   // 008 — formulario del sitio
   siteRequestConfig: "src",
+  // 015 — cancellazione dati da Meta
+  metaDataDeletion: "mdd",
 } as const;
 
 export type IdKind = keyof typeof prefixes;

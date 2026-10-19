@@ -41,6 +41,8 @@ services:
       LEGAL_TEXTS_REVIEWED: ${LEGAL_TEXTS_REVIEWED:-}
       LEGAL_ENTITY_NAME: ${LEGAL_ENTITY_NAME:-}
       LEGAL_CONTACT_EMAIL: ${LEGAL_CONTACT_EMAIL:-}
+      # 015 — Indirizzo e P.IVA del titolare (in fondo a privacy e cancellazione dati).
+      LEGAL_ENTITY_DETAILS: ${LEGAL_ENTITY_DETAILS:-}
       # 008 — Adjuntos en un volumen: sin él quedaban dentro del contenedor
       # (default ./.dev-media) y se perdían en cada rebuild. El Dockerfile ya
       # prepara /data/media con el dueño correcto.

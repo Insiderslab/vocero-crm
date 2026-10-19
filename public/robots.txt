@@ -1,2 +1,8 @@
+# Le pagine legali e il callback di cancellazione dati devono restare
+# raggiungibili dai verificatori di Meta (015). Il resto del CRM resta escluso.
 User-agent: *
+Allow: /privacy
+Allow: /termini
+Allow: /cancellazione-dati
+Allow: /api/meta/data-deletion
 Disallow: /

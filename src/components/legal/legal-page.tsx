@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import type { ReactNode } from "react";
 import { getPublicLocale } from "@/lib/i18n/server";
 import { messagesFor } from "@/lib/i18n/messages";
 import {
@@ -26,8 +27,11 @@ export async function legalMetadata(kind: LegalKind): Promise<Metadata> {
 
 /**
  * Pagina pubblica, senza sessione: nessun dato di organizzazione, solo testo.
+ * `before`: un riquadro sopra le sezioni (015: lo stato di una richiesta di
+ * cancellazione con ?id=<codice>). Privacy e cancellazione chiudono con il
+ * contatto e il titolare del trattamento.
  */
-export async function LegalPage({ kind }: { kind: LegalKind }) {
+export async function LegalPage({ kind, before }: { kind: LegalKind; before?: ReactNode }) {
   const { legal, doc, ctx } = await loadDocument(kind);
   const draft = !legalTextsReviewed();
   return (
@@ -56,6 +60,7 @@ export async function LegalPage({ kind }: { kind: LegalKind }) {
         <time dateTime={LEGAL_LAST_UPDATED}>{LEGAL_LAST_UPDATED}</time>
         {draft && ` (${legal.chrome.draftLabel})`}
       </p>
+      {before}
       {doc.sections.map((section) => (
         <section key={section.title} className="mt-8">
           <h2 className="text-xl font-semibold">{section.title}</h2>
@@ -73,6 +78,17 @@ export async function LegalPage({ kind }: { kind: LegalKind }) {
           )}
         </section>
       ))}
+      {(kind === "privacy" || kind === "deletion") && (
+        <section
+          id="contatti"
+          data-legal-contact
+          className="mt-10 rounded border px-4 py-4"
+          style={{ borderColor: "var(--heili-line)", background: "var(--heili-panel)" }}
+        >
+          <h2 className="text-xl font-semibold">{legal.contact.title}</h2>
+          <p className="mt-3 leading-relaxed">{fillLegal(legal.contact.body, ctx)}</p>
+        </section>
+      )}
     </article>
   );
 }

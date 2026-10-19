@@ -18,6 +18,27 @@ const legal: LegalMessages = {
     deletion: "Data deletion",
     login: "Log in",
   },
+  // 015 — At the bottom of privacy and deletion: contact and data controller.
+  contact: {
+    title: "Contact and data controller",
+    body: "To request deletion of your data, write to {{email}} from the address you registered with, stating your WhatsApp number and organization. We delete the data within 30 days and confirm by email. Data controller: {{entity}}, {{details}}.",
+  },
+  // 015 — /cancellazione-dati?id=<code>: status of a request received from Meta.
+  status: {
+    title: "Status of your request",
+    code: "Confirmation code",
+    received: "Request received",
+    in_progress: "In progress",
+    completed: "Completed",
+    receivedHint: "We have recorded it: we complete it within 30 days of receipt.",
+    inProgressHint: "We are deleting the data linked to the request.",
+    completedHint: "The data linked to the request has been deleted.",
+    receivedOn: "Received on",
+    updatedOn: "Last updated",
+    completedOn: "Completed on",
+    notFound: "Code not found. Check that you copied it in full, or write to {{email}}.",
+    unavailable: "The status is not available right now: please try again later.",
+  },
   privacy: {
     title: "Privacy policy",
     summary:
@@ -234,6 +255,13 @@ const legal: LegalMessages = {
         title: "5. Timeframes and exceptions",
         body: [
           "We confirm receipt and complete the deletion within 30 days at most. We may keep what is strictly necessary if a law requires it or to defend rights in a proceeding; in that case we will explain it to you. Backups are deleted when their retention cycle ends.",
+        ],
+        list: [],
+      },
+      {
+        title: "6. If you requested deletion through Meta",
+        body: [
+          "If you removed {{product}} from the apps connected to your Meta account and asked for your data to be deleted, Meta tells us and shows you a confirmation code. With that code you can follow the status of the request on this page.",
         ],
         list: [],
       },

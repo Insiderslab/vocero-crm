@@ -4,6 +4,7 @@ import { getAuth } from "@/lib/auth";
 import { isSuperadminEmail } from "@/server/auth/superadmin";
 import { getT } from "@/lib/i18n/server";
 import { AdminClient } from "@/components/admin/admin-client";
+import { MetaDeletionCard } from "@/components/admin/meta-deletion-card";
 import { MetaPlatformCard } from "@/components/admin/meta-platform-card";
 
 export const dynamic = "force-dynamic";
@@ -30,6 +31,13 @@ export default async function AdminPage() {
             {t("admin.platform.sectionTitle")}
           </h3>
           <MetaPlatformCard />
+        </section>
+        {/* 015 — Richieste di cancellazione dati arrivate da Meta. */}
+        <section aria-labelledby="admin-privacy-title" className="max-w-3xl space-y-3">
+          <h3 id="admin-privacy-title" className="text-sm font-semibold text-muted-foreground">
+            {t("admin.deletion.sectionTitle")}
+          </h3>
+          <MetaDeletionCard />
         </section>
         <AdminClient />
       </div>

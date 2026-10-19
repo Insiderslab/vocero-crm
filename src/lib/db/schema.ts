@@ -1089,3 +1089,48 @@ export const teamBroadcast = pgTable(
     check("team_broadcast_status_ck", sql`${t.status} in ('running', 'done')`),
   ]
 );
+
+/* ============================================================
+ * 015 — Richieste di cancellazione dati da Meta
+ * (POST /api/meta/data-deletion, «Data Deletion Request Callback»)
+ * ============================================================ */
+
+/**
+ * Una riga per richiesta firmata da Meta. Dati dell'ISTANZA, non di
+ * un'organizzazione: il CRM non conserva l'ID utente Facebook (l'Embedded
+ * Signup salva solo WABA, numero e token dell'azienda), quindi la richiesta
+ * non si può legare da sola a un'organizzazione e la cancellazione la fa una
+ * persona da /admin (responsabile: amministrazione, controllo settimanale,
+ * entro 30 giorni). `confirmation_code` è il codice che Meta mostra
+ * all'utente e che apre /cancellazione-dati?id=<codice>.
+ */
+export const metaDataDeletionRequest = pgTable(
+  "meta_data_deletion_request",
+  {
+    id: text("id").primaryKey(),
+    /** `user_id` del signed_request: ID dell'utente Facebook per la nostra app. */
+    metaUserId: text("meta_user_id").notNull(),
+    confirmationCode: text("confirmation_code").notNull(),
+    status: text("status", { enum: ["received", "in_progress", "completed"] })
+      .notNull()
+      .default("received"),
+    /** `issued_at` del signed_request (quando Meta l'ha firmato). */
+    issuedAt: timestamp("issued_at"),
+    /** Nota interna di chi la gestisce (cosa è stato cancellato). */
+    note: text("note"),
+    /** Super-admin che ha cambiato lo stato per ultimo. */
+    updatedBy: text("updated_by"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+    completedAt: timestamp("completed_at"),
+  },
+  (t) => [
+    uniqueIndex("meta_data_deletion_code_uq").on(t.confirmationCode),
+    index("meta_data_deletion_user_idx").on(t.metaUserId),
+    check(
+      "meta_data_deletion_status_ck",
+      sql`${t.status} in ('received', 'in_progress', 'completed')`
+    ),
+    check("meta_data_deletion_code_ck", sql`${t.confirmationCode} ~ '^[A-Za-z0-9]{20}$'`),
+  ]
+);
