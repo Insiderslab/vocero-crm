@@ -29,8 +29,8 @@ signed-request.ts` (puro), `src/server/meta/data-deletion.ts`; rotte `api/meta/d
 | Comando | Esito |
 |---|---|
 | `tsc --noEmit`, `eslint` | puliti |
-| `vitest run tests/unit` | 1672 verdi (31 nuovi in `meta-data-deletion.test.ts`) |
-| golden su PostgreSQL 16 vero | 24 file, 268 verdi (8 nuovi); istantanee invariate |
+| `vitest run tests/unit` | 1675 verdi (34 nuovi in `meta-data-deletion.test.ts`) |
+| golden su PostgreSQL 16 vero | 24 file, 270 verdi (10 nuovi); istantanee invariate |
 | `next build` | ok (4 rotte nuove/aggiornate, dinamiche) |
 | **Aggiornamento simulato dalla produzione**: DB con le migrazioni di `db6f426` (17 righe, modalità «avvisa») + dati sintetici (8 contatti, 8 conversazioni, 31 messaggi), poi `scripts/migrate.mjs` di questo branch | 20 righe (0000→0019), dati intatti, canali (blocca) V1–V7 = 0; secondo avvio idempotente |
 
@@ -41,3 +41,14 @@ signed-request.ts` (puro), `src/server/meta/data-deletion.ts`; rotte `api/meta/d
 | pagina che interroga il DB anche con codice malformato | «codice malformato → senza toccare il database» |
 | tolto `Allow: /cancellazione-dati` da robots.txt | «robots.txt apre le pagine legali» |
 | tolto il riuso della richiesta aperta | golden «Meta riprova: stesso codice» |
+
+## Revisione indipendente (agente separato) e correzioni
+Nessun problema alto o critico (firma, nessuna riga su input non valido, niente fughe, pagina di
+stato, permessi, migrazione, testi). Quattro punti bassi, tutti corretti:
+
+| Punto | Correzione | Prova |
+|---|---|---|
+| Due callback simultanei per la stessa persona potevano creare due righe aperte | lettura e inserimento in una transazione con `pg_advisory_xact_lock` per utente | golden: una seconda connessione vera tiene il lock, il callback aspetta e riusa il codice; il sabotaggio «senza lock» lo fa fallire (prima versione del test, con il pool a una connessione, non lo provava: riscritta) |
+| `limit(200)` poteva nascondere una richiesta aperta vecchia | tutte le aperte + ultime 100 completate | golden con 150 completate più recenti |
+| `PATCH` senza `note` cancellava la nota | `note` assente = invariata | golden |
+| `issued_at` non controllato (rigioco; valore enorme → 500) | rifiuto se più vecchio di 3 giorni o nel futuro oltre 10 minuti; non intero → 400 | 3 unit |

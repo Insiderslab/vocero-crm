@@ -10,10 +10,11 @@ type Params = { params: Promise<{ id: string }> };
 const input = z
   .object({
     status: z.enum(DELETION_STATUSES as [DeletionStatus, ...DeletionStatus[]]),
+    // Assente = nota invariata; null o vuota = cancellata.
     note: z
       .union([z.string().max(1000), z.null()])
       .optional()
-      .transform((v) => (v ?? "").trim() || null),
+      .transform((v) => (v === undefined ? undefined : (v ?? "").trim() || null)),
   })
   .strict();
 
@@ -29,7 +30,7 @@ export const PATCH = withSuperadmin(async (ctx, req: Request, { params }: Params
   const ok = await updateDeletionRequest({
     id,
     status: body.data.status,
-    note: body.data.note ?? null,
+    note: body.data.note,
     updatedBy: ctx.userId,
   });
   if (!ok) return apiError(404, "not_found", "Richiesta non trovata");

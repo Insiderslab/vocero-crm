@@ -17,7 +17,8 @@ con un URL di stato e un codice di conferma.
 2. `signed_request` = `<firma>.<payload>` in base64 URL-safe. La firma è l'HMAC-SHA256 della
    parte `<payload>` con **`META_APP_SECRET`** (lo stesso del webhook WhatsApp), confrontata a
    tempo costante. Il JSON si legge solo dopo una firma valida; `algorithm` deve essere
-   `HMAC-SHA256`; `user_id` obbligatorio.
+   `HMAC-SHA256`; `user_id` obbligatorio; `issued_at`, se presente, intero e non più vecchio di
+   3 giorni né nel futuro oltre 10 minuti (richiesta rigiocata → 400).
 3. Firma non valida, payload malformato, algoritmo diverso, `user_id` mancante, corpo non form
    → **400**, nessuna riga scritta. Senza `META_APP_SECRET` → **503**, nessuna riga.
 4. Valida → riga in `meta_data_deletion_request` (ID Meta, codice, stato `received`,
@@ -25,7 +26,7 @@ con un URL di stato e un codice di conferma.
    "confirmation_code": "<codice>" }`.
 5. Codice: 20 caratteri alfanumerici da fonte crittografica (nanoid, ~119 bit), UNIQUE e con
    CHECK nel database. Se per lo stesso utente c'è una richiesta non completata, si restituisce
-   quella (Meta riprova): nessuna riga doppia.
+   quella (Meta riprova): nessuna riga doppia, anche con callback simultanei (lock per utente).
 6. Nei log solo il codice e il motivo di un rifiuto: mai firma, payload, ID Meta o segreto.
 
 ### B. Nessuna cancellazione automatica (deciso)

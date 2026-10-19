@@ -1,3 +1,4 @@
+import postgres from "postgres";
 import { describe, expect, it, vi } from "vitest";
 import { getSql } from "@/lib/db";
 import { buildSignedRequest } from "@/server/meta/signed-request";
@@ -101,6 +102,31 @@ describe("015 — POST /api/meta/data-deletion su PostgreSQL vero", () => {
     expect(await rows()).toHaveLength(1);
   });
 
+  it("callback SIMULTANEI per la stessa persona: il secondo aspetta il lock del primo, una sola riga", async () => {
+    // Nei golden il pool ha UNA connessione e le chiamate parallele andrebbero
+    // comunque in fila: il lock si prova da una SECONDA connessione vera che lo
+    // tiene occupato, come farebbe un callback concorrente.
+    const other = postgres(process.env.DATABASE_URL!, { max: 1, onnotice: () => {} });
+    let settled = false;
+    let pending: Promise<{ code: string; reused: boolean }> | null = null;
+    try {
+      await other.begin(async (tx) => {
+        await tx`select pg_advisory_xact_lock(hashtext(${"meta-deletion:555000999"}))`;
+        await tx`insert into meta_data_deletion_request (id, meta_user_id, confirmation_code)
+                 values ('mdd_concorrente', '555000999', 'CONCORRENTE000000000')`;
+        pending = registerDeletionRequest({ metaUserId: "555000999", issuedAt: null });
+        void pending.then(() => (settled = true));
+        await new Promise((r) => setTimeout(r, 400));
+        expect(settled).toBe(false); // bloccato sul lock finché l'altra transazione non chiude
+      });
+    } finally {
+      await other.end();
+    }
+    const r = await pending!;
+    expect(r).toEqual({ code: "CONCORRENTE000000000", reused: true });
+    expect(await rows()).toHaveLength(1);
+  });
+
   it("dopo una richiesta completata, una nuova richiesta ha un codice nuovo", async () => {
     const first = await registerDeletionRequest({ metaUserId: "555000333", issuedAt: null });
     await sql()`update meta_data_deletion_request set status = 'completed', completed_at = now()`;
@@ -126,6 +152,20 @@ describe("015 — POST /api/meta/data-deletion su PostgreSQL vero", () => {
     expect(s).toMatchObject({ status: "received", completedAt: null });
     expect(JSON.stringify(s)).not.toContain("555000444");
     expect(await deletionStatusByCode("ZZZZZZZZZZ0000000000")).toBeNull();
+  });
+});
+
+describe("015 — elenco: nessuna richiesta aperta sparisce", () => {
+  it("una richiesta aperta vecchia resta in elenco anche con 150 completate più recenti", async () => {
+    await registerDeletionRequest({ metaUserId: "vecchia-aperta", issuedAt: null });
+    await sql()`update meta_data_deletion_request set created_at = now() - interval '20 days'`;
+    await sql()`
+      insert into meta_data_deletion_request (id, meta_user_id, confirmation_code, status, completed_at)
+      select 'mdd_c' || g, 'c' || g, lpad(g::text, 20, 'X'), 'completed', now()
+      from generate_series(1, 150) g`;
+    const list = await listDeletionRequests();
+    expect(list[0]?.metaUserId).toBe("vecchia-aperta");
+    expect(list.filter((r) => r.status === "completed")).toHaveLength(100);
   });
 });
 
@@ -170,5 +210,15 @@ describe("015 — /admin: solo super-admin", () => {
     expect(s?.completedAt).not.toBeNull();
     const after = await listDeletionRequests();
     expect(after[0]).toMatchObject({ status: "completed", note: "Nessun account CRM collegato", daysLeft: null });
+    // Un PATCH senza `note` non cancella la nota salvata.
+    await adminPatch(
+      new Request(`http://localhost/api/admin/meta-deletion/${id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ status: "completed" }),
+      }),
+      { params: Promise.resolve({ id }) }
+    );
+    expect((await listDeletionRequests())[0]?.note).toBe("Nessun account CRM collegato");
   });
 });

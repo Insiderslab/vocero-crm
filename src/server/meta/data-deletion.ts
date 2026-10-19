@@ -1,5 +1,5 @@
 import { customAlphabet } from "nanoid";
-import { and, desc, eq, ne } from "drizzle-orm";
+import { and, desc, eq, ne, sql } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { newId } from "@/lib/db/ids";
 import type { PublicDeletionStatus } from "@/lib/legal";
@@ -38,32 +38,36 @@ export async function registerDeletionRequest(input: {
   metaUserId: string;
   issuedAt: Date | null;
 }): Promise<{ code: string; reused: boolean }> {
-  const db = getDb();
   const t = schema.metaDataDeletionRequest;
-  const open = await db
-    .select({ code: t.confirmationCode })
-    .from(t)
-    .where(and(eq(t.metaUserId, input.metaUserId), ne(t.status, "completed")))
-    .orderBy(desc(t.createdAt))
-    .limit(1);
-  if (open[0]) return { code: open[0].code, reused: true };
+  // Lettura e inserimento sotto un lock per utente Meta (transazionale): due
+  // callback simultanei per la stessa persona non creano due righe aperte.
+  return getDb().transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${"meta-deletion:" + input.metaUserId}))`);
+    const open = await tx
+      .select({ code: t.confirmationCode })
+      .from(t)
+      .where(and(eq(t.metaUserId, input.metaUserId), ne(t.status, "completed")))
+      .orderBy(desc(t.createdAt))
+      .limit(1);
+    if (open[0]) return { code: open[0].code, reused: true };
 
-  // Una collisione su 62^20 non succede; il ciclo c'è solo per non fallire se capitasse.
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    const code = newCode();
-    const inserted = await db
-      .insert(t)
-      .values({
-        id: newId("metaDataDeletion"),
-        metaUserId: input.metaUserId,
-        confirmationCode: code,
-        issuedAt: input.issuedAt,
-      })
-      .onConflictDoNothing({ target: t.confirmationCode })
-      .returning({ code: t.confirmationCode });
-    if (inserted[0]) return { code: inserted[0].code, reused: false };
-  }
-  throw new Error("registerDeletionRequest: impossibile generare un codice unico");
+    // Una collisione su 62^20 non succede; il ciclo c'è solo per non fallire se capitasse.
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const code = newCode();
+      const inserted = await tx
+        .insert(t)
+        .values({
+          id: newId("metaDataDeletion"),
+          metaUserId: input.metaUserId,
+          confirmationCode: code,
+          issuedAt: input.issuedAt,
+        })
+        .onConflictDoNothing({ target: t.confirmationCode })
+        .returning({ code: t.confirmationCode });
+      if (inserted[0]) return { code: inserted[0].code, reused: false };
+    }
+    throw new Error("registerDeletionRequest: impossibile generare un codice unico");
+  });
 }
 
 export type { PublicDeletionStatus } from "@/lib/legal";
@@ -102,10 +106,15 @@ export type AdminDeletionRequest = {
 
 export const DELETION_DEADLINE_DAYS = 30;
 
-/** Elenco per il super-admin: prima le aperte, poi le più recenti. */
+/** Elenco per il super-admin: prima tutte le aperte, poi le ultime completate. */
 export async function listDeletionRequests(now: Date = new Date()): Promise<AdminDeletionRequest[]> {
   const t = schema.metaDataDeletionRequest;
-  const rows = await getDb().select().from(t).orderBy(desc(t.createdAt)).limit(200);
+  // Tutte le aperte (nessuna può sparire dall'elenco) + le ultime 100 completate.
+  const [open, done] = await Promise.all([
+    getDb().select().from(t).where(ne(t.status, "completed")).orderBy(desc(t.createdAt)),
+    getDb().select().from(t).where(eq(t.status, "completed")).orderBy(desc(t.createdAt)).limit(100),
+  ]);
+  const rows = [...open, ...done];
   const items = rows.map((r) => {
     const created = new Date(r.createdAt);
     const daysLeft =
@@ -124,14 +133,15 @@ export async function listDeletionRequests(now: Date = new Date()): Promise<Admi
       daysLeft,
     };
   });
-  return [...items.filter((i) => i.status !== "completed"), ...items.filter((i) => i.status === "completed")];
+  return items;
 }
 
 /** Cambio di stato dal super-admin. `completed` fissa la data di completamento. */
 export async function updateDeletionRequest(input: {
   id: string;
   status: DeletionStatus;
-  note: string | null;
+  /** undefined = nota invariata; null o "" = nota cancellata. */
+  note?: string | null;
   updatedBy: string;
 }): Promise<boolean> {
   const t = schema.metaDataDeletionRequest;
@@ -140,7 +150,7 @@ export async function updateDeletionRequest(input: {
     .update(t)
     .set({
       status: input.status,
-      note: input.note,
+      ...(input.note !== undefined ? { note: input.note } : {}),
       updatedBy: input.updatedBy,
       updatedAt: now,
       completedAt: input.status === "completed" ? now : null,

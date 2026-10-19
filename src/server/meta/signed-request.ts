@@ -15,6 +15,14 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 /** Oltre questa lunghezza la richiesta non è di Meta: si rifiuta senza calcoli. */
 export const SIGNED_REQUEST_MAX_LENGTH = 4096;
 
+/**
+ * Meta chiama il callback subito dopo aver firmato: un `issued_at` più vecchio
+ * di così è una richiesta catturata e rigiocata; nel futuro oltre la tolleranza
+ * dell'orologio, un payload anomalo. Senza `issued_at` si accetta.
+ */
+export const ISSUED_AT_MAX_AGE_S = 3 * 24 * 3600;
+export const ISSUED_AT_MAX_SKEW_S = 10 * 60;
+
 const BASE64URL = /^[A-Za-z0-9_-]+$/;
 
 export type SignedRequestPayload = {
@@ -25,7 +33,7 @@ export type SignedRequestPayload = {
 
 export type SignedRequestResult =
   | { ok: true; payload: SignedRequestPayload }
-  | { ok: false; reason: "malformed" | "bad_signature" | "bad_algorithm" | "no_user_id" };
+  | { ok: false; reason: "malformed" | "bad_signature" | "bad_algorithm" | "no_user_id" | "stale" };
 
 function decodeBase64Url(part: string): Buffer | null {
   if (!part || !BASE64URL.test(part)) return null;
@@ -38,7 +46,8 @@ function decodeBase64Url(part: string): Buffer | null {
  */
 export function parseSignedRequest(
   signedRequest: string | null | undefined,
-  appSecret: string
+  appSecret: string,
+  nowMs: number = Date.now()
 ): SignedRequestResult {
   if (!appSecret) throw new Error("parseSignedRequest: App Secret mancante");
   if (typeof signedRequest !== "string" || signedRequest.length > SIGNED_REQUEST_MAX_LENGTH) {
@@ -74,7 +83,17 @@ export function parseSignedRequest(
   const userId =
     typeof rawUser === "string" ? rawUser.trim() : typeof rawUser === "number" ? String(rawUser) : "";
   if (!/^[0-9A-Za-z_-]{1,64}$/.test(userId)) return { ok: false, reason: "no_user_id" };
-  const issued = typeof obj.issued_at === "number" && Number.isFinite(obj.issued_at) ? obj.issued_at : null;
+  let issued: number | null = null;
+  if (obj.issued_at !== undefined && obj.issued_at !== null) {
+    if (typeof obj.issued_at !== "number" || !Number.isInteger(obj.issued_at)) {
+      return { ok: false, reason: "malformed" };
+    }
+    const nowS = Math.floor(nowMs / 1000);
+    if (obj.issued_at < nowS - ISSUED_AT_MAX_AGE_S || obj.issued_at > nowS + ISSUED_AT_MAX_SKEW_S) {
+      return { ok: false, reason: "stale" };
+    }
+    issued = obj.issued_at;
+  }
   return {
     ok: true,
     payload: { userId, issuedAt: issued !== null ? new Date(issued * 1000) : null },

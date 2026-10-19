@@ -18,7 +18,8 @@ import {
 
 const TEST_SECRET = "unit-test-app-secret-not-real-0015";
 const OTHER_SECRET = "another-test-secret-not-real-0015";
-const VALID = { algorithm: "HMAC-SHA256", issued_at: 1_790_000_000, user_id: "10234567890" };
+const NOW_S = Math.floor(Date.now() / 1000);
+const VALID = { algorithm: "HMAC-SHA256", issued_at: NOW_S, user_id: "10234567890" };
 
 const db = vi.hoisted(() => ({
   rows: [] as { code: string; metaUserId: string; status: string }[],
@@ -91,7 +92,7 @@ describe("parseSignedRequest", () => {
     const r = parseSignedRequest(buildSignedRequest(VALID, TEST_SECRET), TEST_SECRET);
     expect(r).toEqual({
       ok: true,
-      payload: { userId: "10234567890", issuedAt: new Date(1_790_000_000 * 1000) },
+      payload: { userId: "10234567890", issuedAt: new Date(NOW_S * 1000) },
     });
   });
 
@@ -132,6 +133,26 @@ describe("parseSignedRequest", () => {
   it("algoritmo diverso → bad_algorithm", () => {
     const r = parseSignedRequest(buildSignedRequest({ ...VALID, algorithm: "none" }, TEST_SECRET), TEST_SECRET);
     expect(r).toEqual({ ok: false, reason: "bad_algorithm" });
+  });
+
+  it("issued_at più vecchio di 3 giorni (richiesta rigiocata) → stale", () => {
+    const old = { ...VALID, issued_at: NOW_S - 4 * 24 * 3600 };
+    expect(parseSignedRequest(buildSignedRequest(old, TEST_SECRET), TEST_SECRET)).toEqual({ ok: false, reason: "stale" });
+  });
+
+  it("issued_at nel futuro oltre 10 minuti → stale; enorme → stale, mai una data non valida", () => {
+    for (const issued_at of [NOW_S + 3600, 1e15]) {
+      const r = parseSignedRequest(buildSignedRequest({ ...VALID, issued_at }, TEST_SECRET), TEST_SECRET);
+      expect(r).toEqual({ ok: false, reason: "stale" });
+    }
+  });
+
+  it("issued_at non intero → malformed; assente → accettato", () => {
+    const frac = parseSignedRequest(buildSignedRequest({ ...VALID, issued_at: "ieri" }, TEST_SECRET), TEST_SECRET);
+    expect(frac).toEqual({ ok: false, reason: "malformed" });
+    const { issued_at: _omit, ...noIssued } = VALID;
+    const r = parseSignedRequest(buildSignedRequest(noIssued, TEST_SECRET), TEST_SECRET);
+    expect(r).toEqual({ ok: true, payload: { userId: "10234567890", issuedAt: null } });
   });
 
   it("senza user_id → no_user_id", () => {
