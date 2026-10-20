@@ -109,7 +109,7 @@ describe("testi legali: stessa forma in tutte le lingue", () => {
     for (const l of LOCALES) {
       const text = JSON.stringify(messagesFor(l).legal);
       for (const m of text.matchAll(/\{\{(\w+)\}\}/g))
-        expect(["product", "entity", "email"]).toContain(m[1]);
+        expect(["product", "entity", "email", "details"]).toContain(m[1]);
       expect(text).not.toContain('""');
     }
   });
@@ -188,7 +188,10 @@ describe("pagine pubbliche senza sessione", () => {
   it("ogni pagina monta il testo del proprio tipo e i metadati", async () => {
     state.locale = "en";
     for (const kind of KINDS) {
-      const element = PAGES[kind]() as React.ReactElement<{ kind: string }>;
+      // 015: la pagina di cancellazione legge ?id= (asincrona); senza id non tocca il database.
+      const element = (await PAGES[kind]({ searchParams: Promise.resolve({}) })) as React.ReactElement<{
+        kind: string;
+      }>;
       expect(element.props.kind).toBe(kind);
       const meta = await legalMetadata(kind);
       expect(String(meta.title)).toContain(messagesFor("en").legal[kind].title);
@@ -248,7 +251,16 @@ describe("nessun controllo di accesso blocca le pagine pubbliche", () => {
       ...LOCALES.map((l) => path.join(ROOT, `src/lib/i18n/messages/${l}/legal.ts`)),
     ];
     expect(files.length).toBeGreaterThanOrEqual(9);
-    for (const f of files) expect(forbiddenImports(readFileSync(f, "utf8")), f).toEqual([]);
+    for (const f of files) {
+      const found = forbiddenImports(readFileSync(f, "utf8"));
+      // 015 — Unica eccezione: /cancellazione-dati legge lo stato di una
+      // richiesta SOLO con ?id=<codice>; senza id non tocca il database (lo
+      // prova «ogni pagina monta il testo…», con getDb che salta).
+      const allowed = f.endsWith(path.join("cancellazione-dati", "page.tsx"))
+        ? ["@/server/meta/data-deletion"]
+        : [];
+      expect(found, f).toEqual(allowed);
+    }
   });
 
   it("sabotaggio: la guardia degli import riconosce un import vietato", () => {

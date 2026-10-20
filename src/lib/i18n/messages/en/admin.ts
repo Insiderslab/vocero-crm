@@ -40,6 +40,28 @@ const messages: typeof base = {
     renameError: "Could not rename the company",
   },
   // 013 — Platform → Meta (super-admin only)
+  // 015 — Data deletion requests received from Meta
+  deletion: {
+    sectionTitle: "Privacy",
+    title: "Meta deletion requests",
+    description:
+      "They arrive when someone removes the app from their Facebook account and asks for their data to be deleted. The CRM does not store the Facebook ID: the data must be found and deleted by hand (CRM account, the business's Meta connection, contacts on the business's instructions). Check at least once a week; complete within 30 days and confirm by email.",
+    empty: "No requests.",
+    loadError: "Could not load the requests.",
+    metaUser: "Meta user ID",
+    code: "Code",
+    received: "Received",
+    daysLeft: "{{days}} days to the deadline",
+    overdue: "{{days}} days overdue",
+    status_received: "Received",
+    status_in_progress: "In progress",
+    status_completed: "Completed",
+    note: "Note (what was deleted)",
+    markInProgress: "Mark \"In progress\"",
+    markCompleted: "Mark \"Completed\"",
+    saveError: "Could not save.",
+    statusPage: "Status page",
+  },
   platform: {
     sectionTitle: "Platform",
     title: "Meta (Embedded Signup)",

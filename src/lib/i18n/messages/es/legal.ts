@@ -18,6 +18,27 @@ const legal: LegalMessages = {
     deletion: "Eliminación de datos",
     login: "Acceso",
   },
+  // 015 — Al final de privacidad y eliminación: contacto y responsable.
+  contact: {
+    title: "Contacto y responsable del tratamiento",
+    body: "Para pedir la eliminación de tus datos escribe a {{email}} desde la dirección con la que te registraste, indicando el número de WhatsApp y la organización. Eliminamos los datos en un plazo de 30 días y lo confirmamos por correo. Responsable: {{entity}}, {{details}}.",
+  },
+  // 015 — /cancellazione-dati?id=<código>: estado de una solicitud llegada de Meta.
+  status: {
+    title: "Estado de tu solicitud",
+    code: "Código de confirmación",
+    received: "Solicitud recibida",
+    in_progress: "En curso",
+    completed: "Completada",
+    receivedHint: "La hemos registrado: la completamos en un plazo de 30 días desde su recepción.",
+    inProgressHint: "Estamos eliminando los datos vinculados a la solicitud.",
+    completedHint: "Los datos vinculados a la solicitud se han eliminado.",
+    receivedOn: "Recibida el",
+    updatedOn: "Última actualización",
+    completedOn: "Completada el",
+    notFound: "Código no encontrado. Comprueba que lo copiaste entero o escribe a {{email}}.",
+    unavailable: "El estado no está disponible en este momento: inténtalo más tarde.",
+  },
   privacy: {
     title: "Política de privacidad",
     summary:
@@ -232,6 +253,13 @@ const legal: LegalMessages = {
         title: "5. Plazos y excepciones",
         body: [
           "Confirmamos la recepción y completamos la eliminación en un máximo de 30 días. Podemos conservar lo estrictamente necesario si una ley lo exige o para defender derechos en un procedimiento; en ese caso te lo explicaremos. Las copias de seguridad se eliminan al cumplirse su ciclo de conservación.",
+        ],
+        list: [],
+      },
+      {
+        title: "6. Si pediste la eliminación a través de Meta",
+        body: [
+          "Si quitaste {{product}} de las apps conectadas a tu cuenta de Meta y pediste eliminar los datos, Meta nos lo comunica y te muestra un código de confirmación. Con ese código puedes seguir el estado de la solicitud en esta página.",
         ],
         list: [],
       },

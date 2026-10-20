@@ -18,6 +18,27 @@ const legal: LegalMessages = {
     deletion: "Cancellazione dei dati",
     login: "Accesso",
   },
+  // 015 — In fondo a privacy e cancellazione: contatto e titolare.
+  contact: {
+    title: "Contatti e titolare del trattamento",
+    body: "Per chiedere la cancellazione dei tuoi dati scrivi a {{email}} dall'indirizzo con cui sei registrato, indicando numero WhatsApp e organizzazione. Cancelliamo i dati entro 30 giorni e confermiamo via e-mail. Titolare: {{entity}}, {{details}}.",
+  },
+  // 015 — /cancellazione-dati?id=<codice>: stato di una richiesta arrivata da Meta.
+  status: {
+    title: "Stato della tua richiesta",
+    code: "Codice di conferma",
+    received: "Richiesta ricevuta",
+    in_progress: "In corso",
+    completed: "Completata",
+    receivedHint: "L'abbiamo registrata: la completiamo entro 30 giorni dalla ricezione.",
+    inProgressHint: "Stiamo cancellando i dati collegati alla richiesta.",
+    completedHint: "I dati collegati alla richiesta sono stati cancellati.",
+    receivedOn: "Ricevuta il",
+    updatedOn: "Ultimo aggiornamento",
+    completedOn: "Completata il",
+    notFound: "Codice non trovato. Controlla di averlo copiato per intero, oppure scrivi a {{email}}.",
+    unavailable: "Lo stato non è disponibile in questo momento: riprova più tardi.",
+  },
   privacy: {
     title: "Informativa sulla privacy",
     summary:
@@ -234,6 +255,13 @@ const legal: LegalMessages = {
         title: "5. Tempi ed eccezioni",
         body: [
           "Confermiamo la ricezione e completiamo la cancellazione entro 30 giorni. Possiamo conservare lo stretto necessario se lo impone una legge o per difendere diritti in un procedimento; in tal caso te lo spiegheremo. Le copie di sicurezza vengono eliminate al termine del loro ciclo di conservazione.",
+        ],
+        list: [],
+      },
+      {
+        title: "6. Se hai chiesto la cancellazione tramite Meta",
+        body: [
+          "Se hai rimosso {{product}} dalle app collegate al tuo account Meta e hai chiesto di cancellare i dati, Meta ce lo comunica e ti mostra un codice di conferma. Con quel codice puoi seguire lo stato della richiesta su questa pagina.",
         ],
         list: [],
       },

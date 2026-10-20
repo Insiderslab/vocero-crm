@@ -38,6 +38,28 @@ const messages = {
     renameError: "No se pudo renombrar la empresa",
   },
   // 013 — Plataforma → Meta (solo super-admin)
+  // 015 — Solicitudes de eliminación de datos llegadas de Meta
+  deletion: {
+    sectionTitle: "Privacidad",
+    title: "Solicitudes de eliminación de Meta",
+    description:
+      "Llegan cuando una persona quita la app de su cuenta de Facebook y pide eliminar los datos. El CRM no guarda el ID de Facebook: los datos se buscan y eliminan a mano (cuenta del CRM, conexión Meta de la empresa, contactos por instrucción de la empresa). Revisar al menos una vez por semana; completar en 30 días y confirmar por correo.",
+    empty: "Ninguna solicitud.",
+    loadError: "No se pudieron cargar las solicitudes.",
+    metaUser: "ID de usuario Meta",
+    code: "Código",
+    received: "Recibida",
+    daysLeft: "{{days}} días para el plazo",
+    overdue: "Retrasada {{days}} días",
+    status_received: "Recibida",
+    status_in_progress: "En curso",
+    status_completed: "Completada",
+    note: "Nota (qué se eliminó)",
+    markInProgress: "Marcar «En curso»",
+    markCompleted: "Marcar «Completada»",
+    saveError: "No se pudo guardar.",
+    statusPage: "Página de estado",
+  },
   platform: {
     sectionTitle: "Plataforma",
     title: "Meta (Embedded Signup)",

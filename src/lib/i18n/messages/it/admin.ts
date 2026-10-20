@@ -40,6 +40,28 @@ const messages: typeof base = {
     renameError: "Impossibile rinominare l'azienda",
   },
   // 013 — Piattaforma → Meta (solo super-admin)
+  // 015 — Richieste di cancellazione dati arrivate da Meta
+  deletion: {
+    sectionTitle: "Privacy",
+    title: "Richieste di cancellazione Meta",
+    description:
+      "Arrivano quando una persona rimuove l'app dal suo account Facebook e chiede di cancellare i dati. Il CRM non conserva l'ID Facebook: i dati vanno cercati e cancellati a mano (account CRM, collegamento Meta dell'azienda, contatti su istruzione dell'azienda). Controllo almeno una volta a settimana; completare entro 30 giorni e confermare via e-mail.",
+    empty: "Nessuna richiesta.",
+    loadError: "Impossibile caricare le richieste.",
+    metaUser: "ID utente Meta",
+    code: "Codice",
+    received: "Ricevuta",
+    daysLeft: "{{days}} giorni alla scadenza",
+    overdue: "In ritardo di {{days}} giorni",
+    status_received: "Ricevuta",
+    status_in_progress: "In corso",
+    status_completed: "Completata",
+    note: "Nota (cosa è stato cancellato)",
+    markInProgress: "Segna «In corso»",
+    markCompleted: "Segna «Completata»",
+    saveError: "Salvataggio non riuscito.",
+    statusPage: "Pagina di stato",
+  },
   platform: {
     sectionTitle: "Piattaforma",
     title: "Meta (Embedded Signup)",

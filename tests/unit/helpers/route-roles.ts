@@ -130,6 +130,8 @@ const ROWS: Row[] = [
   ["admin/orgs/[orgId]/users", ["GET", "POST"], "superadmin", "panel de super-admin"],
   ["admin/platform/meta", ["GET", "PUT"], "superadmin", "013: App ID y Configuration ID de Meta de la instancia (no secretos); del App Secret solo presencia y contadores de firma"],
   ["admin/platform/meta/webhook", ["POST"], "superadmin", "014: vuelve a poner el CRM como callback WhatsApp de la app Meta (una por instancia, vale para todas las organizaciones)"],
+  ["admin/meta-deletion", ["GET"], "superadmin", "015: solicitudes de borrado llegadas de Meta (con el ID de usuario Meta, para buscar los datos a mano)"],
+  ["admin/meta-deletion/[id]", ["PATCH"], "superadmin", "015: cambia el estado de una solicitud de borrado (recibida → en curso → completada) con una nota"],
   ["bot/context", ["GET"], "bot-key", "clave de servicio del bot, sin sesión"],
   ["bot/ficha", ["PUT"], "bot-key", "clave de servicio del bot"],
   ["bot/handoff", ["POST"], "bot-key", "clave de servicio del bot"],
@@ -150,6 +152,7 @@ const ROWS: Row[] = [
   // Públicas o solo de desarrollo
   ["auth/[...all]", ["GET", "POST"], "public", "Better Auth: registro, login, cierre de sesión"],
   ["health", ["GET"], "public", "comprobación de salud y versión, sin datos de clientes"],
+  ["meta/data-deletion", ["POST"], "public", "015: callback de borrado de datos de Meta; la autentica el signed_request firmado con META_APP_SECRET (400 sin firma válida)"],
   ["branding/favicon", ["GET"], "public", "icono de la pestaña; el login también lo necesita"],
   ["public/site-requests", ["OPTIONS"], "public", "preflight CORS del formulario del sitio (008): el navegador no manda la clave; solo responde a orígenes autorizados y no escribe nada"],
   ["dev/ai-mock/chat/completions", ["POST"], "dev-mock", "re-exporta el mock de v1, que lleva el guard"],

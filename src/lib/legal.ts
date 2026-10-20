@@ -35,6 +35,24 @@ export type LegalMessages = {
     deletion: string;
     login: string;
   };
+  /** 015 — Contatto e titolare, in fondo a privacy e cancellazione dati. */
+  contact: { title: string; body: string };
+  /** 015 — Stato di una richiesta di cancellazione arrivata da Meta (?id=<codice>). */
+  status: {
+    title: string;
+    code: string;
+    received: string;
+    in_progress: string;
+    completed: string;
+    receivedHint: string;
+    inProgressHint: string;
+    completedHint: string;
+    receivedOn: string;
+    updatedOn: string;
+    completedOn: string;
+    notFound: string;
+    unavailable: string;
+  };
   privacy: LegalDocument;
   terms: LegalDocument;
   deletion: LegalDocument;
@@ -66,6 +84,8 @@ export type LegalContext = {
   product: string;
   entity: string;
   email: string;
+  /** 015 — Indirizzo e partita IVA del titolare (LEGAL_ENTITY_DETAILS). */
+  details: string;
 };
 
 /**
@@ -74,6 +94,7 @@ export type LegalContext = {
  */
 export const LEGAL_ENTITY_PLACEHOLDER = "[LEGAL_ENTITY_NAME]";
 export const LEGAL_EMAIL_PLACEHOLDER = "[LEGAL_CONTACT_EMAIL]";
+export const LEGAL_DETAILS_PLACEHOLDER = "[LEGAL_ENTITY_DETAILS]";
 
 /** Dati del titolare, dall'ambiente (non sono segreti). */
 export function legalContext(
@@ -83,14 +104,23 @@ export function legalContext(
     product: "Heili CRM",
     entity: env.LEGAL_ENTITY_NAME?.trim() || LEGAL_ENTITY_PLACEHOLDER,
     email: env.LEGAL_CONTACT_EMAIL?.trim() || LEGAL_EMAIL_PLACEHOLDER,
+    details: env.LEGAL_ENTITY_DETAILS?.trim() || LEGAL_DETAILS_PLACEHOLDER,
   };
 }
 
-/** Sostituisce {{product}}, {{entity}}, {{email}}; un segnaposto ignoto resta com'è. */
+/** Sostituisce {{product}}, {{entity}}, {{email}}, {{details}}; un segnaposto ignoto resta com'è. */
 export function fillLegal(text: string, ctx: LegalContext): string {
   return text.replace(/\{\{(\w+)\}\}/g, (whole, name: string) =>
-    name === "product" || name === "entity" || name === "email"
+    name === "product" || name === "entity" || name === "email" || name === "details"
       ? ctx[name]
       : whole
   );
 }
+
+/** 015 — Stato pubblico di una richiesta di cancellazione arrivata da Meta (solo stato e date). */
+export type PublicDeletionStatus = {
+  status: "received" | "in_progress" | "completed";
+  createdAt: string;
+  updatedAt: string;
+  completedAt: string | null;
+};
