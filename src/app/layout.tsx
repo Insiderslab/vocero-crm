@@ -9,7 +9,7 @@ import { LOCALE_COOKIE, normalizeLocale } from "@/lib/i18n";
 import { I18nProvider } from "@/lib/i18n/client";
 import { getT } from "@/lib/i18n/server";
 import { normalizeThemePreference, THEME_COOKIE } from "@/lib/theme";
-import { getBranding } from "@/server/branding";
+import { getRequestBranding } from "@/server/branding-request";
 import "./globals.css";
 
 const instrumentSans = Instrument_Sans({
@@ -32,7 +32,7 @@ const geistMono = Geist_Mono({
 export const dynamic = "force-dynamic";
 
 export async function generateMetadata(): Promise<Metadata> {
-  const branding = await getBranding().catch(() => DEFAULT_BRANDING);
+  const branding = await getRequestBranding().catch(() => DEFAULT_BRANDING);
   const { t } = await getT();
   // Las llaves viven en el módulo `common` del diccionario: sin el prefijo,
   // `t()` no las encontraba y la pestaña enseñaba la llave cruda (E9).
@@ -48,7 +48,7 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  const branding = await getBranding().catch(() => DEFAULT_BRANDING);
+  const branding = await getRequestBranding().catch(() => DEFAULT_BRANDING);
   const jar = await cookies();
   const theme = normalizeThemePreference(jar.get(THEME_COOKIE)?.value);
   const locale = normalizeLocale(jar.get(LOCALE_COOKIE)?.value);
