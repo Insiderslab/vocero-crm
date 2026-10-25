@@ -115,7 +115,9 @@ function dichiarazioniIn(ref) {
 /** Il lavoro del branch è già sul ramo principale: nessun commit avanti, o (squash) i suoi file sono identici. */
 function giaIntegrato(ref, principale) {
   if (git("rev-list", "--count", `${principale}..${ref}`) === "0") return true;
-  const toccati = righe(git("diff", "--name-only", `${principale}...${ref}`));
+  let toccati;
+  // Un branch senza storia in comune (es. il README del profilo) non è integrato: niente merge base, niente diff.
+  try { toccati = righe(git("diff", "--name-only", `${principale}...${ref}`)); } catch { return false; }
   try { git("diff", "--quiet", principale, ref, "--", ...toccati); return true; } catch { return false; }
 }
 
