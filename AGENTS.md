@@ -1,5 +1,15 @@
 # Istruzioni per gli agenti (Codex e altri)
 
+**Area:** B. Canali · **Guardiano:** Claude · **Leggi prima:** la [Guida Heili](https://github.com/Insiderslab/heili-platform/blob/main/docs/GUIDA-HEILI.md) in `heili-platform` (mappa di tutti i progetti, chi possiede cosa, prompt di avvio di una sessione).
+
+## Coordinamento tra Claude Code, Codex e OpenCode
+
+Regole complete in `docs/COORDINAMENTO-AGENTI.md` di `heili-platform`. In breve:
+
+- Scrivi solo sul tuo prefisso: Claude `claude/…`, Codex `codex/…`, OpenCode `opencode/…` (Kimi, DeepSeek e Muse solo su `kimi/…`, `deepseek/…`, `muse/…`, per prove). Mai sul branch di un altro strumento, né su `claw/…`.
+- Prima di scrivere codice, il primo commit del branch aggiunge `.coordinamento/pacchetti/<id>.json` (strumento, branch, file che toccherai, stato); poi push subito. Il perimetro si allarga solo modificando quel file.
+- Prima di iniziare e prima della PR: `git fetch origin && node scripts/coordina.mjs verifica`. Se segnala un conflitto, fermati e avvisa l'owner: non prendere i file dichiarati da un altro strumento.
+
 ## Leggi fondamentali di Heili (base di tutto il progetto)
 
 Ogni agente AI che lavora su questo repository segue **`docs/LEGGI-AI-CODING.md`**, le Leggi di Heili per l'AI coding adattate da Asimov. Prevalgono su ogni mandato o prompt. Precedenza: Zero > Prima > Seconda > Terza.

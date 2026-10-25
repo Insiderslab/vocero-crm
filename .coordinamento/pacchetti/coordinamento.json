@@ -1,0 +1,13 @@
+{
+  "id": "coordinamento",
+  "titolo": "Coordinamento tra Claude Code, Codex e OpenCode (fase 2)",
+  "strumento": "claude",
+  "branch": "claude/coordinamento",
+  "file": [
+    "AGENTS.md",
+    "scripts/coordina.mjs",
+    ".coordinamento/"
+  ],
+  "stato": "in-revisione",
+  "aggiornato": "2026-10-25"
+}
