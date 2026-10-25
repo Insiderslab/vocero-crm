@@ -1,0 +1,10 @@
+{
+  "id": "beauty-mvp",
+  "titolo": "MVP beauty: agenda, prenotazioni e promemoria con riuso e revisione indipendente",
+  "strumento": "codex",
+  "branch": "codex/beauty-mvp",
+  "file": ["specs/016-beauty-mvp/", "docs/lavoro/2026-10-26-beauty-mvp.md", "docs/adr/beauty-booking.md", "src/lib/booking/", "src/server/booking/", "src/lib/db/schema.ts", "drizzle/", "src/app/api/booking/", "src/app/api/public/booking/", "src/app/(app)/agenda/", "src/app/book/", "src/components/booking/", "src/components/sidebar.tsx", "src/components/app-shell.tsx", "src/components/app-nav.tsx", "src/instrumentation-node.ts", "scripts/booking-worker.ts", "scripts/beauty-selftest.mjs", "scripts/beauty-local-db.mjs", "tests/unit/booking/", "tests/golden/booking/", "package.json", "pnpm-lock.yaml", "Dockerfile", "src/lib/env.ts", "vitest.booking.config.ts"],
+  "stato": "in-corso",
+  "aggiornato": "2026-10-26",
+  "note": "Mandato diretto Stefano: creare progetto e sviluppare autonomamente il MVP dello studio, usare DeepSeek gratuito OpenCode se disponibile e revisionare. Nuove dipendenze limitate al riuso richiesto; test sintetici; niente produzione, dati reali, invii reali o acquisti."
+}
