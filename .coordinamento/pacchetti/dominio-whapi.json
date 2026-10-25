@@ -1,0 +1,9 @@
+{
+  "id": "dominio-whapi",
+  "titolo": "Dominio di Whapi: whapi.heili.cloud in .env.example e nella specifica 003",
+  "strumento": "claude",
+  "branch": "claude/dominio-whapi",
+  "file": [".env.example", "specs/custom-heili/003-integracion-wapi.md"],
+  "stato": "in-revisione",
+  "aggiornato": "2026-10-25"
+}
