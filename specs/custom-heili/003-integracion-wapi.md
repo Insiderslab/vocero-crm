@@ -103,7 +103,7 @@ gateway; se limpiarán cuando se complete la migración de todas las orgs).
 1. **Wapi** (`/opt/wapi`, contenedor `wapi-app`): desplegar esta versión;
    opcional `META_APP_SECRET` para verificar la firma entrante de Meta. En
    Meta for Developers, apuntar el webhook de la app a Wapi
-   (`https://wapi.heili.cloud/api/webhook`, verify token =
+   (`https://whapi.heili.cloud/api/webhook`, verify token =
    `WEBHOOK_VERIFY_TOKEN` de Wapi).
 2. **Alta del número en Wapi** (panel admin): la org Heili ya tiene su API
    key; dar de alta cada número con su `meta_phone_number_id`, `waba_id` y
@@ -112,7 +112,7 @@ gateway; se limpiarán cuando se complete la migración de todas las orgs).
    `https://crm.heili.cloud/api/webhooks/wa/<META_WEBHOOK_VERIFY_TOKEN>` con
    `secret` = `META_APP_SECRET` del CRM (o configurar uno y ponerlo en ambos).
 4. **CRM** (crm.heili.cloud):
-   `WAPI_BASE_URL=https://wapi.heili.cloud/api/v1/graph`,
+   `WAPI_BASE_URL=https://whapi.heili.cloud/api/v1/graph`,
    `WAPI_API_KEY=hlp_live_<key de la org Heili>` y, para migración gradual,
    `WAPI_ORG_IDS=<org que migra>`. Sin `WAPI_BASE_URL` todo sigue igual.
 5. **Verificación en vivo**: enviar texto, plantilla y adjunto desde el CRM;
