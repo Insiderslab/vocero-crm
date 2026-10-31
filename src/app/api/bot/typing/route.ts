@@ -5,6 +5,7 @@ import { apiError, parseBody } from "@/lib/api";
 import { authenticateBot } from "@/server/bot/auth";
 import { accountContext, findAccountForOrg } from "@/server/channels/core/accounts";
 import { whatsappAdapter } from "@/server/channels/whatsapp/adapter";
+import { isListeningMode, listeningModeError } from "@/server/listening/mode";
 
 export const dynamic = "force-dynamic";
 
@@ -24,6 +25,11 @@ export async function POST(req: Request) {
   const { organizationId } = auth;
   const body = await parseBody(req, bodySchema);
   if (!body.ok) return body.response;
+
+  // 016: in ascolto né «letto» né «sta scrivendo»: sarebbe un segnale al cliente.
+  if (await isListeningMode(organizationId)) {
+    return apiError(409, "listening_mode", listeningModeError().message);
+  }
 
   const db = getDb();
   const convs = await db

@@ -12,6 +12,7 @@ import { AgentAction, degradeAction, resolveStage, type AgentActionType } from "
 import { matchesHandoffIntent } from "@/server/ai/handoff";
 import { buildAgentSystemPrompt } from "@/server/ai/prompts";
 import { isAllowedIdentity } from "@/server/ai/allowlist";
+import { isListeningMode } from "@/server/listening/mode";
 import { MESSAGE_CHRONOLOGY_DESC } from "@/server/inbox/queries";
 import {
   answeredSinceLastInbound,
@@ -412,6 +413,12 @@ export async function runAgentTurn(
   const conversation = convRows[0];
   if (!conversation) return;
   const organizationId = conversation.organizationId;
+
+  // 016: in modalità ascolto nessun turno reale arriva al modello né scrive
+  // nel CRM (fase, note): copre i turni pianificati prima dell'accensione, il
+  // secondo intento (`agent_retry_at`) e «Riprova». Il Laboratorio sì: è
+  // sandbox e non invia mai.
+  if (!conversation.isTest && (await isListeningMode(organizationId))) return;
 
   // Condiciones de silencio: handoff activo o IA apagada en la conversación.
   // Un handoff con `agent_retry_at` NO silencia: es un segundo intento

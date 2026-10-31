@@ -36,6 +36,8 @@ const messages: typeof base = {
     allStages: "Any stage",
     stageAria: "Filter by pipeline stage",
   },
+  /** 016 — Striscia con la modalità ascolto accesa. */
+  listeningBanner: "Listening mode on: the AI agent and automations do not send messages",
   send: {
     noConversation: "No conversation selected",
     offline: "No connection to the server",

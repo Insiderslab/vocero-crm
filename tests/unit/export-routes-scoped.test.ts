@@ -52,6 +52,10 @@ import { GET as exportContacts } from "@/app/api/export/contacts/route";
 import { GET as exportConversations } from "@/app/api/export/conversations/route";
 import { GET as exportLeads } from "@/app/api/export/leads/route";
 import { GET as exportMessages } from "@/app/api/export/messages/route";
+import { GET as coreContacts } from "@/app/api/export/core/contacts/route";
+import { GET as coreConversations } from "@/app/api/export/core/conversations/route";
+import { GET as coreMessages } from "@/app/api/export/core/messages/route";
+import { GET as coreState } from "@/app/api/export/core/state/route";
 
 const key = generateApiKey("export");
 
@@ -60,6 +64,11 @@ const ROUTES: [string, (req: Request) => Promise<Response>][] = [
   ["conversations", exportConversations],
   ["leads", exportLeads],
   ["messages", exportMessages],
+  // 016 — feed para Heili Core.
+  ["core/state", coreState],
+  ["core/contacts", coreContacts],
+  ["core/conversations", coreConversations],
+  ["core/messages", coreMessages],
 ];
 
 function call(handler: (req: Request) => Promise<Response>, name: string, query = "") {
@@ -141,14 +150,27 @@ describe("export: cada tabla consultada se acota a la organización de la clave"
 
 describe("export: el filtro de organización pasa por scoped() (estructural)", () => {
   const dir = path.resolve(import.meta.dirname, "../../src/app/api/export");
-  const files = readdirSync(dir).map((d) => path.join(dir, d, "route.ts"));
+  const routeFiles = (d: string): string[] =>
+    readdirSync(d, { withFileTypes: true }).flatMap((e) =>
+      e.isDirectory() ? routeFiles(path.join(d, e.name)) : e.name === "route.ts" ? [path.join(d, e.name)] : []
+    );
+  const files = routeFiles(dir);
+  // 016: `core/state` no consulta tablas en la ruta; lee `listening_mode` por
+  // `getListeningState` (scoped(), probado en listening-mode.test.ts y, con SQL
+  // real, en el bloque de comportamiento de arriba).
+  const WITHOUT_QUERIES = new Set(["core/state/route.ts"]);
 
-  it("hay rutas que revisar", () => {
-    expect(files.length).toBeGreaterThanOrEqual(4);
+  it("hay rutas que revisar (las 4 de siempre + 4 del feed para el Core)", () => {
+    expect(files.length).toBeGreaterThanOrEqual(8);
   });
 
   it.each(files.map((f) => [path.relative(dir, f), f]))("%s", (_rel, file) => {
     const src = readFileSync(file, "utf8");
+    if (WITHOUT_QUERIES.has(_rel.split(path.sep).join("/"))) {
+      expect(src).toMatch(/withExport\(/);
+      expect(src).not.toMatch(/\.(?:from|innerJoin|leftJoin)\(\s*schema\./);
+      return;
+    }
     expect(src).toMatch(/import \{ scoped \} from "@\/lib\/db\/tenant"/);
     expect(src).toMatch(/withExport\(/);
     // Ningún filtro de organización a mano: siempre scoped(columna, org.id, …).
