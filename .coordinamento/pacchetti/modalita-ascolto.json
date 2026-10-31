@@ -18,6 +18,7 @@
     "src/app/api/contacts/",
     "src/app/api/settings/listening/",
     "src/app/api/export/core/",
+    "src/server/export/handler.ts",
     "src/app/(app)/settings/",
     "src/app/(app)/inbox/",
     "src/components/",
