@@ -34,10 +34,10 @@ Core** contatti, identità e messaggi in modo incrementale e affidabile:
 
    | Via | Comportamento |
    |---|---|
-   | Agente AI (`maybeRunAgentTurn`) | Il turno **non si pianifica**: nessuna chiamata al modello, nessun costo |
+   | Agente AI (`maybeRunAgentTurn`, `runAgentTurn`) | Il turno **non si pianifica**; un turno già pianificato, il secondo intento (`agent_retry_at`) o «Riprova» escono all'inizio di `runAgentTurn`: nessuna chiamata al modello né scrittura nel CRM. Il Laboratorio (`is_test`) prosegue |
    | Invio di testo con `aiGenerated: true` (`channels/core/send.ts`) | `SendError("listening_mode")`, nessuna chiamata al provider, nessun messaggio salvato. Difesa in profondità: copre un turno già pianificato prima dell'accensione |
    | Cervello esterno `/api/bot/*` | Ogni azione che parla con Meta (invio, «letto», «sta scrivendo») risponde **409 `listening_mode`** e non chiama Graph. Le letture restano possibili |
-   | Automazioni (`automations/engine.ts`) | L'organizzazione si salta: nessun invio, conteggiata come saltata nelle statistiche del giro |
+   | Automazioni (`automations/engine.ts`) | L'organizzazione si salta: nessun invio, conteggiata come saltata nelle statistiche del giro. Lo stato si rilegge prima di ogni invio: un'accensione a giro iniziato ferma il giro |
    | Invio di una **persona** dalla Posta (testo, allegato, posizione, contatti, modello, avvio di conversazione) | **Invariato**: le risposte del team sono permesse e sono il materiale dell'ascolto |
    | Ronda del team (012) | **Invariata**: i destinatari sono solo i numeri del team (007), mai clienti finali |
 
@@ -78,15 +78,15 @@ Core** contatti, identità e messaggi in modo incrementale e affidabile:
    - **Contatto archiviato:** `{ id, deleted: true, changedAt }` e nient'altro. È il segnale di
      cancellazione per il Core.
 3. `GET /api/export/core/conversations?after=&limit=`
-   - Cursore su `(updated_at, id)`; le conversazioni del Laboratorio (`is_test`) sono escluse.
+   - Cursore su `(updated_at, id)`; escluse le conversazioni del Laboratorio (`is_test`) e quelle di un contatto archiviato.
    - **Campi:** `id`, `contactId`, `channel` (quello della cuenta; `whatsapp` se non c'è),
      `channelAccountId`, `aiEnabled`, `lastInboundAt`, `createdAt`, `updatedAt`.
 4. `GET /api/export/core/messages?after=&limit=`
    - Cursore su `(created_at, id)`. `created_at` è l'ora di inserimento in Orbit, non l'ora di WhatsApp:
      un messaggio arrivato in ritardo ha comunque un `created_at` nuovo.
-   - Il consumatore rilegge con una sovrapposizione di 5 minuti e deduplica per `id`. Copre le
-     transazioni che finiscono in ordine diverso; il contratto lo dice.
-   - Esclude `is_test`.
+   - Il consumatore rilegge **tutte e tre le liste** con una sovrapposizione di 5 minuti e deduplica per
+     `id`. Copre le transazioni che finiscono in ordine diverso; il contratto lo dice.
+   - Esclude `is_test` e i messaggi di un contatto archiviato.
    - **Campi:** `id`, `conversationId`, `contactId`, `channel`, `direction`, `origin`, `aiGenerated`,
      `type`, `text`, `waTimestamp`, `createdAt`, `hasMedia` (booleano, nessun file né URL).
 5. **Risposta delle liste:**
@@ -94,8 +94,9 @@ Core** contatti, identità e messaggi in modo incrementale e affidabile:
    { "schema": "orbit.core-feed/v1", "organizationId": "...", "listening": true,
      "items": [ ... ], "nextCursor": "<opaco>" | null }
    ```
-   - Il cursore è opaco, base64url di `<ISO>|<id>`. Uno malformato o con un id non valido → **422
-     `invalid_cursor`**, senza toccare il database.
+   - Il cursore è opaco, base64url di `<ISO>|<id>` con l'ISO in microsecondi. Uno malformato, con una
+     data impossibile (anno 0, 31 febbraio) o con un id non valido → **422 `invalid_cursor`**, senza
+     toccare il database.
    - `limit` fuori dai limiti → 422.
 6. Le rotte esistenti `/api/export/{contacts,conversations,leads,messages}` **non cambiano**: le usano
    n8n e gli script di analisi.

@@ -1,4 +1,4 @@
-import { asc, eq, isNotNull } from "drizzle-orm";
+import { asc, eq, isNotNull, isNull } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { scoped } from "@/lib/db/tenant";
 import { withExport } from "@/server/export/handler";
@@ -12,7 +12,8 @@ export const dynamic = "force-dynamic";
  * in ritardo ha comunque un `created_at` nuovo. Il consumatore rilegge con 5
  * minuti di sovrapposizione e deduplica per `id` (transazioni che finiscono in
  * ordine diverso). Esclusi i messaggi del Laboratorio. Nessun file né URL:
- * solo `hasMedia`.
+ * solo `hasMedia`. Esclusi i messaggi di un contatto archiviato (`deleted`
+ * per il Core in core/contacts).
  */
 export const GET = withExport(async (org, url) => {
   const params = parseFeedParams(url);
@@ -42,6 +43,15 @@ export const GET = withExport(async (org, url) => {
         schema.conversation.organizationId,
         org.id,
         eq(m.conversationId, schema.conversation.id)
+      )
+    )
+    .innerJoin(
+      schema.contact,
+      scoped(
+        schema.contact.organizationId,
+        org.id,
+        eq(schema.contact.id, schema.conversation.contactId),
+        isNull(schema.contact.archivedAt)
       )
     )
     .where(

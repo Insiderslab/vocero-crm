@@ -173,6 +173,13 @@ export async function runAutomationsForOrg(
         continue;
       }
 
+      // 016: l'ascolto può accendersi a giro iniziato. Si rilegge prima di
+      // ogni invio: dal primo messaggio dopo l'accensione, il giro si ferma.
+      if (await isListeningMode(organizationId)) {
+        stats.skippedListening = 1;
+        return stats;
+      }
+
       try {
         await sendTemplate({
           organizationId,

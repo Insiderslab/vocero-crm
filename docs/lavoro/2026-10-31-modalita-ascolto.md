@@ -137,3 +137,57 @@ Il sabotaggio 8 nella prima passata mancava il bersaglio (sostituiva un commento
 4. Il tipo `ExportOrg` in `withExport` (unica modifica fuori dal perimetro iniziale, dichiarata nel JSON).
 5. L'eccezione `WITHOUT_QUERIES` per `core/state` nel test strutturale.
 6. Che `bot/media/[mediaId]` possa restare attivo in ascolto.
+
+## Verifica avversaria e correzioni (orchestratore, 31/10)
+
+Verificatore separato (agente `crm-verificatore`, Opus), in un worktree e con un Postgres usa e getta suoi.
+Verdetto **NON REGGE**, con 0 problemi Critici e 0 Alti. Le correzioni sono in un commit sopra `896a6a4`.
+
+| # | Gravità | Problema | Correzione | Test e sabotaggio |
+|---|---|---|---|---|
+| 1 | Medio | La precisione in µs del cursore non era protetta (`US` → `MS` lasciava i test verdi) | `MICRO_ISO_FORMAT` esportata, `microIso` la usa | Nuovo test sul formato e sull'SQL generato; `US`→`MS` lo fa fallire |
+| 2 | Medio | Automazioni: l'ascolto acceso a giro iniziato non fermava gli invii | Rilettura di `isListeningMode` prima di ogni `sendTemplate` | Test «accesa a giro iniziato»; togliendo la rilettura fallisce |
+| 3 | Medio | `core/messages` e `core/conversations` esponevano un contatto archiviato | Join `scoped` con `contact.archived_at IS NULL` in entrambe | Test sull'SQL; togliendo la condizione fallisce |
+| 4 | Medio | Mancava l'E2E | Sezione `listeningSection` nell'harness, 19 controlli | Vedi «E2E» sotto |
+| 5 | Basso | Una data impossibile nel cursore dava 500 | `isRealInstant`: niente anno 0, andata e ritorno fino ai secondi | 3 casi più la rotta → 422 senza query; togliendo il controllo falliscono 3 test |
+| 6 | Basso | `listening` fisso a vero e il controllo del base64 senza test | — | 2 test nuovi; ciascun sabotaggio ne fa fallire 1 |
+| 7 | Basso | Contatti e conversazioni su `updated_at` possono perdere le transazioni lente | Il contratto chiede **5 minuti di sovrapposizione su tutte e tre le liste**; deduplica per `id` | Contratto `heili-platform:docs/contratti/crm-core.md` e spec aggiornati |
+| 8 | Basso | Prestazioni: niente indice dedicato; `greatest()` sui contatti | Rinviato: volumi del pilota piccoli. Da rivedere con `EXPLAIN` sui dati veri | — |
+| 9 | Basso | In ascolto l'IA poteva ancora chiamare il modello e scrivere nel CRM (turno pianificato prima, `agent_retry_at`, «Riprova») | Guardia all'inizio di `runAgentTurn`: un turno reale in ascolto esce subito, il Laboratorio prosegue | `listening-pipeline.test.ts` (4 test); togliendo la guardia falliscono 2 test, bloccando anche il Laboratorio ne fallisce 1 |
+| 10 | Basso | Procedura di ritorno indietro della 0020 non scritta | Vedi sotto | Il verificatore l'ha provata su Postgres |
+
+`src/server/ai/pipeline.ts` entra nel perimetro per il punto 9 (dichiarato nel JSON del pacchetto).
+
+### Ritorno indietro della migrazione 0020
+1. `DROP TABLE IF EXISTS listening_mode;`
+2. Togliere la riga della 0020 da `drizzle.__drizzle_migrations` (hash della 0020).
+3. Fare il deploy del commit precedente.
+
+Nessun'altra tabella dipende da `listening_mode`. Il verificatore ha provato il rollback e la riapplicazione su Postgres 16.
+
+### E2E (Definizione di Hecho)
+Ambiente:
+- Postgres 16 usa e getta su `127.0.0.1:55440`;
+- `next dev` con i mock: `WA_MOCK_ENABLED=true`, wa-mock e ai-mock;
+- `OPENROUTER_MODEL=mock/model`, `SUPERADMIN_EMAILS=e2e@vocero.test`, `AGENT_COALESCE_MS=500`, `AGENT_RETRY_MS=4000`, come nei registri precedenti (`docs/lavoro/2026-10-14-m1.3-r2.md`).
+
+```
+origin/main (worktree pulito, stesso ambiente):  ===== 278/278 checks OK, 0 fallos =====
+claude/ascolto-orbit:                            ===== 297/297 checks OK, 0 fallos =====
+== 016: modalità ascolto ==  (19 controlli, tutti OK)
+  in ascolto l'agente NON risponde · il cervello esterno riceve 409 listening_mode · anche «sta scrivendo» → 409
+  niente è partito verso il cliente · l'operatore risponde dalla Posta · …e il suo messaggio parte
+  feed: state dice listening.enabled = true · messaggi con direction e origin · contatto senza note né scheda
+  feed senza chiave → 401 · cursore malformato → 422 · ascolto spento: l'agente torna a rispondere
+```
+
+Lezione dell'ambiente: senza `OPENROUTER_MODEL` l'agente non risponde mai. In quel caso «in ascolto l'agente NON
+risponde» risulterebbe vero per la ragione sbagliata. Per questo la sezione chiude spegnendo l'ascolto e
+verificando che l'agente torni a rispondere. Al primo giro quel controllo ha rivelato proprio questo problema.
+
+Controlli finali sull'albero corretto:
+- `pnpm typecheck`: ok;
+- `pnpm lint`: ok;
+- `pnpm test`: 108 file, **1793 test** passati;
+- `NODE_USE_ENV_PROXY=1 pnpm build`: ok;
+- `pnpm db:generate`: «No schema changes».

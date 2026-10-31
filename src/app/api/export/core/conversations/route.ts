@@ -1,4 +1,4 @@
-import { asc, eq, sql } from "drizzle-orm";
+import { asc, eq, isNull, sql } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { scoped } from "@/lib/db/tenant";
 import { withExport } from "@/server/export/handler";
@@ -9,7 +9,9 @@ export const dynamic = "force-dynamic";
 /**
  * 016 — Conversazioni per Heili Core. Cursore su `(updated_at, id)`; escluse
  * quelle del Laboratorio (`is_test`). `channel` è quello della cuenta
- * (`whatsapp` se non c'è).
+ * (`whatsapp` se non c'è). Escluse anche quelle di un contatto archiviato:
+ * per il Core quel contatto è `deleted` (core/contacts) e i suoi dati non
+ * devono ricomparire da un'altra lista.
  */
 export const GET = withExport(async (org, url) => {
   const params = parseFeedParams(url);
@@ -29,6 +31,15 @@ export const GET = withExport(async (org, url) => {
       cursorTs: microIso(cv.updatedAt),
     })
     .from(schema.conversation)
+    .innerJoin(
+      schema.contact,
+      scoped(
+        schema.contact.organizationId,
+        org.id,
+        eq(schema.contact.id, cv.contactId),
+        isNull(schema.contact.archivedAt)
+      )
+    )
     .leftJoin(
       schema.channelAccount,
       scoped(

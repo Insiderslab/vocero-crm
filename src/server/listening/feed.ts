@@ -35,8 +35,19 @@ export function decodeCursor(raw: string): FeedCursor | null {
   const parts = text.split("|");
   if (parts.length !== 2) return null;
   const [ts, id] = parts as [string, string];
-  if (!ISO_RE.test(ts) || Number.isNaN(Date.parse(ts)) || !ID_RE.test(id)) return null;
+  if (!ISO_RE.test(ts) || !ID_RE.test(id) || !isRealInstant(ts)) return null;
   return { ts, id };
+}
+
+/**
+ * La data esiste davvero: niente anno 0 e niente «31 febbraio», che
+ * `Date.parse` normalizza ma PostgreSQL rifiuta (500 invece di 422). Andata e
+ * ritorno fino ai secondi: i microsecondi li controlla `ISO_RE`.
+ */
+function isRealInstant(ts: string): boolean {
+  const d = new Date(ts);
+  if (Number.isNaN(d.getTime()) || d.getUTCFullYear() < 1) return false;
+  return d.toISOString().slice(0, 19) === ts.slice(0, 19);
 }
 
 export type FeedParams = { after: FeedCursor | null; limit: number };
@@ -60,9 +71,12 @@ export function parseFeedParams(url: URL): FeedParams | Response {
   return { after, limit };
 }
 
+/** Formato del cursore: microsecondi (`US`), mai millisecondi (`MS`), vedi sopra. */
+export const MICRO_ISO_FORMAT = 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"';
+
 /** ISO con microsecondi di una colonna/espressione timestamp (il valore del cursore). */
 export function microIso(expr: SQL | PgColumn): SQL<string> {
-  return sql<string>`to_char(${expr}, 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`;
+  return sql<string>`to_char(${expr}, ${sql.raw(`'${MICRO_ISO_FORMAT}'`)})`;
 }
 
 /** Condizione keyset: righe strettamente dopo il cursore nell'ordine (ts, id). */

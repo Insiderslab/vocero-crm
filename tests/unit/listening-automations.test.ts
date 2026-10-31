@@ -4,6 +4,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const st = vi.hoisted(() => ({
   on: new Set<string>(),
+  checks: 0,
+  turnOnAfter: Infinity,
   sendTemplate: vi.fn(),
   credentials: vi.fn(),
   queue: [] as unknown[][],
@@ -11,7 +13,8 @@ const st = vi.hoisted(() => ({
 
 vi.mock("@/server/listening/mode", async (orig) => ({
   ...(await orig<typeof import("@/server/listening/mode")>()),
-  isListeningMode: async (org: string) => st.on.has(org),
+  // `turnOnAfter`: l'ascolto si accende dopo N controlli (a giro iniziato).
+  isListeningMode: async (org: string) => st.on.has(org) || ++st.checks > st.turnOnAfter,
 }));
 vi.mock("@/server/whatsapp/templates", () => ({ sendTemplate: st.sendTemplate }));
 vi.mock("@/server/whatsapp/credentials", () => ({ getCredentialsByOrg: st.credentials }));
@@ -34,6 +37,8 @@ import { runAutomationsForOrg } from "@/server/automations/engine";
 
 beforeEach(() => {
   st.on = new Set(["org_a"]);
+  st.checks = 0;
+  st.turnOnAfter = Infinity;
   st.sendTemplate.mockReset().mockResolvedValue({ messageId: "msg_1" });
   st.credentials.mockReset().mockResolvedValue({ status: "connected" });
   st.queue = [
@@ -57,5 +62,13 @@ describe("automazioni e modalità ascolto", () => {
     expect(st.sendTemplate).toHaveBeenCalledTimes(1);
     expect(st.sendTemplate).toHaveBeenCalledWith(expect.objectContaining({ organizationId: "org_b" }));
     expect(stats).toMatchObject({ sent: 1, skippedListening: 0 });
+  });
+
+  it("accesa a giro iniziato: si rilegge prima di ogni invio e il giro si ferma", async () => {
+    // Il primo controllo (inizio giro) dice «spenta», il secondo (prima dell'invio) «accesa».
+    st.turnOnAfter = 1;
+    const stats = await runAutomationsForOrg("org_b");
+    expect(st.sendTemplate).not.toHaveBeenCalled();
+    expect(stats).toMatchObject({ sent: 0, skippedListening: 1 });
   });
 });

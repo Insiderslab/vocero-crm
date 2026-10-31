@@ -970,6 +970,8 @@ async function main() {
   await guidedConnectSection();
   await rondaSection();
 
+  await listeningSection();
+
   // Al final a propósito: el Embedded Signup cambia el número de la org.
   await coexistenceSection();
 
@@ -1802,6 +1804,102 @@ async function siteRequestsSection() {
  * guarda la sección anterior en /admin, o vienen del entorno); si faltan, la
  * sección se salta (el botón tampoco aparece en producción).
  */
+/**
+ * 016 — Modalità ascolto (specs/custom-heili/016-modalita-ascolto-e-feed-core.md).
+ * Con l'ascolto acceso: arriva un messaggio, l'agente NON risponde, il bot
+ * riceve 409, l'operatore risponde dalla Posta. Il feed per Heili Core dice
+ * `listening: true` e porta i messaggi con `origin`. Spento l'ascolto, l'agente
+ * torna a rispondere: prova che il «nessuna risposta» di prima non è vuoto.
+ */
+async function listeningSection() {
+  console.log("\n== 016: modalità ascolto ==");
+  const LISTEN = "393470016001";
+  const outboxTo = async (to) =>
+    ((await api("/api/dev/wa-mock/outbox")).json?.outbox ?? []).filter((o) => o.to === to);
+  const convOf = async (phone) =>
+    ((await api("/api/conversations")).json?.conversations ?? []).find((c) => c.contact.phone === phone);
+  const setListening = (enabled) =>
+    api("/api/settings/listening", { method: "PUT", body: JSON.stringify({ enabled }) });
+
+  // Lo stato dell'agente si ripristina alla fine: le sezioni dopo questa lo
+  // trovano come l'avevano lasciato le precedenti.
+  const agentWasEnabled = (await api("/api/agent/profile")).json?.profile?.enabled === true;
+  await api("/api/agent/profile", { method: "PUT", body: JSON.stringify({ enabled: true }) });
+  // Con più organizzazioni (sezioni admin) la chiave d'istanza BOT_API_KEY è
+  // rifiutata: il cervello esterno usa una chiave vbk_ dell'organizzazione.
+  const botKey = (await api("/api/settings/bot-keys", { method: "POST", body: JSON.stringify({ label: "e2e 016" }) })).json?.key;
+  ok("chiave vbk_ dell'organizzazione per il cervello esterno", String(botKey).startsWith("vbk_"));
+  const orgBot = (path, opts = {}) =>
+    api(path, { ...opts, headers: { "x-api-key": botKey ?? "", ...(opts.headers ?? {}) } });
+  const on = await setListening(true);
+  ok("PUT /api/settings/listening {enabled:true} → 200", on.res.ok, JSON.stringify(on.json));
+  const got = await api("/api/settings/listening");
+  ok("GET dice accesa con la data", got.json?.enabled === true && typeof got.json?.enabledAt === "string", JSON.stringify(got.json));
+  const extra = await api("/api/settings/listening", {
+    method: "PUT",
+    body: JSON.stringify({ enabled: true, organizationId: "org_altro" }),
+  });
+  ok("campi in più nel corpo → 422", extra.res.status === 422, String(extra.res.status));
+
+  await api("/api/dev/wa-mock/outbox", { method: "DELETE" });
+  await api("/api/dev/wa-mock/inbound", {
+    method: "POST",
+    body: JSON.stringify({ phoneNumberId: PN, from: LISTEN, name: "Cliente Ascolto", text: "ciao, quanto costa?", waMessageId: "wamid.e2e.016.1" }),
+  });
+  // Un turno dell'agente con ai-mock risponde in pochi secondi: se ne aspettano 8.
+  await sleep(8000);
+  ok("in ascolto l'agente NON risponde", (await outboxTo(LISTEN)).length === 0, JSON.stringify(await outboxTo(LISTEN)));
+  const conv = await convOf(LISTEN);
+  ok("la conversazione esiste comunque in Posta", Boolean(conv?.id));
+
+  const botSend = await orgBot("/api/bot/messages", {
+    method: "POST",
+    body: JSON.stringify({ conversationId: conv?.id, text: "risposta del bot" }),
+  });
+  ok("il cervello esterno riceve 409 listening_mode", botSend.res.status === 409 && botSend.json?.error?.code === "listening_mode", JSON.stringify(botSend.json));
+  const botTyping = await orgBot("/api/bot/typing", { method: "POST", body: JSON.stringify({ conversationId: conv?.id }) });
+  ok("anche «sta scrivendo» del bot → 409", botTyping.res.status === 409, String(botTyping.res.status));
+  ok("niente è partito verso il cliente", (await outboxTo(LISTEN)).length === 0);
+
+  const human = await api(`/api/conversations/${conv?.id}/messages`, {
+    method: "POST",
+    body: JSON.stringify({ text: "Buongiorno! 12 euro la confezione da sei." }),
+  });
+  ok("l'operatore risponde dalla Posta", human.res.ok, JSON.stringify(human.json));
+  ok("…e il suo messaggio parte", (await outboxTo(LISTEN)).length === 1, JSON.stringify(await outboxTo(LISTEN)));
+
+  const created = await api("/api/settings/export-keys", { method: "POST", body: JSON.stringify({ label: "e2e heili core" }) });
+  const vex = created.json?.key;
+  ok("chiave vex_ creata per il Core", typeof vex === "string" && vex.startsWith("vex_"), JSON.stringify({ status: created.res.status }));
+  const core = (path) => fetch(`${BASE}/api/export/core/${path}`, { headers: { "x-api-key": vex ?? "" } });
+  const state = await (await core("state")).json();
+  ok("feed: state dice listening.enabled = true", state?.listening?.enabled === true && typeof state?.organizationId === "string", JSON.stringify(state));
+  const feedMsgs = await (await core("messages?limit=1000")).json();
+  const mine = (feedMsgs?.items ?? []).filter((m) => m.conversationId === conv?.id);
+  ok(
+    "feed: messaggi del cliente e dell'operatore con direction e origin",
+    mine.some((m) => m.direction === "in") && mine.some((m) => m.direction === "out" && m.origin === "operator"),
+    JSON.stringify(mine.map((m) => [m.direction, m.origin]))
+  );
+  const feedContacts = await (await core("contacts?limit=1000")).json();
+  const contact = (feedContacts?.items ?? []).find((c) => c.phone === LISTEN);
+  ok("feed: contatto senza note né scheda", Boolean(contact) && !("notes" in contact) && !("ficha" in contact), JSON.stringify(contact));
+  const noKey = await fetch(`${BASE}/api/export/core/state`);
+  ok("feed senza chiave → 401", noKey.status === 401, String(noKey.status));
+  const badCursor = await core("messages?after=non-un-cursore");
+  ok("feed: cursore malformato → 422", badCursor.status === 422, String(badCursor.status));
+
+  const off = await setListening(false);
+  ok("spengo l'ascolto", off.res.ok && off.json?.enabled === false, JSON.stringify(off.json));
+  await api("/api/dev/wa-mock/inbound", {
+    method: "POST",
+    body: JSON.stringify({ phoneNumberId: PN, from: LISTEN, text: "e la consegna?", waMessageId: "wamid.e2e.016.2" }),
+  });
+  for (let i = 0; i < 40 && (await outboxTo(LISTEN)).length < 2; i++) await sleep(500);
+  ok("ascolto spento: l'agente torna a rispondere", (await outboxTo(LISTEN)).length >= 2, JSON.stringify(await outboxTo(LISTEN)));
+  await api("/api/agent/profile", { method: "PUT", body: JSON.stringify({ enabled: agentWasEnabled }) });
+}
+
 async function coexistenceSection() {
   console.log("\n== 009: coexistence — Embedded Signup + historial + agenda ==");
   const cfg = (await api("/api/settings/whatsapp/embedded-signup")).json;

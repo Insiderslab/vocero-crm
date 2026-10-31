@@ -37,7 +37,7 @@ import { GET as messages } from "@/app/api/export/core/messages/route";
 import { GET as state } from "@/app/api/export/core/state/route";
 import { generateApiKey } from "@/server/api-keys";
 import { resetRateLimit } from "@/lib/rate-limit";
-import { decodeCursor, encodeCursor, FEED_SCHEMA, keysetAfter } from "@/server/listening/feed";
+import { decodeCursor, encodeCursor, FEED_SCHEMA, keysetAfter, MICRO_ISO_FORMAT, microIso } from "@/server/listening/feed";
 import { message as messageTable } from "@/lib/db/schema";
 
 const key = generateApiKey("export");
@@ -220,5 +220,49 @@ describe("keysetAfter: due pagine consecutive non ripetono né perdono a parità
       ts: "2026-10-02T10:00:00.000500Z",
       id: "msg_b",
     });
+  });
+});
+
+describe("verifica avversaria del 31/10: guardie che nessun test copriva", () => {
+  const dialect = new PgDialect();
+
+  it("il cursore usa i microsecondi (US), mai i millisecondi (MS)", () => {
+    expect(MICRO_ISO_FORMAT).toMatch(/SS\.US"Z"$/);
+    const q = dialect.sqlToQuery(microIso(messageTable.createdAt));
+    expect(q.sql).toBe(`to_char("message"."created_at", '${MICRO_ISO_FORMAT}')`);
+  });
+
+  it("date impossibili → cursore non valido (422 senza toccare il database)", () => {
+    expect(decodeCursor(encodeCursor("2026-02-31T00:00:00Z", "msg_1"))).toBeNull();
+    expect(decodeCursor(encodeCursor("0000-01-01T00:00:00Z", "msg_1"))).toBeNull();
+    expect(decodeCursor(encodeCursor("2026-10-02T24:00:00Z", "msg_1"))).toBeNull();
+  });
+
+  it("422 sulla rotta con una data impossibile, nessuna query di dati", async () => {
+    const res = await get(messages, "messages", `?after=${encodeCursor("2026-02-31T00:00:00Z", "msg_1")}`);
+    expect(res.status).toBe(422);
+    expect(dataQueries()).toHaveLength(0);
+  });
+
+  it("base64url non canonico (padding o carattere in più) → non valido", () => {
+    const good = encodeCursor("2026-10-02T10:00:00.000500Z", "msg_b");
+    expect(decodeCursor(good)).not.toBeNull();
+    expect(decodeCursor(`${good}=`)).toBeNull();
+    expect(decodeCursor(`${good}A`)).toBeNull();
+  });
+
+  it("la busta delle liste porta lo stato vero dell'ascolto (acceso e spento)", async () => {
+    expect((await (await get(messages, "messages")).json()).listening).toBe(true);
+    st.on = new Set();
+    expect((await (await get(messages, "messages")).json()).listening).toBe(false);
+  });
+
+  it("messaggi e conversazioni escludono i contatti archiviati (sono deleted per il Core)", async () => {
+    for (const [handler, name] of [[messages, "messages"], [conversations, "conversations"]] as const) {
+      st.log.length = 0;
+      await get(handler, name);
+      const q = dataQueries()[0]!;
+      expect(q.sql).toMatch(/inner join "contact" on \("contact"\."organization_id" = \$\d+ and "contact"\."id" = [^)]*"contact_id" and "contact"\."archived_at" is null\)/);
+    }
   });
 });
