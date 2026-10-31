@@ -3,6 +3,7 @@ import {
   authenticateExport,
   dbExportAuthDeps,
   type ExportAuthDeps,
+  type ExportOrg,
 } from "@/server/export/auth";
 
 /**
@@ -10,7 +11,7 @@ import {
  * organización de la clave (nunca de `?org=`) y deja pasar solo lecturas.
  */
 export function withExport(
-  handler: (org: { id: string; name: string }, url: URL) => Promise<Response>,
+  handler: (org: ExportOrg, url: URL) => Promise<Response>,
   deps: ExportAuthDeps = dbExportAuthDeps
 ): (req: Request) => Promise<Response> {
   return async (req: Request) => {

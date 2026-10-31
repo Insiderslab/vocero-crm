@@ -141,6 +141,13 @@
       "when": 1792453140440,
       "tag": "0019_meta_data_deletion",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1793419899488,
+      "tag": "0020_modalita_ascolto",
+      "breakpoints": true
     }
   ]
 }

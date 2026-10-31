@@ -34,6 +34,8 @@ const messages = {
     allStages: "Toda etapa",
     stageAria: "Filtrar por etapa del embudo",
   },
+  /** 016 — Striscia con la modalità ascolto accesa. */
+  listeningBanner: "Modo escucha activo: el agente de IA y las automatizaciones no envían mensajes",
   send: {
     noConversation: "Sin conversación seleccionada",
     offline: "Sin conexión con el servidor",
