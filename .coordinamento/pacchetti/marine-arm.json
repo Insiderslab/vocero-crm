@@ -1,0 +1,33 @@
+{
+  "id": "marine-arm",
+  "titolo": "ARM nautico modulare: tour, passeggeri, imbarco e servizi semplici",
+  "strumento": "codex",
+  "branch": "codex/bambola-arm",
+  "file": [
+    "specs/017-marine-arm/",
+    "src/lib/marine/",
+    "src/server/marine/",
+    "src/components/marine/",
+    "src/app/nautica/",
+    "src/app/pasajero/",
+    "src/app/api/marine/",
+    "src/app/api/public/marine/",
+    "drizzle/0026_marine_arm.sql",
+    "drizzle/meta/_journal.json",
+    "scripts/marine-preview-start.ps1",
+    "scripts/marine-preview-seed.mjs",
+    "scripts/marine-selftest.mjs",
+    "tests/unit/marine/",
+    "tests/e2e/marine/",
+    "vitest.marine.config.ts",
+    "drizzle/meta/0026_snapshot.json",
+    "drizzle.config.ts",
+    "package.json",
+    "pnpm-lock.yaml",
+    "deploy/marine/",
+    "scripts/marine-release-pack.mjs"
+  ],
+  "stato": "in-corso",
+  "aggiornato": "2026-11-01",
+  "note": "Autorizzazione diretta implementazione Bambola, bassa digitalizzazione salvo Rosanni contabilità. Worktree separato, riuso snapshot Hair r3; nessuna modifica a Hair, dati sintetici, niente deploy/invii/pagamenti reali. Registro locale: il gate remoto non è completato, nessun push o commit dichiarato. EGM completo prima del codice. User 2026-11-01 expressly authorized isolated online Bambola Android pilot; deployment paths added, Hair excluded."
+}
