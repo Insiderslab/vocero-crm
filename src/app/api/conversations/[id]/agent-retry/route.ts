@@ -10,6 +10,7 @@ type Params = { params: Promise<{ id: string }> };
 const RETRY_REFUSED = {
   ai_not_configured: "La IA no está configurada en esta instancia",
   agent_disabled: "El agente está apagado",
+  listening_mode: "El modo escucha está activo: el agente no responde",
   not_retryable: "La conversación no está en pausa por un fallo del proveedor de IA",
   already_answered: "Alguien ya respondió después del último mensaje del cliente",
 } as const;

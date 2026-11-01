@@ -36,6 +36,8 @@ const prefixes = {
   siteRequestConfig: "src",
   // 015 — cancellazione dati da Meta
   metaDataDeletion: "mdd",
+  // 016 — modalità ascolto
+  listeningMode: "lsm",
 } as const;
 
 export type IdKind = keyof typeof prefixes;

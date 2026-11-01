@@ -18,6 +18,7 @@ import type {
   OutboundMessage,
   SendContext,
 } from "@/server/channels/types";
+import { isListeningMode, listeningModeError } from "@/server/listening/mode";
 import { saveMediaFile, validateOutgoing } from "@/server/whatsapp/media";
 
 /**
@@ -217,6 +218,11 @@ export async function sendText(
   },
   lookup: ChannelLookup = channelRegistry
 ): Promise<SendResult> {
+  // 016 — modalità ascolto: un invio dell'IA (anche di un turno già pianificato
+  // prima dell'accensione) non arriva mai al provider né lascia un messaggio.
+  if (input.aiGenerated && (await isListeningMode(input.organizationId))) {
+    throw listeningModeError();
+  }
   const target = await prepareSend(input.conversationId, input.organizationId, lookup);
 
   const { externalMessageId } = await target.adapter.send(target.ctx, {

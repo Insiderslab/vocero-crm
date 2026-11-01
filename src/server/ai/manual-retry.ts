@@ -5,6 +5,7 @@ import { isAiConfigured } from "@/lib/env";
 import { publish } from "@/server/events/bus";
 import { answeredSinceLastInbound } from "@/server/ai/failure";
 import { cancelAgentRetry } from "@/server/ai/pipeline";
+import { isListeningMode } from "@/server/listening/mode";
 import {
   getConversation,
   MESSAGE_CHRONOLOGY_DESC,
@@ -19,6 +20,7 @@ export type ManualRetryResult =
         | "not_found"
         | "ai_not_configured"
         | "agent_disabled"
+        | "listening_mode"
         | "not_retryable"
         | "already_answered"
         | "cooldown";
@@ -56,6 +58,9 @@ export async function prepareManualRetry(
   // El Laboratorio no vive en la bandeja.
   if (!row || row.conversation.isTest) return { status: "not_found" };
   if (!isAiConfigured()) return { status: "ai_not_configured" };
+  // 016: in ascolto l'agente non risponde; reclamare toglierebbe il passaggio
+  // a una persona e riaccenderebbe l'IA per un turno che non parte.
+  if (await isListeningMode(organizationId)) return { status: "listening_mode" };
 
   const db = getDb();
   const profiles = await db

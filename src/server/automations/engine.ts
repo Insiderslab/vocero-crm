@@ -5,6 +5,7 @@ import { scoped } from "@/lib/db/tenant";
 import { countVariables } from "@/lib/templates";
 import { getOrCreateConversation } from "@/server/inbox/ingest";
 import { isWindowOpen } from "@/server/inbox/window";
+import { isListeningMode } from "@/server/listening/mode";
 import { getCredentialsByOrg } from "@/server/whatsapp/credentials";
 import { sendTemplate } from "@/server/whatsapp/templates";
 
@@ -30,6 +31,8 @@ export type AutomationStats = {
   failed: number;
   skippedWindow: number;
   skippedCooldown: number;
+  /** 016: organizzazioni saltate perché in modalità ascolto. */
+  skippedListening: number;
 };
 
 const MAX_SENDS_PER_RULE_TICK = 50;
@@ -66,8 +69,15 @@ export async function runAutomationsForOrg(
     failed: 0,
     skippedWindow: 0,
     skippedCooldown: 0,
+    skippedListening: 0,
   };
   const db = getDb();
+
+  // 016: in modalità ascolto l'organizzazione si salta intera (nessun invio).
+  if (await isListeningMode(organizationId)) {
+    stats.skippedListening = 1;
+    return stats;
+  }
 
   // Sin WhatsApp conectado (o pidiendo reconexión) no hay nada que hacer:
   // se salta la org entera sin llenar la bitácora de fallos espurios.
@@ -163,6 +173,13 @@ export async function runAutomationsForOrg(
         continue;
       }
 
+      // 016: l'ascolto può accendersi a giro iniziato. Si rilegge prima di
+      // ogni invio: dal primo messaggio dopo l'accensione, il giro si ferma.
+      if (await isListeningMode(organizationId)) {
+        stats.skippedListening = 1;
+        return stats;
+      }
+
       try {
         await sendTemplate({
           organizationId,
@@ -208,6 +225,7 @@ export async function runAllAutomations(): Promise<AutomationStats> {
     failed: 0,
     skippedWindow: 0,
     skippedCooldown: 0,
+    skippedListening: 0,
   };
   for (const org of orgs) {
     try {
@@ -218,6 +236,7 @@ export async function runAllAutomations(): Promise<AutomationStats> {
       total.failed += stats.failed;
       total.skippedWindow += stats.skippedWindow;
       total.skippedCooldown += stats.skippedCooldown;
+      total.skippedListening += stats.skippedListening;
     } catch (err) {
       // Una org rota no tumba el tick del resto.
       console.error(`[automations] falló la org ${org.id}:`, err);

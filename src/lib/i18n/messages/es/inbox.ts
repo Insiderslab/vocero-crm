@@ -34,6 +34,8 @@ const messages = {
     allStages: "Toda etapa",
     stageAria: "Filtrar por etapa del embudo",
   },
+  /** 016 — Striscia con la modalità ascolto accesa. */
+  listeningBanner: "Modo escucha activo: el agente de IA y las automatizaciones no envían mensajes",
   send: {
     noConversation: "Sin conversación seleccionada",
     offline: "Sin conexión con el servidor",
@@ -108,6 +110,7 @@ const messages = {
       retry_cooldown: "Acabas de reintentar: espera unos segundos.",
       ai_not_configured: "La IA no está configurada en esta instancia.",
       agent_disabled: "El agente está apagado: enciéndelo en Agente IA.",
+      listening_mode: "El modo escucha está activo: la IA no responde y la conversación sigue con una persona.",
       failed: "No se pudo reintentar. Prueba de nuevo.",
     },
     aiTitle: "IA en esta conversación",

@@ -36,6 +36,8 @@ const messages: typeof base = {
     allStages: "Qualsiasi fase",
     stageAria: "Filtra per fase della pipeline",
   },
+  /** 016 — Striscia con la modalità ascolto accesa. */
+  listeningBanner: "Modalità ascolto attiva: l'agente AI e le automazioni non inviano messaggi",
   send: {
     noConversation: "Nessuna conversazione selezionata",
     offline: "Nessuna connessione al server",
@@ -110,6 +112,7 @@ const messages: typeof base = {
       retry_cooldown: "Hai appena riprovato: aspetta qualche secondo.",
       ai_not_configured: "L'IA non è configurata in questa istanza.",
       agent_disabled: "L'agente è spento: accendilo in Agente IA.",
+      listening_mode: "La modalità ascolto è attiva: l'IA non risponde e la conversazione resta a una persona.",
       failed: "Impossibile riprovare. Riprova tra poco.",
     },
     aiTitle: "IA in questa conversazione",

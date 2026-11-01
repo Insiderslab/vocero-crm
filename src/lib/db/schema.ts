@@ -744,6 +744,28 @@ export const siteRequestConfig = pgTable(
   (t) => [uniqueIndex("site_request_config_org_uq").on(t.organizationId)]
 );
 
+/**
+ * 016 — Modalità ascolto: una riga per organizzazione. Con `enabled = true`
+ * Orbit non invia nulla da solo a un cliente finale (agente AI, automazioni,
+ * cervello esterno); le risposte delle persone restano libere. Nessuna riga =
+ * spento. La regola vive in `src/server/listening/mode.ts`.
+ */
+export const listeningMode = pgTable(
+  "listening_mode",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    enabled: boolean("enabled").notNull().default(false),
+    enabledAt: timestamp("enabled_at"),
+    /** Id dell'utente che ha acceso/spento per ultimo (traccia, senza FK). */
+    enabledBy: text("enabled_by"),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("listening_mode_org_uq").on(t.organizationId)]
+);
+
 export const agentProfile = pgTable(
   "agent_profile",
   {

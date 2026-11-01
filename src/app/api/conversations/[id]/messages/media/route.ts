@@ -17,6 +17,7 @@ const SEND_ERROR_STATUS: Record<SendError["code"], number> = {
   meta_unavailable: 503,
   wapi_key_missing: 409,
   upload_failed: 502,
+  listening_mode: 409,
 };
 
 /**

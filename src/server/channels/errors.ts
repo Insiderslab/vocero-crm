@@ -14,7 +14,9 @@ export class SendError extends Error {
     | "meta_error"
     | "meta_unavailable"
     | "wapi_key_missing"
-    | "upload_failed";
+    | "upload_failed"
+    /** 016: modalità ascolto accesa, Orbit non invia da solo. */
+    | "listening_mode";
   /** 008: presente cuando el fallo ocurrió TRAS persistir el mensaje (failed). */
   messageId?: string;
 

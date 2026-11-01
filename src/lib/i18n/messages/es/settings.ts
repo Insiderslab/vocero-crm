@@ -8,6 +8,7 @@ const messages = {
     team: "Equipo",
     apiKeys: "Claves de API",
     site: "Sitio web",
+    listening: "Modo escucha",
   },
   branding: {
     title: "Marca del CRM",
@@ -401,6 +402,19 @@ const messages = {
       thanks: "¡Gracias! Te contactaremos pronto.",
       error: "No se pudo enviar. Inténtalo de nuevo.",
     },
+  },
+  /** 016 — Modalità ascolto. */
+  listening: {
+    forbidden: "Solo el propietario o un administrador de la organización gestiona el modo escucha.",
+    title: "Modo escucha",
+    description:
+      "Modo escucha: Heili lee las conversaciones y aprende, pero no responde. El agente de IA, las automatizaciones y el cerebro externo están detenidos. Las respuestas escritas por tu equipo funcionan como siempre.",
+    toggleLabel: "Activar el modo escucha",
+    on: "Activo",
+    off: "Apagado",
+    since: "Activo desde {{date}}",
+    saveError: "No se pudo cambiar el modo escucha",
+    loadError: "No se pudo cargar el modo escucha: recarga la página.",
   },
 };
 export default messages;

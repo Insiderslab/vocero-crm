@@ -10,6 +10,7 @@ const messages: typeof base = {
     team: "Team",
     apiKeys: "API keys",
     site: "Website",
+    listening: "Listening mode",
   },
   branding: {
     title: "CRM brand",
@@ -397,6 +398,19 @@ const messages: typeof base = {
       thanks: "Thank you! We will contact you soon.",
       error: "It could not be sent. Please try again.",
     },
+  },
+  /** 016 — Modalità ascolto. */
+  listening: {
+    forbidden: "Only the organization owner or an admin manages listening mode.",
+    title: "Listening mode",
+    description:
+      "Listening mode: Heili reads the conversations and learns, but does not reply. The AI agent, automations and the external brain are stopped. Replies written by your team work as usual.",
+    toggleLabel: "Turn listening mode on",
+    on: "On",
+    off: "Off",
+    since: "On since {{date}}",
+    saveError: "Listening mode could not be changed",
+    loadError: "Listening mode could not be loaded: reload the page.",
   },
 };
 export default messages;

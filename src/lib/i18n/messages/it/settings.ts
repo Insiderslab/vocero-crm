@@ -10,6 +10,7 @@ const messages: typeof base = {
     team: "Team",
     apiKeys: "Chiavi API",
     site: "Sito web",
+    listening: "Modalità ascolto",
   },
   branding: {
     title: "Marchio del CRM",
@@ -401,6 +402,19 @@ const messages: typeof base = {
       thanks: "Grazie! Ti contatteremo presto.",
       error: "Invio non riuscito. Riprova.",
     },
+  },
+  /** 016 — Modalità ascolto. */
+  listening: {
+    forbidden: "Solo il proprietario o un amministratore dell'organizzazione gestisce la modalità ascolto.",
+    title: "Modalità ascolto",
+    description:
+      "Modalità ascolto: Heili legge le conversazioni e impara, ma non risponde. Agente AI, automazioni e cervello esterno sono fermi. Le risposte scritte dal tuo team funzionano come sempre.",
+    toggleLabel: "Attiva la modalità ascolto",
+    on: "Attiva",
+    off: "Spenta",
+    since: "Attiva dal {{date}}",
+    saveError: "Impossibile cambiare la modalità ascolto",
+    loadError: "Impossibile caricare la modalità ascolto: ricarica la pagina.",
   },
 };
 export default messages;

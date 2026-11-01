@@ -18,6 +18,7 @@ const TABS = [
   { href: "/settings/team", key: "team" },
   { href: "/settings/api-keys", key: "apiKeys", visibleFor: canManageApiKeys },
   { href: "/settings/site", key: "site", visibleFor: canManageSiteForm },
+  { href: "/settings/listening", key: "listening", visibleFor: isOrgAdmin },
 ] as const;
 
 export function SettingsNav() {

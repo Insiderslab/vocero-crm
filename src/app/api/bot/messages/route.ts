@@ -4,6 +4,7 @@ import { getDb, schema } from "@/lib/db";
 import { apiError, parseBody } from "@/lib/api";
 import { authenticateBot } from "@/server/bot/auth";
 import { SendError, sendText } from "@/server/inbox/send";
+import { isListeningMode, listeningModeError } from "@/server/listening/mode";
 
 export const dynamic = "force-dynamic";
 
@@ -18,8 +19,8 @@ const bodySchema = z.object({
  * que el mensaje queda en el hilo marcado como IA, respeta la ventana de 24 h
  * y hereda el guard de sandbox del Laboratorio.
  *
- * 409 tipados: ai_paused (un humano tomó la conversación) · window_closed ·
- * sandbox_violation.
+ * 409 tipados: listening_mode (016: modalità ascolto, prima di tutto) ·
+ * ai_paused (un humano tomó la conversación) · window_closed · sandbox_violation.
  */
 export async function POST(req: Request) {
   const auth = await authenticateBot(req);
@@ -28,6 +29,11 @@ export async function POST(req: Request) {
 
   const body = await parseBody(req, bodySchema);
   if (!body.ok) return body.response;
+
+  // 016: in ascolto il cervello esterno non invia nulla (nemmeno si valida la conversazione).
+  if (await isListeningMode(organizationId)) {
+    return apiError(409, "listening_mode", listeningModeError().message);
+  }
 
   // Gate de handoff: el bot JAMÁS habla sobre una conversación pausada. Se
   // relee aquí porque entre que el bot pidió el contexto y armó su respuesta
@@ -67,6 +73,10 @@ export async function POST(req: Request) {
       }
       if (err.code === "sandbox_violation") {
         return apiError(409, "sandbox_violation", err.message);
+      }
+      // Difesa in profondità: acceso tra il controllo e l'invio.
+      if (err.code === "listening_mode") {
+        return apiError(409, "listening_mode", err.message);
       }
       return apiError(502, err.code, err.message);
     }

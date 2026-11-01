@@ -12,6 +12,7 @@ import { AgentAction, degradeAction, resolveStage, type AgentActionType } from "
 import { matchesHandoffIntent } from "@/server/ai/handoff";
 import { buildAgentSystemPrompt } from "@/server/ai/prompts";
 import { isAllowedIdentity } from "@/server/ai/allowlist";
+import { isListeningMode } from "@/server/listening/mode";
 import { MESSAGE_CHRONOLOGY_DESC } from "@/server/inbox/queries";
 import {
   answeredSinceLastInbound,
@@ -283,6 +284,15 @@ export async function fireAgentRetry(
   const conversation = rows[0];
   if (!conversation?.agentRetryAt) return "nothing";
 
+  // 016: in ascolto l'agente tace come se fosse spento, in OGNI ramo: il
+  // reclamo toglierebbe il passaggio a una persona, e un entrante più nuovo
+  // non ha un turno che lo risponda. Si toglie solo la marca: la conversazione
+  // resta «da prendere in mano». Il Laboratorio prosegue, come in `runAgentTurn`.
+  if (!conversation.isTest && (await isListeningMode(conversation.organizationId))) {
+    await dropAgentRetryMarker(conversationId);
+    return "agent_off";
+  }
+
   // 008: una solicitud del sitio (`web`) no es un entrante de WhatsApp ni una
   // respuesta: no invalida el segundo intento (si contara como «entrante
   // distinto», el segundo intento no hablaría y nadie respondería al cliente).
@@ -412,6 +422,12 @@ export async function runAgentTurn(
   const conversation = convRows[0];
   if (!conversation) return;
   const organizationId = conversation.organizationId;
+
+  // 016: in modalità ascolto nessun turno reale arriva al modello né scrive
+  // nel CRM (fase, note): copre i turni pianificati prima dell'accensione, il
+  // secondo intento (`agent_retry_at`) e «Riprova». Il Laboratorio sì: è
+  // sandbox e non invia mai.
+  if (!conversation.isTest && (await isListeningMode(organizationId))) return;
 
   // Condiciones de silencio: handoff activo o IA apagada en la conversación.
   // Un handoff con `agent_retry_at` NO silencia: es un segundo intento
