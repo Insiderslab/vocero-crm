@@ -215,7 +215,7 @@ una sandbox). Non è stato possibile impostare `omitClaudeMd:true`. Brief con fo
 | 1 | `c5c4d37..1277633` + contratto `heili-platform@8ba71cd` | 331 s | 35 | REGGE con riserve: 0 Critici, 0 Alti, 4 Medi, 6 Bassi |
 | 2 | `af2f125` (correzione P1) | 212 s | 26 | REGGE: 0 Alti; 1 Medio (stesso tipo di P1) e Bassi |
 
-Budget: 2 invocazioni su 20, circa 9 minuti su 30. Re-audit dello stadio post-codice: vedi sotto.
+Budget: 3 invocazioni su 20 (con il re-audit sotto), circa 12 minuti su 30.
 
 ### P1 — correzione
 In ascolto il secondo intento (`claimAgentRetry`) e «Riprova» (`claimManualRetry`, anche `aiEnabled: true`) toglievano
@@ -226,6 +226,12 @@ il passaggio a una persona prima della guardia di `runAgentTurn`, poi il turno u
   conversazione. Copre anche il ramo «entrante più nuovo dell'atteso», che in ascolto lasciava una marca scaduta senza
   turno che la consumasse. Controllo E2E spostato con l'agente acceso e su `aiEnabled`. Spec §A aggiornata.
 
+### Re-audit di `20971a2` (Goldfish, unico consentito per lo stadio)
+155 s, 20 tool. Verdetto **REGGE**: la guardia copre ogni ramo di `fireAgentRetry` in ascolto, il Laboratorio prosegue,
+fuori ascolto nessun cambio osservabile (una query in più per secondo intento). Quattro Bassi, corretti nel commit
+successivo: il controllo E2E su `aiEnabled` non poteva fallire (ora l'IA della conversazione si spegne prima e si
+verifica che resti spenta); commento E2E impreciso; questi due riferimenti nel registro.
+
 ### Sabotaggi (eseguiti, `tests/unit/listening-retry.test.ts`, 6 test)
 | Sabotaggio | Esito |
 |---|---|
@@ -233,7 +239,7 @@ il passaggio a una persona prima della guardia di `runAgentTurn`, poi il turno u
 | Guardia anche sul Laboratorio (`!isTest` tolto) | 1 test fallisce |
 | Tolta la guardia in `prepareManualRetry` | 1 test fallisce |
 
-Prima della correzione i test nuovi fallivano su `1277633` (2 su 4), e quello del ramo «entrante più nuovo» su `af2f125`.
+Prima della correzione i test nuovi fallivano su `1277633` (2 su 4, versione iniziale del file, eseguita), e quello del ramo «entrante più nuovo» su `af2f125` (eseguito prima di spostare la guardia).
 
 ### Prove (container cloud usa e getta, Postgres 16 locale, `.env` con soli valori sintetici)
 ```

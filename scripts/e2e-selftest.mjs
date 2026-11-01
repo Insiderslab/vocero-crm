@@ -1218,19 +1218,22 @@ async function usabilitySection() {
   const missing = await api(`/api/conversations/cv_no_existe/agent-retry`, { method: "POST" });
   ok("Riprova de una conversación ajena/inexistente → 404", missing.res.status === 404);
   // 016: in ascolto «Riprova» non reclama la conversazione: il passaggio a una
-  // persona resta e l'IA della conversazione non cambia. Con l'agente ACCESO,
-  // così il rifiuto viene dall'ascolto e non da `agent_disabled`.
+  // persona resta e l'IA della conversazione resta spenta (il reclamo la
+  // riaccenderebbe). Prima si spegne a mano, così il controllo può fallire.
+  const pauseAi = await api(`/api/conversations/${downConv?.id}`, { method: "PATCH", body: JSON.stringify({ aiEnabled: false }) });
   const beforeListening = await convOf(DOWN);
   const listenOn = await api("/api/settings/listening", { method: "PUT", body: JSON.stringify({ enabled: true }) });
   const listening = await api(`/api/conversations/${downConv?.id}/agent-retry`, { method: "POST" });
   const afterListening = await convOf(DOWN);
   ok(
-    "016: Riprova in ascolto → 409 listening_mode (handoff e aiEnabled invariati)",
-    listenOn.res.ok &&
+    "016: Riprova in ascolto → 409 listening_mode (handoff resta, IA della conversazione resta spenta)",
+    pauseAi.res.ok &&
+      beforeListening?.aiEnabled === false &&
+      listenOn.res.ok &&
       listening.res.status === 409 &&
       listening.json?.error?.code === "listening_mode" &&
       afterListening?.handoffReason === "error" &&
-      afterListening?.aiEnabled === beforeListening?.aiEnabled,
+      afterListening?.aiEnabled === false,
     JSON.stringify({ code: listening.json?.error?.code, reason: afterListening?.handoffReason, ai: [beforeListening?.aiEnabled, afterListening?.aiEnabled] })
   );
   const listenOff = await api("/api/settings/listening", { method: "PUT", body: JSON.stringify({ enabled: false }) });
