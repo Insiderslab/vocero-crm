@@ -284,6 +284,15 @@ export async function fireAgentRetry(
   const conversation = rows[0];
   if (!conversation?.agentRetryAt) return "nothing";
 
+  // 016: in ascolto l'agente tace come se fosse spento, in OGNI ramo: il
+  // reclamo toglierebbe il passaggio a una persona, e un entrante più nuovo
+  // non ha un turno che lo risponda. Si toglie solo la marca: la conversazione
+  // resta «da prendere in mano». Il Laboratorio prosegue, come in `runAgentTurn`.
+  if (!conversation.isTest && (await isListeningMode(conversation.organizationId))) {
+    await dropAgentRetryMarker(conversationId);
+    return "agent_off";
+  }
+
   // 008: una solicitud del sitio (`web`) no es un entrante de WhatsApp ni una
   // respuesta: no invalida el segundo intento (si contara como «entrante
   // distinto», el segundo intento no hablaría y nadie respondería al cliente).
@@ -311,15 +320,7 @@ export async function fireAgentRetry(
     .from(schema.agentProfile)
     .where(eq(schema.agentProfile.organizationId, conversation.organizationId))
     .limit(1);
-  // 016: in ascolto l'agente tace come se fosse spento. Il controllo sta PRIMA
-  // del reclamo, che toglie il passaggio a una persona: la conversazione resta
-  // «da prendere in mano». Il Laboratorio prosegue, come in `runAgentTurn`.
-  if (
-    !isAiConfigured() ||
-    !profile[0]?.enabled ||
-    !conversation.aiEnabled ||
-    (!conversation.isTest && (await isListeningMode(conversation.organizationId)))
-  ) {
+  if (!isAiConfigured() || !profile[0]?.enabled || !conversation.aiEnabled) {
     await dropAgentRetryMarker(conversationId);
     return "agent_off";
   }

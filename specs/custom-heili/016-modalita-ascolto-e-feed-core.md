@@ -34,7 +34,7 @@ Core** contatti, identità e messaggi in modo incrementale e affidabile:
 
    | Via | Comportamento |
    |---|---|
-   | Agente AI (`maybeRunAgentTurn`, `runAgentTurn`) | Il turno **non si pianifica**; un turno già pianificato, il secondo intento (`agent_retry_at`) o «Riprova» escono all'inizio di `runAgentTurn`: nessuna chiamata al modello né scrittura nel CRM. Il Laboratorio (`is_test`) prosegue |
+   | Agente AI (`maybeRunAgentTurn`, `runAgentTurn`) | Il turno **non si pianifica**; un turno già pianificato esce all'inizio di `runAgentTurn`; il secondo intento (`fireAgentRetry`) toglie solo la marca `agent_retry_at` e lascia il passaggio a una persona; «Riprova» risponde 409 `listening_mode` senza scrivere. Nessuna chiamata al modello; nessuna scrittura che tolga il passaggio a una persona o riaccenda l'IA. Il Laboratorio (`is_test`) prosegue |
    | Invio di testo con `aiGenerated: true` (`channels/core/send.ts`) | `SendError("listening_mode")`, nessuna chiamata al provider, nessun messaggio salvato. Difesa in profondità: copre un turno già pianificato prima dell'accensione |
    | Cervello esterno `/api/bot/*` | Ogni azione che parla con Meta (invio, «letto», «sta scrivendo») risponde **409 `listening_mode`** e non chiama Graph. Le letture restano possibili |
    | Automazioni (`automations/engine.ts`) | L'organizzazione si salta: nessun invio, conteggiata come saltata nelle statistiche del giro. Lo stato si rilegge prima di ogni invio: un'accensione a giro iniziato ferma il giro |

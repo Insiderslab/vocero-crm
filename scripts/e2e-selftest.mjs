@@ -1217,24 +1217,30 @@ async function usabilitySection() {
 
   const missing = await api(`/api/conversations/cv_no_existe/agent-retry`, { method: "POST" });
   ok("Riprova de una conversación ajena/inexistente → 404", missing.res.status === 404);
+  // 016: in ascolto «Riprova» non reclama la conversazione: il passaggio a una
+  // persona resta e l'IA della conversazione non cambia. Con l'agente ACCESO,
+  // così il rifiuto viene dall'ascolto e non da `agent_disabled`.
+  const beforeListening = await convOf(DOWN);
+  const listenOn = await api("/api/settings/listening", { method: "PUT", body: JSON.stringify({ enabled: true }) });
+  const listening = await api(`/api/conversations/${downConv?.id}/agent-retry`, { method: "POST" });
+  const afterListening = await convOf(DOWN);
+  ok(
+    "016: Riprova in ascolto → 409 listening_mode (handoff e aiEnabled invariati)",
+    listenOn.res.ok &&
+      listening.res.status === 409 &&
+      listening.json?.error?.code === "listening_mode" &&
+      afterListening?.handoffReason === "error" &&
+      afterListening?.aiEnabled === beforeListening?.aiEnabled,
+    JSON.stringify({ code: listening.json?.error?.code, reason: afterListening?.handoffReason, ai: [beforeListening?.aiEnabled, afterListening?.aiEnabled] })
+  );
+  const listenOff = await api("/api/settings/listening", { method: "PUT", body: JSON.stringify({ enabled: false }) });
+  ok("016: ascolto di nuovo spento", listenOff.res.ok);
+
   await prof({ enabled: false });
   const off = await api(`/api/conversations/${downConv?.id}/agent-retry`, { method: "POST" });
   ok("Riprova con el agente apagado → 409 agent_disabled (y el handoff sigue)", off.res.status === 409 && off.json?.error?.code === "agent_disabled" && (await convOf(DOWN))?.handoffReason === "error", JSON.stringify(off.json));
   const anon = await fetch(`${BASE}/api/conversations/${downConv?.id}/agent-retry`, { method: "POST", headers: { origin: BASE } });
   ok("Riprova sin sesión → 401", anon.status === 401);
-
-  // 016: in ascolto «Riprova» non reclama la conversazione: il passaggio a una
-  // persona resta e l'IA della conversazione non si riaccende.
-  const listenOn = await api("/api/settings/listening", { method: "PUT", body: JSON.stringify({ enabled: true }) });
-  const listening = await api(`/api/conversations/${downConv?.id}/agent-retry`, { method: "POST" });
-  const afterListening = await convOf(DOWN);
-  ok(
-    "016: Riprova in ascolto → 409 listening_mode (e il handoff sigue)",
-    listenOn.res.ok && listening.res.status === 409 && listening.json?.error?.code === "listening_mode" && afterListening?.handoffReason === "error",
-    JSON.stringify({ code: listening.json?.error?.code, reason: afterListening?.handoffReason })
-  );
-  const listenOff = await api("/api/settings/listening", { method: "PUT", body: JSON.stringify({ enabled: false }) });
-  ok("016: ascolto di nuovo spento", listenOff.res.ok);
 
   sseAbort.abort();
   const restore = await prof({ enabled: false, errorReply: "" });

@@ -93,6 +93,16 @@ describe("secondo intento in modalità ascolto", () => {
     expect(st.sets.some(releasesHandoff)).toBe(true);
   });
 
+  it("in ascolto, con un entrante più nuovo dell'atteso, toglie la marca e il passaggio a una persona resta", async () => {
+    // Fuori ascolto quell'entrante lo risponde il suo turno; in ascolto il
+    // turno non parte, quindi la marca scaduta non deve restare.
+    st.selectRows[1] = [{ id: "msg_2", direction: "in" }];
+    const out = await fireAgentRetry("cv_1", "msg_1");
+    expect(out).toBe("agent_off");
+    expect(st.sets.some(releasesHandoff)).toBe(false);
+    expect(st.sets).toContainEqual(expect.objectContaining({ agentRetryAt: null }));
+  });
+
   it("il Laboratorio prosegue anche in ascolto, come in runAgentTurn", async () => {
     st.conversation.isTest = true;
     await fireAgentRetry("cv_1", "msg_1");

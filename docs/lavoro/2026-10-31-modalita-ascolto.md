@@ -191,3 +191,84 @@ Controlli finali sull'albero corretto:
 - `pnpm test`: 108 file, **1793 test** passati;
 - `NODE_USE_ENV_PROXY=1 pnpm build`: ok;
 - `pnpm db:generate`: «No schema changes».
+
+## Ciclo EGM del 01/11: review indipendente e correzione P1
+
+Metodo: Elephant-Goldfish adottato dall'owner il 01/11 (policy `heili-platform:docs/metodo-egm-heili.md`, PR #89
+in bozza, letta al commit `db42098`). Il plugin EGM 0.1.0 **non è installato** nella sessione cloud che ha fatto
+questo ciclo: nessuna skill `egm-*` invocata. È un percorso documentale equivalente, non un'esecuzione del plugin.
+
+### Percorso
+- Il pacchetto 016 è un cambio cross-module, contrattuale, dati e sicurezza, quindi per la matrice va la review di
+  design completa. Il codice però precede l'adozione: la review di design pre-codice EGM **non è stata svolta** e non
+  si dichiara a posteriori. Esiste la review G7 del progetto (`heili-platform:docs/analisi/2026-10-31-…` §14).
+- Passi svolti: review indipendente post-codice di `1277633` (mai riverificato dopo la verifica del 31/10), poi
+  correzione del finding P1 con **percorso ridotto** (piccolo bug circoscritto che riporta il codice alla spec; nessun
+  cambio di contratto o di design), poi review indipendente del diff.
+
+### Revisori (Goldfish)
+Subagent nuovi, senza la chat dell'autore, tipo `Plan` (senza Edit/Write; la sola lettura è imposta dal brief, non da
+una sandbox). Non è stato possibile impostare `omitClaudeMd:true`. Brief con fonti fissate per SHA e vincoli espliciti.
+
+| # | Oggetto | Durata | Tool | Verdetto |
+|---|---|---|---|---|
+| 1 | `c5c4d37..1277633` + contratto `heili-platform@8ba71cd` | 331 s | 35 | REGGE con riserve: 0 Critici, 0 Alti, 4 Medi, 6 Bassi |
+| 2 | `af2f125` (correzione P1) | 212 s | 26 | REGGE: 0 Alti; 1 Medio (stesso tipo di P1) e Bassi |
+
+Budget: 2 invocazioni su 20, circa 9 minuti su 30. Re-audit dello stadio post-codice: vedi sotto.
+
+### P1 — correzione
+In ascolto il secondo intento (`claimAgentRetry`) e «Riprova» (`claimManualRetry`, anche `aiEnabled: true`) toglievano
+il passaggio a una persona prima della guardia di `runAgentTurn`, poi il turno usciva senza fare nulla.
+- `af2f125`: guardia in `fireAgentRetry` prima del reclamo; `prepareManualRetry` → 409 `listening_mode`; codice e testi
+  es/en/it nel pannello; `manual-retry.ts` dichiarato nel pacchetto.
+- Commit successivo (finding Medio della review 2): la guardia di `fireAgentRetry` sale subito dopo la lettura della
+  conversazione. Copre anche il ramo «entrante più nuovo dell'atteso», che in ascolto lasciava una marca scaduta senza
+  turno che la consumasse. Controllo E2E spostato con l'agente acceso e su `aiEnabled`. Spec §A aggiornata.
+
+### Sabotaggi (eseguiti, `tests/unit/listening-retry.test.ts`, 6 test)
+| Sabotaggio | Esito |
+|---|---|
+| Tolta la guardia in `fireAgentRetry` | 2 test falliscono |
+| Guardia anche sul Laboratorio (`!isTest` tolto) | 1 test fallisce |
+| Tolta la guardia in `prepareManualRetry` | 1 test fallisce |
+
+Prima della correzione i test nuovi fallivano su `1277633` (2 su 4), e quello del ramo «entrante più nuovo» su `af2f125`.
+
+### Prove (container cloud usa e getta, Postgres 16 locale, `.env` con soli valori sintetici)
+```
+pnpm typecheck                      → ok
+pnpm lint                           → ok
+pnpm test                           → 109 file, 1799 test passati (baseline 1793)
+pnpm test:golden (Postgres 16)      → 24 file, 270 test passati
+pnpm test:e2e (next dev + mock, META_APP_SECRET/APP_ID/ES_CONFIG_ID sintetici, base nuova)
+                                    → ===== 299/299 checks OK, 0 fallos =====, 0 SKIP (prima: 297/297)
+NODE_USE_ENV_PROXY=1 pnpm build     → ok
+pnpm db:generate                    → No schema changes
+node scripts/coordina.mjs verifica  → OK
+```
+
+### CI
+`vocero-crm` è un **fork**: GitHub non esegue i workflow di un fork finché non vengono abilitati nella scheda Actions.
+API al 01/11: workflow `CI` «active», **0 esecuzioni** in tutta la storia del repository. Tutte le prove sopra sono
+locali. Non verificato: che `actions/checkout@v7`, `actions/setup-node@v7`, `pnpm/action-setup@v6` esistano
+(`heili-platform` usa le v4).
+
+### Aperti, non corretti in questo ciclo
+- **Contratto (P2, P3, Medi):** semantica di `nextCursor` non scritta nel contratto; cursore «opaco» incompatibile con
+  la sovrapposizione di 5 minuti chiesta al Core. Si decide con il guardiano del Cervello (Codex), con review di design
+  completa: è un cambio di contratto.
+- **P4 (Medio, decisione dell'owner):** l'archiviazione in Orbit si annulla (anche da sola, con un nuovo entrante), il
+  contratto la tratta come cancellazione a cascata nel Core. I contatti del Laboratorio escono come `deleted`.
+- **`bot/reset` in ascolto (Medio, preesistente):** il cervello esterno può togliere il passaggio a una persona e
+  riaccendere l'IA; nessuna guardia di ascolto. L'`UPDATE` della riga 54 filtra solo per `id`, senza `scoped()` (la
+  SELECT prima è filtrata). Fuori dal diff di questo ciclo.
+- **Bassi:** controllo dell'ascolto e reclamo non atomici (finestra di millisecondi, accettata); in ascolto il secondo
+  intento toglie la marca senza `conversation.handoff` (come oggi con l'agente spento); «Riprova» visibile in ascolto;
+  P5–P10 della review 1 (contratto più largo su `/api/bot/*`, `invalid_limit`, `enabledAt` da spento,
+  `organizationSlug` nullable, nessun indice del feed, `isListeningMode` senza catch nella Posta).
+
+### Cosa non ho verificato
+- La CI su GitHub (vedi sopra).
+- `EXPLAIN` del feed; rendering reale della UI (nessuno screenshot).
+- Il comportamento sotto concorrenza reale della finestra tra controllo e reclamo.
