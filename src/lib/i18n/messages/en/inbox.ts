@@ -112,6 +112,7 @@ const messages: typeof base = {
       retry_cooldown: "You just retried: wait a few seconds.",
       ai_not_configured: "AI is not configured on this instance.",
       agent_disabled: "The agent is off: turn it on in AI Agent.",
+      listening_mode: "Listening mode is on: the AI does not reply and the conversation stays with a person.",
       failed: "Could not retry. Try again.",
     },
     aiTitle: "AI in this conversation",

@@ -1223,6 +1223,19 @@ async function usabilitySection() {
   const anon = await fetch(`${BASE}/api/conversations/${downConv?.id}/agent-retry`, { method: "POST", headers: { origin: BASE } });
   ok("Riprova sin sesión → 401", anon.status === 401);
 
+  // 016: in ascolto «Riprova» non reclama la conversazione: il passaggio a una
+  // persona resta e l'IA della conversazione non si riaccende.
+  const listenOn = await api("/api/settings/listening", { method: "PUT", body: JSON.stringify({ enabled: true }) });
+  const listening = await api(`/api/conversations/${downConv?.id}/agent-retry`, { method: "POST" });
+  const afterListening = await convOf(DOWN);
+  ok(
+    "016: Riprova in ascolto → 409 listening_mode (e il handoff sigue)",
+    listenOn.res.ok && listening.res.status === 409 && listening.json?.error?.code === "listening_mode" && afterListening?.handoffReason === "error",
+    JSON.stringify({ code: listening.json?.error?.code, reason: afterListening?.handoffReason })
+  );
+  const listenOff = await api("/api/settings/listening", { method: "PUT", body: JSON.stringify({ enabled: false }) });
+  ok("016: ascolto di nuovo spento", listenOff.res.ok);
+
   sseAbort.abort();
   const restore = await prof({ enabled: false, errorReply: "" });
   ok("estado original: agente apagado, sin cortesía", restore.res.ok && (await api("/api/agent/profile")).json?.profile?.errorReply === null);

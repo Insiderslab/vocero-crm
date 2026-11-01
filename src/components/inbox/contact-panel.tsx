@@ -25,6 +25,7 @@ export type RetryAiResult =
   | null
   | "ai_not_configured"
   | "agent_disabled"
+  | "listening_mode"
   | "not_retryable"
   | "already_answered"
   | "retry_cooldown"
@@ -33,6 +34,7 @@ export type RetryAiResult =
 export const RETRY_AI_CODES = [
   "ai_not_configured",
   "agent_disabled",
+  "listening_mode",
   "not_retryable",
   "already_answered",
   "retry_cooldown",

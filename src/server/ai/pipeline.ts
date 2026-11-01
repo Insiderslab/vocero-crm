@@ -311,7 +311,15 @@ export async function fireAgentRetry(
     .from(schema.agentProfile)
     .where(eq(schema.agentProfile.organizationId, conversation.organizationId))
     .limit(1);
-  if (!isAiConfigured() || !profile[0]?.enabled || !conversation.aiEnabled) {
+  // 016: in ascolto l'agente tace come se fosse spento. Il controllo sta PRIMA
+  // del reclamo, che toglie il passaggio a una persona: la conversazione resta
+  // «da prendere in mano». Il Laboratorio prosegue, come in `runAgentTurn`.
+  if (
+    !isAiConfigured() ||
+    !profile[0]?.enabled ||
+    !conversation.aiEnabled ||
+    (!conversation.isTest && (await isListeningMode(conversation.organizationId)))
+  ) {
     await dropAgentRetryMarker(conversationId);
     return "agent_off";
   }

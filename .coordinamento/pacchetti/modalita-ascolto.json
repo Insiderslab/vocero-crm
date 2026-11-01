@@ -27,8 +27,9 @@
     "tests/e2e/",
     "scripts/e2e-selftest.mjs",
     "docs/lavoro/2026-10-31-modalita-ascolto.md",
-    "src/server/ai/pipeline.ts"
+    "src/server/ai/pipeline.ts",
+    "src/server/ai/manual-retry.ts"
   ],
   "stato": "in-revisione",
-  "aggiornato": "2026-10-31"
+  "aggiornato": "2026-11-01"
 }
