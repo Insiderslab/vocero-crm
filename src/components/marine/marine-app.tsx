@@ -6,6 +6,7 @@ import Image from "next/image";
 import { DateTime } from "luxon";
 import { signIn, useSession } from "@/lib/auth/client";
 import { ticketQrDataUrl } from "@/lib/marine/qr";
+import { AdminPanels } from "@/components/marine/admin-panels";
 import type { MarineRole, MarineTripSummary, MarineTripView, CrewPassenger, AdminPassenger } from "@/lib/marine/types";
 
 type ApiState = { role: MarineRole; organizationId: string; trips: MarineTripSummary[]; trip: MarineTripView | null };
@@ -32,6 +33,7 @@ export function MarineApp() {
   const [data, setData] = useState<ApiState | null>(null);
   const [selectedId, setSelectedId] = useState("");
   const [tab, setTab] = useState("Hoy");
+  const [adminView, setAdminView] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [connected, setConnected] = useState(true);
@@ -51,6 +53,7 @@ export function MarineApp() {
   const [canRetry, setCanRetry] = useState(false);
   const trip = data?.trip;
   const isAdmin = data?.role === "owner" || data?.role === "admin";
+  useEffect(() => { if (data?.role) { setAdminView(isAdmin); setTab(isAdmin ? "Resumen" : "Hoy"); } }, [data?.role, isAdmin]);
   const operationsDisabled = busy || Boolean(pendingMutation.current) || flaggingOffline || !connected || Boolean(offlineMarker) || Boolean(trip?.reconciliationRequired) || !trip || ["completed", "cancelled"].includes(trip.status);
   const refresh = useCallback(async (tripId?: string) => {
     if (!session) return;
@@ -120,21 +123,27 @@ export function MarineApp() {
     const pending = pendingMutation.current;
     if (pending && canRetry) await sendMutation(pending.action, pending.body);
   }
+  function selectTrip(id: string) {
+    setSelectedPerson(null); setCode(""); setData((prev) => prev ? { ...prev, trip: null } : prev); setDetailLoading(true);
+    if (id === selectedId) void refresh(id || undefined);
+    else setSelectedId(id);
+  }
   if (isPending) return <main className="p-6">Cargando…</main>;
   if (!session) return <MarineLogin />;
   const people = (trip?.passengers ?? []) as (CrewPassenger | AdminPassenger)[];
   const filteredPeople = people.filter((p) => `${p.name} ${p.documentMasked}`.toLocaleLowerCase("es").includes(personQuery.toLocaleLowerCase("es")));
   return <main className="min-h-screen bg-slate-50 pb-24 text-slate-950"><style jsx global>{`@page{margin:14mm}@media print{body *{visibility:hidden!important}.marine-print-scope,.marine-print-scope *{visibility:visible!important}.marine-print-scope{position:absolute!important;inset:0!important;width:100%!important;margin:0!important;border:0!important;box-shadow:none!important}.marine-print-scope li{break-inside:avoid;border-bottom:1px solid #cbd5e1;padding:8px 0}.marine-print-scope button,.marine-print-scope input,.marine-no-print{display:none!important}}`}</style>
-    <header className="sticky top-0 z-10 border-b bg-white px-4 py-3"><div className="mx-auto flex max-w-3xl items-center justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-wide text-sky-800">La Bambola · Morrocoy</p><h1 className="text-xl font-bold">Operaciones</h1></div><span className={`rounded-full px-3 py-2 text-sm font-semibold ${connected ? "bg-emerald-100 text-emerald-900" : "bg-amber-100 text-amber-950"}`}>{connected ? "Con conexión" : "Sin conexión · solo lectura"}</span></div></header>
+    <header className="sticky top-0 z-10 border-b bg-white px-4 py-3"><div className="mx-auto flex max-w-3xl items-center justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-wide text-sky-800">La Bambola · Morrocoy</p><h1 className="text-xl font-bold">{isAdmin && adminView ? "Panel de administración" : "Operaciones"}</h1>{data && <p className="text-sm font-semibold">Rol: {isAdmin ? "Administración" : "Tripulación"}</p>}</div><span className={`rounded-full px-3 py-2 text-sm font-semibold ${connected ? "bg-emerald-100 text-emerald-900" : "bg-amber-100 text-amber-950"}`}>{connected ? "Con conexión" : "Sin conexión · solo lectura"}</span></div></header>
     <div className="mx-auto max-w-3xl space-y-4 p-4">
       {error && <div role="alert" className="rounded-xl bg-red-50 p-4 text-base text-red-900">{error}{canRetry && pendingMutation.current && <button className={`${buttonClass} ml-2`} onClick={() => void retryMutation()}>Reintentar misma operación</button>}<button className="ml-3 underline" onClick={() => setError("")}>Cerrar</button></div>}
-      <label className="block text-sm font-semibold">Paseo de hoy<select className={`${inputClass} mt-1`} value={selectedId} disabled={busy || flaggingOffline || Boolean(pendingMutation.current)} onChange={(e) => { setSelectedPerson(null); setCode(""); setData((prev) => prev ? { ...prev, trip: null } : prev); setDetailLoading(true); setSelectedId(e.target.value); }}><option value="">Selecciona un paseo</option>{data?.trips.map((t) => <option key={t.id} value={t.id}>{localDate(t.startAt)} · {t.title}</option>)}</select></label>
-      {isAdmin && <div className={`${panelClass} border-sky-200 bg-sky-50`}><div className="flex flex-wrap items-center justify-between gap-2"><strong>Administración · Rosanni</strong><button className={secondaryClass} onClick={() => setTab(tab === "Administración" ? "Hoy" : "Administración")}>{tab === "Administración" ? "Volver al equipo" : "Abrir administración"}</button></div></div>}
+      <label className="block text-sm font-semibold">Paseo seleccionado<select className={`${inputClass} mt-1`} value={selectedId} disabled={busy || flaggingOffline || Boolean(pendingMutation.current)} onChange={(e) => selectTrip(e.target.value)}><option value="">Selecciona un paseo</option>{data?.trips.map((t) => <option key={t.id} value={t.id}>{localDate(t.startAt)} · {t.title}</option>)}</select></label>
+      {isAdmin && !adminView && <div className={`${panelClass} border-sky-200 bg-sky-50`}><div className="flex flex-wrap items-center justify-between gap-2"><strong>Vista de operaciones administrativas · acceso completo</strong><button className={secondaryClass} disabled={busy || flaggingOffline || Boolean(pendingMutation.current)} onClick={() => setAdminView(true)}>Volver a paneles</button></div></div>}
       {!trip && <div className={panelClass}><h2 className="text-lg font-bold">{detailLoading ? "Cargando paseo…" : isAdmin ? "Crear un paseo" : "Todavía no hay paseos asignados"}</h2>{!detailLoading && isAdmin && <CreateTrip onCreate={(fields) => void command("createTrip", fields)} busy={busy} />}</div>}
       {trip && offlineMarker && <section role="alert" className="rounded-xl border border-amber-400 bg-amber-50 p-4"><strong>Revisión pendiente</strong><p>Se perdió la conexión durante el paseo. Revisa la lista maestra impresa antes de registrar más movimientos.</p>{canRetry && pendingMutation.current && <button className={`${buttonClass} mt-3`} onClick={() => void retryMutation()}>Reintentar misma operación</button>}{!trip.reconciliationRequired && <button className={`${buttonClass} mt-3`} disabled={!connected || busy || flaggingOffline || Boolean(pendingMutation.current)} onClick={() => void flagOfflineReview()}>{flaggingOffline ? "Registrando revisión…" : "Reintentar revisión"}</button>}</section>}
-      {trip?.reconciliationRequired && <section role="status" className="rounded-xl border border-amber-400 bg-amber-50 p-4"><strong>Revisión pendiente con Rosanni</strong><p>Compara la lista maestra impresa con los movimientos del sistema. Las operaciones se reanudarán al confirmar la revisión.</p>{isAdmin && <button className={`${secondaryClass} mt-2`} onClick={() => setTab("Administración")}>Abrir revisión</button>}</section>}
-      {trip && tab === "Administración" && isAdmin && <AdminPanel trip={trip} busy={busy} command={command} />}
-      {trip && tab !== "Administración" && <>
+      {trip?.reconciliationRequired && <section role="status" className="rounded-xl border border-amber-400 bg-amber-50 p-4"><strong>Revisión pendiente con Rosanni</strong><p>Compara la lista maestra impresa con los movimientos del sistema. Las operaciones se reanudarán al confirmar la revisión.</p>{isAdmin && <button className={`${secondaryClass} mt-2`} disabled={busy || flaggingOffline || Boolean(pendingMutation.current)} onClick={() => { setAdminView(false); setTab("Administración"); }}>Abrir revisión</button>}</section>}
+      {isAdmin && adminView && <AdminPanels trips={data?.trips || []} navigationDisabled={busy || flaggingOffline || Boolean(pendingMutation.current)} onOpenTrip={(id) => { if (busy || flaggingOffline || pendingMutation.current) return; selectTrip(id); setAdminView(false); setTab("Hoy"); }} onOperations={() => { if (!busy && !flaggingOffline && !pendingMutation.current) { setAdminView(false); setTab("Hoy"); } }} onAdministration={() => { if (!busy && !flaggingOffline && !pendingMutation.current) { setAdminView(false); setTab("Administración"); } }} />}
+      {trip && tab === "Administración" && isAdmin && !adminView && <AdminPanel trip={trip} busy={busy || Boolean(pendingMutation.current)} command={command} />}
+      {trip && !adminView && tab !== "Administración" && <>
         {tab === "Hoy" && <section className={`${panelClass} space-y-3`}><div className="flex items-start justify-between gap-3"><div><h2 className="text-lg font-bold">{trip.title}</h2><p className="text-slate-600">{localDate(trip.startAt)} · {trip.status === "planned" ? "Planificado" : trip.status === "boarding" ? "Abordando" : trip.status === "underway" ? "En paseo" : trip.status === "completed" ? "Finalizado" : "Cancelado"}</p></div><span className="rounded-full bg-sky-100 px-3 py-2 font-bold">A bordo {trip.totals.aboard}</span></div>
           <div className="grid grid-cols-2 gap-2 text-center sm:grid-cols-4"><Metric label="Registrados" value={trip.totals.registered} /><Metric label="A bordo" value={trip.totals.aboard} /><Metric label="En parada" value={trip.totals.away} /><Metric label="Desembarcados" value={trip.totals.deboarded} /></div>
           <button className={`${buttonClass} w-full`} onClick={() => setScanOpen(true)} disabled={busy || !connected || trip.status === "completed" || trip.status === "cancelled"}>Escanear boleto</button>
@@ -147,7 +156,7 @@ export function MarineApp() {
         {tab === "Hoy" && <><IncidentForm disabled={operationsDisabled} command={command} /><section className={panelClass}><h2 className="text-lg font-bold">Notas del paseo</h2>{trip.incidents.length ? <ul className="mt-2 space-y-2">{trip.incidents.slice().reverse().map((incident) => <li key={incident.id} className="rounded-lg bg-slate-100 p-3"><p>{incident.text}</p><time className="text-sm text-slate-600">{localDate(incident.createdAt)}</time></li>)}</ul> : <p className="mt-2 text-slate-600">Todavía no hay notas.</p>}</section></>}
       </>}
     </div>
-    {trip && tab !== "Administración" && <nav className="fixed inset-x-0 bottom-0 z-20 grid grid-cols-3 border-t bg-white p-2">{["Hoy", "Pasajeros", "Servicios"].map((name) => <button key={name} className={`min-h-12 rounded-xl font-semibold ${tab === name ? "bg-sky-100 text-sky-950" : "text-slate-700"}`} onClick={() => setTab(name)}>{name}</button>)}</nav>}
+    {trip && !adminView && tab !== "Administración" && <nav className="fixed inset-x-0 bottom-0 z-20 grid grid-cols-3 border-t bg-white p-2">{["Hoy", "Pasajeros", "Servicios"].map((name) => <button key={name} className={`min-h-12 rounded-xl font-semibold ${tab === name ? "bg-sky-100 text-sky-950" : "text-slate-700"}`} onClick={() => setTab(name)}>{name}</button>)}</nav>}
     {scanOpen && <Scanner onClose={() => setScanOpen(false)} onCode={(value) => { setScanOpen(false); void lookupTicket(value); }} />}
   </main>;
   async function lookupTicket(value: string) {
