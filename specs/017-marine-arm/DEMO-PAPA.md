@@ -1,6 +1,6 @@
 # La Bambola: vender, organizar y embarcar desde un solo sistema
 
-Presentación para la familia y el equipo. Capacidad máxima de la embarcación:130pasajeros. Ejemplos con personas y reservas ficticias.
+Presentación para la familia y el equipo. Capacidad máxima de la embarcación:130 pasajeros. Ejemplos con personas y reservas ficticias.
 
 ## 1. Una plataforma, tres espacios sencillos
 
@@ -20,15 +20,15 @@ Este es el recorrido previsto. El enlace para todo el grupo y el campo fecha de 
 
 ## 3. Un ejemplo con agencia
 
-Una agencia aprobada vende cuatro puestos y comparte el enlace de esa reserva. Los pasajeros que se registran quedan asociados a esa agencia automáticamente. La agencia puede ver «2registrados de4esperados» y ayudar a completar los datos que faltan.
+Una agencia aprobada vende cuatro puestos y comparte el enlace de esa reserva. Los pasajeros que se registran quedan asociados a esa agencia automáticamente. La agencia puede ver «2 registrados de 4 esperados» y ayudar a completar los datos que faltan.
 
-También puede registrar a un pasajero por él, con los permisos correspondientes. El enlace del grupo no debe mostrar los datos personales de los demás participantes. La comisión es del10% sobre el importe del paseo efectivamente cobrado; los extras no entran en esa comisión.
+También puede registrar a un pasajero por él, con los permisos correspondientes. El enlace del grupo no debe mostrar los datos personales de los demás participantes. La comisión es del 10% sobre el importe del paseo efectivamente cobrado; los extras no entran en esa comisión.
 
 El portal de agencias está planificado. El campo de agencia del piloto actual no equivale a un portal completo.
 
 ## 4. Un calendario que también organiza el trabajo
 
-Vistas previstas: Hoy,3días,7días y Mes. Tocar un día para crear un paseo; tocar el paseo para modificarlo.
+Vistas previstas: Hoy, 3 días, 7 días y Mes. Tocar un día para crear un paseo; tocar el paseo para modificarlo.
 
 La ficha reúne horario, puestos confirmados y disponibles, pasajeros pendientes de registro, paellas, colchonetas flotantes, otros servicios y responsables. El calendario debe actualizarse desde las reservas, sin copiar datos a mano. Una petición ambigua queda pendiente de confirmación: Heili no debe adivinar el paseo ni el número de personas.
 
