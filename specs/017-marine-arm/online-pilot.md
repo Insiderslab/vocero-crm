@@ -69,6 +69,18 @@ Header boundary: public site block sets X-Forwarded-For={http.request.remote.hos
 
 ## Detailed Implementation Plan
 
+### Implementation reconciliation — frozen r3, 2 November 2026
+
+The file matrix below records the pre-code design. The following concrete changes were made during implementation and independent code review; use the frozen r3 helper interfaces and `deploy/marine/README.md` when resuming. These notes do not approve publication or change the frozen artifact.
+
+- `runtime.py prepare` requires `--app-image sha256:<immutable-image-ID>` **and** `--manifest-sha256 <reviewed-digest>`, not a mutable `bambola-arm:<release>` tag. It inspects image identity and the source-manifest label before generating runtime material.
+- `bootstrap.py run --app-image sha256:<ID> --manifest-sha256 <digest>` is the reviewed host wrapper for `bootstrap.mjs`; it checks provenance, mounts only the protected input and scoped result directory, and validates the redacted result. Do not improvise a different bootstrap invocation.
+- `host.py dns-intent` must run while the live config is the maintenance candidate, immediately before the coordinator adds DNS. The monotonic intent itself prevents whole-original restoration, including when the strict DNS evidence marker is missing or damaged. Activation requires both intent and valid evidence.
+- Gateway hardening, exact Caddy capability constraints and the nonsecret 0444 config are documented in the helper README. Runtime credentials remain 0600 under 0700 directories.
+- The logout UI uses `useSession` plus a direct same-origin POST to the existing sign-out endpoint; it does not use the optimistic auth-client signOut helper. Failure preserves the screen and reports an error; successful HTTP confirmation clears the view by full navigation.
+- Pure fixtures are in `tests/test_host.py`, `tests/test_runtime.py` and `tests/test_manifest.py`; no `test_deploy.py` was created. Backup verification compares actual Drizzle migration hashes/timestamps and table counts, not migration names. Live isolation and cross-tenant proof helpers are also present and still await the deployed instance.
+- Independent static dependency triage is complete in `reviews/online-dependency-triage.md`; final-image reachability and gateway proofs are pending. The package audit remains failed. Mandatory Claude review is incomplete after two attempts without a verdict; the already-requested owner extension is pending.
+
 ### File and entrypoint contracts
 
 All operational helpers use fixed host186.241.16.46, project/root bambola-arm and /opt/bambola-arm; reject other roots, projects, domains and symlink targets. No generic SSH executor. Commands exit0 only for completed verified work,2 for invalid input/concurrent state,1 for failed operation; messages contain no secrets. Runtime/evidence files are root0600 under0700 directories. JSON state uses version1 and records source manifest digest, baseline prefix hash/inode, candidate hashes, existing-container identity/state subset and route pairs; never credentials. Parent controls SSH/transfer and Hostinger DNS tools. No helper embeds API credentials or modifies DNS.
