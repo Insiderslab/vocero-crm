@@ -1,25 +1,38 @@
 #!/usr/bin/env node
 import fs from "node:fs/promises";
 import { randomUUID } from "node:crypto";
+import { pathToFileURL } from "node:url";
 
 const APP = "http://bambola-arm-private-app:3000";
 const PUBLIC = "https://bambola.heili.cloud";
-const args = process.argv.slice(2);
-const value = (flag) => { const i = args.indexOf(flag); return i >= 0 ? args[i + 1] : undefined; };
-const accountsPath = value("--accounts");
-const resultPath = value("--result");
-if (!accountsPath || !resultPath || args.some((x, i) => x.startsWith("--") && !["--accounts", "--result"].includes(x)) || args.includes("--accounts") && !value("--accounts") || args.includes("--result") && !value("--result")) {
-  process.stderr.write("Bootstrap requires --accounts and --result paths.\n");
-  process.exit(2);
+export const AUTH_PACING_INTERVAL_MS = 11000;
+
+export function createAuthPacer({ intervalMs = AUTH_PACING_INTERVAL_MS, now = Date.now, sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)) } = {}) {
+  let lastStartAt = null;
+  let queue = Promise.resolve();
+  return () => {
+    const scheduled = queue.then(async () => {
+      const waitMs = lastStartAt === null ? 0 : Math.max(0, intervalMs - (now() - lastStartAt));
+      if (waitMs > 0) await sleep(waitMs);
+      lastStartAt = now();
+    });
+    queue = scheduled.catch(() => {});
+    return scheduled;
+  };
 }
 
-class Client {
+const waitForAuthStart = createAuthPacer();
+
+export class Client {
   cookies = new Map();
+  constructor(authPacer = waitForAuthStart) { this.authPacer = authPacer; }
   async request(path, method = "GET", body) {
     const headers = { host: "bambola.heili.cloud", origin: PUBLIC, accept: "application/json" };
     if (this.cookies.size) headers.cookie = [...this.cookies].map(([k, v]) => `${k}=${v}`).join("; ");
     if (body !== undefined) headers["content-type"] = "application/json";
-    const response = await fetch(`${APP}${path}`, { method, headers, body: body === undefined ? undefined : JSON.stringify(body), redirect: "manual" });
+    const requestBody = body === undefined ? undefined : JSON.stringify(body);
+    if (method === "POST" && ["/api/auth/sign-in/email", "/api/auth/sign-up/email"].includes(path)) await this.authPacer();
+    const response = await fetch(`${APP}${path}`, { method, headers, body: requestBody, redirect: "manual" });
     for (const raw of response.headers.getSetCookie?.() ?? []) {
       const pair = raw.split(";", 1)[0]; const at = pair.indexOf("=");
       if (at > 0) this.cookies.set(pair.slice(0, at), pair.slice(at + 1));
@@ -28,6 +41,16 @@ class Client {
     try { data = await response.json(); } catch { throw new Error("unexpected response"); }
     return { status: response.status, data };
   }
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+const args = process.argv.slice(2);
+const value = (flag) => { const i = args.indexOf(flag); return i >= 0 ? args[i + 1] : undefined; };
+const accountsPath = value("--accounts");
+const resultPath = value("--result");
+if (!accountsPath || !resultPath || args.some((x, i) => x.startsWith("--") && !["--accounts", "--result"].includes(x)) || args.includes("--accounts") && !value("--accounts") || args.includes("--result") && !value("--result")) {
+  process.stderr.write("Bootstrap requires --accounts and --result paths.\n");
+  process.exit(2);
 }
 
 async function expect(client, path, method, body, status) {
@@ -99,4 +122,5 @@ try {
 } catch {
   process.stderr.write("Private bootstrap failed; inspect private redacted evidence.\n");
   process.exitCode = 1;
+}
 }

@@ -17,18 +17,65 @@ APP = 'bambola-arm-app-1'
 POSTGRES = 'bambola-arm-postgres-1'
 GATEWAY = 'bambola-arm-gateway-1'
 IMAGE_PACKAGES = {
-    'vitest', 'tinypool', 'shell-quote', 'drizzle-kit', 'gel', 'postcss',
+    'vitest', 'tinypool', 'shell-quote', 'drizzle-kit', 'drizzle-orm', 'gel', 'postcss',
     'nanoid', 'source-map-js', 'vite', 'zod', 'better-auth', 'sharp',
 }
 JS_INVENTORY = r'''import fs from 'node:fs';
+import crypto from 'node:crypto';
+import path from 'node:path';
 const wanted = new Set(JSON.parse(process.env.WANTED_PACKAGES));
 const found = new Set();
+const unknownVendoredPackages = new Map();
 let scanComplete = true;
 let packageRoot;
 try { packageRoot = fs.realpathSync('/app/node_modules'); } catch { packageRoot = null; scanComplete = false; }
 const stack = packageRoot ? [packageRoot] : [];
 const visitedDirs = new Set();
 let visited = 0;
+function recordPackage(packageDir, expectedName) {
+  let metadata;
+  let text;
+  try {
+    text = fs.readFileSync(`${packageDir}/package.json`, 'utf8');
+    metadata = JSON.parse(text);
+  } catch { scanComplete = false; return; }
+  if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata) || metadata.name !== expectedName) {
+    scanComplete = false;
+    return;
+  }
+  if (typeof metadata.version === 'string' && metadata.version.length > 0) {
+    found.add(`${metadata.name}@${metadata.version}`);
+    return;
+  }
+  const bundledPath = path.relative(packageRoot, fs.realpathSync(packageDir)).split(path.sep).join('/');
+  const segments = bundledPath.split('/');
+  const insidePackageRoot = bundledPath !== '' && !bundledPath.startsWith('../') && !path.isAbsolute(bundledPath);
+  const directNextBundle = insidePackageRoot && segments.length === 4 && segments[0] === 'next'
+    && segments[1] === 'dist' && segments[2] === 'compiled' && segments[3] === expectedName;
+  const pnpmNextBundle = insidePackageRoot && segments.length === 7 && segments[0] === '.pnpm'
+    && segments[1].startsWith('next@') && segments[1].length > 5 && segments[2] === 'node_modules'
+    && segments[3] === 'next' && segments[4] === 'dist' && segments[5] === 'compiled' && segments[6] === expectedName;
+  const nextPackageDir = directNextBundle ? `${packageRoot}/next`
+    : pnpmNextBundle ? `${packageRoot}/.pnpm/${segments[1]}/node_modules/next` : null;
+  let nextPackageValid = false;
+  if (nextPackageDir) {
+    try {
+      const nextPackage = JSON.parse(fs.readFileSync(`${nextPackageDir}/package.json`, 'utf8'));
+      nextPackageValid = nextPackage?.name === 'next' && typeof nextPackage.version === 'string' && nextPackage.version.length > 0;
+    } catch { scanComplete = false; }
+  }
+  const exactNextBundle = (directNextBundle || pnpmNextBundle) && nextPackageValid;
+  if (!Object.hasOwn(metadata, 'version') && exactNextBundle) {
+    unknownVendoredPackages.set(bundledPath, {
+      name: metadata.name,
+      version: null,
+      path: bundledPath,
+      packageSha256: crypto.createHash('sha256').update(text, 'utf8').digest('hex'),
+    });
+    return;
+  }
+  scanComplete = false;
+}
 while (stack.length && visited < 30000) {
   const dir = stack.pop();
   if (visitedDirs.has(dir)) continue;
@@ -46,9 +93,7 @@ while (stack.length && visited < 30000) {
         if (target === packageRoot || target.startsWith(`${packageRoot}/`)) {
           if (fs.statSync(target).isDirectory()) {
             if (wanted.has(entry.name)) {
-              const pkg = JSON.parse(fs.readFileSync(`${target}/package.json`, 'utf8'));
-              if (wanted.has(pkg.name) && typeof pkg.version === 'string') found.add(`${pkg.name}@${pkg.version}`);
-              else scanComplete = false;
+              recordPackage(target, entry.name);
             }
             stack.push(target);
           } else {
@@ -64,11 +109,7 @@ while (stack.length && visited < 30000) {
     if (entry.name === 'node_modules') { stack.push(child); continue; }
     if (entry.name.startsWith('@')) { stack.push(child); continue; }
     if (wanted.has(entry.name)) {
-      try {
-        const pkg = JSON.parse(fs.readFileSync(`${child}/package.json`, 'utf8'));
-        if (wanted.has(pkg.name) && typeof pkg.version === 'string') found.add(`${pkg.name}@${pkg.version}`);
-        else scanComplete = false;
-      } catch { scanComplete = false; }
+      recordPackage(child, entry.name);
     }
     stack.push(child);
   }
@@ -78,6 +119,7 @@ const forbidden = ['/app/scripts/seed-demo.mjs', '/app/scripts/booking-worker.mj
                    '/app/seed-demo.mjs', '/app/booking-worker.mjs', '/app/dist/booking-worker.mjs'];
 process.stdout.write(JSON.stringify({
   packages: [...found].sort().map((value) => { const i = value.lastIndexOf('@'); return {name: value.slice(0, i), version: value.slice(i + 1)}; }),
+  unknownVendoredPackages: [...unknownVendoredPackages.values()].sort((a, b) => a.path < b.path ? -1 : a.path > b.path ? 1 : 0),
   forbiddenFiles: forbidden.filter((path) => fs.existsSync(path)),
   commandLooksLikeDevServer: process.env.APP_IS_DEV_SERVER === 'true',
   scannedEntries: visited,
@@ -184,9 +226,38 @@ def parse_process_security(status):
             fields[key] = value.strip()
     if not re.fullmatch(r'[0-9a-fA-F]+', fields.get('CapEff', '')) or not re.fullmatch(r'[0-9a-fA-F]+', fields.get('CapBnd', '')) or fields.get('NoNewPrivs') not in {'0', '1'}:
         raise RuntimeError('Gateway process security state is unavailable')
-    return {'capEffZero': int(fields['CapEff'], 16) == 0,
+    cap_eff = int(fields['CapEff'], 16)
+    return {'capEffAllowedOnly': cap_eff & ~0x400 == 0,
             'capBndNetBindServiceOnly': int(fields['CapBnd'], 16) == 0x400,
             'noNewPrivs': fields['NoNewPrivs'] == '1'}
+
+
+def canonical_capability(value):
+    if not isinstance(value, str):
+        return None
+    capability = value.upper()
+    return capability[4:] if capability.startswith('CAP_') else capability
+
+
+def vendored_package_records_valid(records):
+    if not isinstance(records, list):
+        return False
+    for item in records:
+        if not isinstance(item, dict) or item.get('version') is not None:
+            return False
+        name = item.get('name')
+        package_path = item.get('path')
+        fingerprint = item.get('packageSha256')
+        if not isinstance(name, str) or not isinstance(package_path, str) or not isinstance(fingerprint, str):
+            return False
+        segments = package_path.split('/')
+        direct = len(segments) == 4 and segments[:3] == ['next', 'dist', 'compiled'] and segments[3] == name
+        pnpm = (len(segments) == 7 and segments[0] == '.pnpm' and segments[1].startswith('next@')
+                and len(segments[1]) > 5 and segments[2:6] == ['node_modules', 'next', 'dist', 'compiled']
+                and segments[6] == name)
+        if name not in IMAGE_PACKAGES or not (direct or pnpm) or not re.fullmatch(r'[0-9a-f]{64}', fingerprint):
+            return False
+    return True
 
 
 def verify_gateway_privileges(gateway):
@@ -197,8 +268,8 @@ def verify_gateway_privileges(gateway):
     checks = {
         'uid65532': gateway_uid == '65532',
         'capDropAll': gateway_host.get('CapDrop') == ['ALL'],
-        'capAddNetBindServiceOnly': gateway_host.get('CapAdd', []) == ['NET_BIND_SERVICE'],
-        'capEffZero': process_security['capEffZero'],
+        'capAddNetBindServiceOnly': [canonical_capability(value) for value in gateway_host.get('CapAdd', [])] == ['NET_BIND_SERVICE'],
+        'capEffAllowedOnly': process_security['capEffAllowedOnly'],
         'capBndNetBindServiceOnly': process_security['capBndNetBindServiceOnly'],
         'readonlyRootfs': gateway_host.get('ReadonlyRootfs') is True,
         'noNewPrivilegesHostConfig': 'no-new-privileges:true' in security_opts,
@@ -293,7 +364,7 @@ def main():
         'gatewayUid65532': gateway_security['uid65532'],
         'gatewayCapDropAll': gateway_security['capDropAll'],
         'gatewayCapAddNetBindServiceOnly': gateway_security['capAddNetBindServiceOnly'],
-        'gatewayCapEffZero': gateway_security['capEffZero'],
+        'gatewayCapEffAllowedOnly': gateway_security['capEffAllowedOnly'],
         'gatewayCapBndNetBindServiceOnly': gateway_security['capBndNetBindServiceOnly'],
         'gatewayReadOnlyRootfs': gateway_security['readonlyRootfs'],
         'gatewayNoNewPrivileges': gateway_security['noNewPrivilegesHostConfig'] and gateway_security['noNewPrivilegesProcess'],
@@ -306,6 +377,7 @@ def main():
         'noSeedOrWorkerFiles': not forbidden_files,
         'notDevServer': not inventory['commandLooksLikeDevServer'],
         'inventoryScanComplete': inventory['scanComplete'],
+        'vendoredVersionsExplicitlyUnknown': vendored_package_records_valid(inventory['unknownVendoredPackages']),
         'frontendCannotReachApp': not frontend_result['app_edge_3000']['connected'],
         'frontendCannotReachDatabase': not frontend_result['database_data_5432']['connected'],
         'frontendSpoofGets403': frontend_result.get('gatewaySpoof', {}).get('status') == 403,
@@ -319,6 +391,7 @@ def main():
         'containers': {name: {'imageId': item['Image'], 'networks': sorted(item['NetworkSettings']['Networks'])}
                        for name, item in inspected.items()},
         'packageInventory': inventory['packages'],
+        'unknownVendoredPackages': inventory['unknownVendoredPackages'],
         'assertions': assertions,
         'probes': {'frontend': frontend_result, 'edge': edge_result, 'data': data_result},
         'passed': all(assertions.values()),

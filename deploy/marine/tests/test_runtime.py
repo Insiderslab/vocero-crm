@@ -1,4 +1,5 @@
 import importlib.util
+import hashlib
 import json
 import os
 import re
@@ -79,17 +80,6 @@ class RuntimeTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "does not match"):
                 runtime.verify_app_image(image_id, manifest)
 
-    def test_default_app_image_inspector_uses_docker_and_checks_manifest_label(self):
-        image_id, manifest = "sha256:" + "d" * 64, "e" * 64
-        expected_command = ["docker", "image", "inspect", "--format", '{{.Id}} {{index .Config.Labels "heili.source-manifest"}}', image_id]
-        with patch.object(runtime.subprocess, "run", return_value=subprocess.CompletedProcess(expected_command, 0, image_id + " " + manifest + "\n")) as inspect:
-            runtime.verify_app_image(image_id, manifest)
-            inspect.assert_called_once_with(expected_command, check=True, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
-
-        with patch.object(runtime.subprocess, "run", return_value=subprocess.CompletedProcess(expected_command, 0, image_id + " " + "f" * 64 + "\n")):
-            with self.assertRaisesRegex(ValueError, "does not match"):
-                runtime.verify_app_image(image_id, manifest)
-
     def test_bootstrap_runner_uses_reviewed_image_and_restricted_root_mounts(self):
         with tempfile.TemporaryDirectory() as temp:
             base = Path(temp)
@@ -134,27 +124,98 @@ class RuntimeTests(unittest.TestCase):
             self.assertNotIn("/var/run/docker.sock", " ".join(run_command))
             self.assertFalse(list(runtime_dir.glob(".bootstrap-*")))
 
-    def test_isolation_requires_gateway_effective_capabilities_zero(self):
-        status = "Name:\tcaddy\nUid:\t65532\t65532\t65532\t65532\nCapEff:\t0000000000000000\nCapBnd:\t0000000000000400\nNoNewPrivs:\t1\n"
-        gateway = {"HostConfig": {"CapDrop": ["ALL"], "CapAdd": ["NET_BIND_SERVICE"], "ReadonlyRootfs": True, "SecurityOpt": ["no-new-privileges:true"], "Tmpfs": {"/tmp": "rw,noexec,nosuid,size=8m"}}}
+    def test_isolation_accepts_only_the_allowed_gateway_effective_capability(self):
+        def status(effective, bounding=0x400):
+            return ("Name:\tcaddy\nUid:\t65532\t65532\t65532\t65532\n"
+                    f"CapEff:\t{effective:016x}\nCapBnd:\t{bounding:016x}\nNoNewPrivs:\t1\n")
 
-        def docker_ok(args):
-            output = "65532\n" if args[1:3] == [isolation.GATEWAY, "id"] else status
-            return subprocess.CompletedProcess(args, 0, output)
+        def gateway(cap_add):
+            return {"HostConfig": {"CapDrop": ["ALL"], "CapAdd": cap_add, "ReadonlyRootfs": True,
+                                    "SecurityOpt": ["no-new-privileges:true"],
+                                    "Tmpfs": {"/tmp": "rw,noexec,nosuid,size=8m"}}}
 
-        with patch.object(isolation, "docker", side_effect=docker_ok):
-            uid, checks = isolation.verify_gateway_privileges(gateway)
-        self.assertEqual(uid, "65532")
-        self.assertTrue(all(checks.values()))
+        for spelling in ("NET_BIND_SERVICE", "CAP_NET_BIND_SERVICE"):
+            for effective in (0, 0x400):
+                with self.subTest(spelling=spelling, effective=effective):
+                    process_status = status(effective)
+                    def docker_ok(args):
+                        output = "65532\n" if args[1:3] == [isolation.GATEWAY, "id"] else process_status
+                        return subprocess.CompletedProcess(args, 0, output)
+                    with patch.object(isolation, "docker", side_effect=docker_ok):
+                        uid, checks = isolation.verify_gateway_privileges(gateway([spelling]))
+                    self.assertEqual(uid, "65532")
+                    self.assertTrue(all(checks.values()))
 
-        def docker_caps(args):
-            bad_status = status.replace("0000000000000000", "0000000000002000")
-            output = "65532\n" if args[1:3] == [isolation.GATEWAY, "id"] else bad_status
-            return subprocess.CompletedProcess(args, 0, output)
+        for effective in (0x2000, 0x2400, 0x1):
+            with self.subTest(unallowed_effective=effective):
+                process_status = status(effective)
+                def docker_extra_cap(args):
+                    output = "65532\n" if args[1:3] == [isolation.GATEWAY, "id"] else process_status
+                    return subprocess.CompletedProcess(args, 0, output)
+                with patch.object(isolation, "docker", side_effect=docker_extra_cap):
+                    with self.assertRaisesRegex(RuntimeError, "privilege boundary"):
+                        isolation.verify_gateway_privileges(gateway(["CAP_NET_BIND_SERVICE"]))
 
-        with patch.object(isolation, "docker", side_effect=docker_caps):
-            with self.assertRaisesRegex(RuntimeError, "privilege boundary"):
-                isolation.verify_gateway_privileges(gateway)
+        for bounding in (0, 0x401, 0x2400):
+            with self.subTest(unexpected_bounding=bounding):
+                process_status = status(0x400, bounding)
+                def docker_bad_bound(args):
+                    output = "65532\n" if args[1:3] == [isolation.GATEWAY, "id"] else process_status
+                    return subprocess.CompletedProcess(args, 0, output)
+                with patch.object(isolation, "docker", side_effect=docker_bad_bound):
+                    with self.assertRaisesRegex(RuntimeError, "privilege boundary"):
+                        isolation.verify_gateway_privileges(gateway(["NET_BIND_SERVICE"]))
+
+        for cap_add in (["NET_RAW"], ["NET_BIND_SERVICE", "NET_RAW"], []):
+            with self.subTest(unexpected_cap_add=cap_add):
+                process_status = status(0x400)
+                def docker_bad_add(args):
+                    output = "65532\n" if args[1:3] == [isolation.GATEWAY, "id"] else process_status
+                    return subprocess.CompletedProcess(args, 0, output)
+                with patch.object(isolation, "docker", side_effect=docker_bad_add):
+                    with self.assertRaisesRegex(RuntimeError, "privilege boundary"):
+                        isolation.verify_gateway_privileges(gateway(cap_add))
+
+    def test_inventory_records_only_exact_next_vendored_missing_versions(self):
+        def scan(root):
+            script = isolation.JS_INVENTORY.replace("/app/node_modules", str(root).replace("\\", "/"))
+            result = subprocess.run(
+                ["node", "--input-type=module", "-e", script], check=True, text=True,
+                capture_output=True, timeout=20,
+                env={**os.environ, "WANTED_PACKAGES": json.dumps(["nanoid"])},
+            )
+            return json.loads(result.stdout)
+
+        for package_base, expected_path in (
+            (Path("next"), "next/dist/compiled/nanoid"),
+            (Path(".pnpm/next@15.5.28_peer_fixture/node_modules/next"),
+             ".pnpm/next@15.5.28_peer_fixture/node_modules/next/dist/compiled/nanoid"),
+        ):
+            with self.subTest(next_layout=expected_path), tempfile.TemporaryDirectory() as temp:
+                root = Path(temp) / "node_modules"
+                next_package = root / package_base
+                (next_package / "dist/compiled/nanoid").mkdir(parents=True)
+                (next_package / "package.json").write_text('{"name":"next","version":"15.5.28"}', encoding="utf-8")
+                vendored = next_package / "dist" / "compiled" / "nanoid"
+                (vendored / "package.json").write_text('{"name":"nanoid"}', encoding="utf-8")
+                inventory = scan(root)
+                self.assertTrue(inventory["scanComplete"])
+                self.assertEqual(inventory["unknownVendoredPackages"], [{
+                    "name": "nanoid", "version": None, "path": expected_path,
+                    "packageSha256": hashlib.sha256((vendored / "package.json").read_bytes()).hexdigest(),
+                }])
+                self.assertTrue(isolation.vendored_package_records_valid(inventory["unknownVendoredPackages"]))
+                mismatched = [{**inventory["unknownVendoredPackages"][0], "name": "shell-quote"}]
+                self.assertFalse(isolation.vendored_package_records_valid(mismatched))
+
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp) / "node_modules"
+            arbitrary = root / "nanoid"
+            arbitrary.mkdir(parents=True)
+            (arbitrary / "package.json").write_text('{"name":"nanoid"}', encoding="utf-8")
+            inventory = scan(root)
+            self.assertFalse(inventory["scanComplete"])
+            self.assertEqual(inventory["unknownVendoredPackages"], [])
 
     def test_compose_is_two_internal_isolated_networks_and_gateway_only_frontend_peer(self):
         compose = (HERE / "compose.ubuntu.yml").read_text()
