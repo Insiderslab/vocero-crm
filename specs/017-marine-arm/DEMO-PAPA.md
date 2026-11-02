@@ -1,13 +1,62 @@
-# Presentazione La Bambola — percorso per papà
+# La Bambola: vender, organizar y embarcar desde un solo sistema
 
-Durata indicativa della spiegazione: 5–7 minuti. Non è una stima della velocità degli operatori. Usare esclusivamente persone e prenotazioni inventate.
+Presentación para la familia y el equipo. Capacidad máxima de la embarcación:130pasajeros. Ejemplos con personas y reservas ficticias.
 
-1. **Il centro di gestione.** «Qui teniamo contatti, conversazioni, vendite e tour; il calendario è il punto da cui organizziamo la giornata». Il recupero del CRM esiste nella build locale; l'aggiornamento pubblico è in attesa della revisione finale. Non presentare la vecchia versione online come già aggiornata.
-2. **Una vendita diretta.** Esempio di progetto: Ana prenota due posti per sabato e due paelle. Il venditore conferma e condivide un link. Ana e Luis compilano ciascuno i propri dati e ottengono il biglietto. Il link di gruppo completo e la data di nascita sono sviluppi previsti, non già dimostrabili come finiti.
-3. **Un'agenzia.** Esempio di progetto: l'agenzia approvata ha quattro posti; due ospiti hanno completato i dati, due mancano. Sono collegati automaticamente a quell'agenzia. L'affiliazione e il portale sono previsti; il campo agenzia del pilota non equivale a un portale funzionante.
-4. **La preparazione.** «L'equipaggio deve sapere quante persone aspettare, quante paelle preparare e quali attrezzature portare». Nella build locale ci sono assegnazioni per membro, dettagli e calendario mensile. Le viste3giorni/7giorni e l'aggiornamento da chat sono nel nuovo piano.
-5. **L'imbarco.** Il pilota dispone già di registrazione e controllo biglietti; la nuova interfaccia equipaggio è in collaudo locale. La prova reale su Android e fotocamera non è stata eseguita: non simularla davanti al pubblico come completata.
+## 1. Una plataforma, tres espacios sencillos
 
-Chiudere con una domanda pratica: «Una persona dell'equipaggio, senza spiegazioni, riuscirebbe a trovare il proprio tour e capire cosa deve preparare?». Annotare le difficoltà osservate; non inventare feedback o soddisfazione.
+**Administración:** clientes, conversaciones, ventas, calendario, agencias, automatizaciones y configuración.
 
-Prima di una dimostrazione interattiva, verificare il build ID e l'accesso del dispositivo. Non usare credenziali condivise o mostrare QR/token e dati reali. Finché la revisione obbligatoria è bloccata, usare questo documento per spiegare struttura e percorso e indicare chiaramente ciò che è ancora in progetto.
+**Tripulación:** el paseo de hoy, horarios, pasajeros, comida y equipos que hay que preparar, tareas y lector de boletos. Sin datos contables ni configuraciones complicadas.
+
+**Pasajeros y agencias:** un enlace para registrar al grupo; cada persona completa sus datos y queda vinculada a la reserva y al paseo correctos.
+
+## 2. Un ejemplo de venta directa
+
+Ana reserva dos puestos para el sábado y pide dos paellas. El vendedor confirma la fecha y comparte un enlace. Ana y Luis registran sus nombres, apellidos, cédula, fecha de nacimiento, WhatsApp y correo electrónico.
+
+La reserva debe mostrar dos puestos, dos personas registradas y dos paellas. Si luego son tres personas, pero siguen queriendo dos paellas, se actualiza la misma reserva: no se vuelve a cargar todo ni se duplica el pedido.
+
+Este es el recorrido previsto. El enlace para todo el grupo y el campo fecha de nacimiento todavía deben desarrollarse; no se presentan como funciones ya terminadas.
+
+## 3. Un ejemplo con agencia
+
+Una agencia aprobada vende cuatro puestos y comparte el enlace de esa reserva. Los pasajeros que se registran quedan asociados a esa agencia automáticamente. La agencia puede ver «2registrados de4esperados» y ayudar a completar los datos que faltan.
+
+También puede registrar a un pasajero por él, con los permisos correspondientes. El enlace del grupo no debe mostrar los datos personales de los demás participantes. La comisión es del10% sobre el importe del paseo efectivamente cobrado; los extras no entran en esa comisión.
+
+El portal de agencias está planificado. El campo de agencia del piloto actual no equivale a un portal completo.
+
+## 4. Un calendario que también organiza el trabajo
+
+Vistas previstas: Hoy,3días,7días y Mes. Tocar un día para crear un paseo; tocar el paseo para modificarlo.
+
+La ficha reúne horario, puestos confirmados y disponibles, pasajeros pendientes de registro, paellas, colchonetas flotantes, otros servicios y responsables. El calendario debe actualizarse desde las reservas, sin copiar datos a mano. Una petición ambigua queda pendiente de confirmación: Heili no debe adivinar el paseo ni el número de personas.
+
+En la versión local ya existen calendario mensual, detalles del paseo y asignación de actividades a miembros del equipo. Las nuevas vistas y la actualización automática desde conversaciones están en el plan de desarrollo.
+
+## 5. El día del paseo
+
+Cada tripulante entra con su propio acceso y abre el paseo correspondiente. Ve qué debe preparar y a quién corresponde cada tarea.
+
+Para embarcar: **Escanear boleto → comprobar pasajero y paseo → confirmar embarque**. Si no funciona la cámara, buscar por nombre o código. El sistema debe distinguir un boleto válido, uno ya utilizado y uno de otro paseo. Sin conexión, debe indicar que no puede confirmar el movimiento; no mostrar un éxito falso.
+
+El piloto ya incluye registro y control de boletos. La nueva interfaz está en pruebas locales; todavía falta probarla con un teléfono Android físico, su cámara y la instalación en la pantalla de inicio.
+
+## 6. Qué está listo y qué falta
+
+| Estado | Alcance |
+|---|---|
+| Piloto publicado anteriormente | Operación náutica, registro y boletos dentro de su alcance verificado |
+| Nueva versión local | Recuperación del CRM completo, separación de la vista de tripulación y asignaciones; pruebas automáticas realizadas, revisión final pendiente |
+| Próximas mejoras | Cuatro vistas de agenda, enlaces de grupo, fecha de nacimiento, invitaciones del equipo, portal de agencias y actualización desde conversaciones |
+
+No presentar la versión publicada como si ya incluyera las mejoras locales. No presentar WhatsApp como conectado: los envíos y la conexión de proveedores siguen desactivados en el piloto. La publicación de la nueva versión depende de terminar las revisiones y las pruebas pendientes.
+
+## Preguntas para la demostración
+
+- ¿Un tripulante puede encontrar su paseo y entender qué tiene que preparar sin ayuda?
+- ¿Un vendedor puede compartir un enlace y saber quién falta por registrarse?
+- ¿La agencia distingue claramente sus reservas de las demás?
+- ¿Se entiende cuándo un pasajero está registrado, confirmado y realmente a bordo?
+
+Usar solo datos ficticios. Anotar las dificultades observadas para corregirlas, sin dar por completada una función que todavía está en proyecto.
