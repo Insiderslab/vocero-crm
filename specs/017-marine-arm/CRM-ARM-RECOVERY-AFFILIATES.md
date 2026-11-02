@@ -103,3 +103,7 @@ The previous explicit unification assignment covered Hair/beauty. A scoped assig
 Candidate change surfaces to reconcile before edits: src/components/app-nav.tsx, src/components/app-shell.tsx, src/app/(app)/layout.tsx, marine UI and new crew/calendar routes, settings navigation only if necessary, isolated marine deployment/public-route rules and scoped tests. Existing authentication/tenant guards must be preserved; widening public CRM access requires a fresh security review and negative-role tests. Review that the crew cannot reach CRM APIs directly, not just that its menu is hidden.
 
 No shared application code was modified while awaiting this assignment. The work is not represented as a completed CRM restoration.
+
+## Coordination assigned — 2 November 2026
+
+Stefano explicitly approved: «Sì, coordina tu l’integrazione La Bambola». This resolves the owner-assignment blocker above for this integration on codex/bambola-arm. Preserve the existing Claude changes, record baseline hashes and keep writes exclusive. Do not modify Hair, another branch or the checker. Remote broad overlap reports remain truthful evidence, not a new permission request. Current scope/hashes: crm-recovery-ownership.json.

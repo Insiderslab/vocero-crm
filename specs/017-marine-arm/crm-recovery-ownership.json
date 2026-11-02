@@ -1,0 +1,19 @@
+{
+  "date": "2026-11-02",
+  "ownerAuthorization": "Sì, coordina tu l’integrazione La Bambola",
+  "coordinator": "Codex /root",
+  "branch": "codex/bambola-arm",
+  "constraints": [
+    "Preserve Claude listening-mode implementation",
+    "No Hair or other service changes",
+    "Do not edit other branches or weaken coordination checker"
+  ],
+  "baselineHashes": {
+    "src/components/app-nav.tsx": "af0bd06128b37f0397b79ce3de89ae6fcfabd9f2e8691f2ab1496c5e4be5c494",
+    "src/components/app-shell.tsx": "6ec6566bf0d3c325d8df0219897102b435dd51d87a6a64409c568c4792258999",
+    "src/app/(app)/layout.tsx": "dae33e0da6a70a0e16548500d810f2da0e06cdc7fd2dff8dee51955cb3f8dd2c",
+    "src/lib/env.ts": "da73b78987e397f3baf575d44fceddc875a03834104ee44cff913def70d62ebe",
+    "src/lib/api.ts": "604158bff7ac71f46cb813a431316a4e85c4ff5671c6efb0537069835870a1b5",
+    "src/lib/auth/session.ts": "33ad90cc36e03239bbb79e54bdc2cfa8618fd505b5cf554b008772280158346f"
+  }
+}

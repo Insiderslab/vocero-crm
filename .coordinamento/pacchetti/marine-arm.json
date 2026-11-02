@@ -1,6 +1,6 @@
 {
   "id": "marine-arm",
-  "titolo": "Bambola: navigazione amministratore e calendario dei tour",
+  "titolo": "La Bambola: recupero CRM completo e modulo equipaggio",
   "strumento": "codex",
   "branch": "codex/bambola-arm",
   "file": [
@@ -10,9 +10,20 @@
     "src/app/nautica/",
     "src/components/marine/",
     "tests/unit/marine/",
-    "docs/lavoro/2026-11-02-marine-panels.md"
+    "docs/lavoro/2026-11-02-marine-panels.md",
+    "src/components/app-nav.tsx",
+    "src/components/app-shell.tsx",
+    "src/app/(app)/layout.tsx",
+    "src/lib/env.ts",
+    "src/lib/api.ts",
+    "src/lib/auth/session.ts",
+    "src/app/(app)/tours/",
+    "src/app/api/workspace/",
+    "src/lib/workspace/",
+    "tests/unit/workspace/",
+    "docs/lavoro/2026-11-02-crm-recovery.md"
   ],
-  "stato": "in-revisione",
+  "stato": "in-corso",
   "aggiornato": "2026-11-02",
-  "note": "UI cycle complete and published app-only 2 Nov. Four independent review calls, 48 unit tests, seven mock browser scenarios, 30 actual public checks. Full CRM/agency/team administration not activated; informational panels explicit. Hair unchanged. Frozen r5 plus two reviewed UI files; see deploy README for active image override and rollback. No merge authorized."
+  "note": "Owner assignment 2026-11-02 in chat: Sì, coordina tu l’integrazione La Bambola. Codex coordinates shared CRM files on this branch only, preserves Claude listening-mode edits; no Hair changes. Broad remote ownership overlaps remain visible; checker is not modified. See specs/017-marine-arm/crm-recovery-ownership.json. Full pre-code EGM and separate security review required."
 }
