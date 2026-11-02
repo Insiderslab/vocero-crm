@@ -21,7 +21,14 @@
     "src/app/api/workspace/",
     "src/lib/workspace/",
     "tests/unit/workspace/",
-    "docs/lavoro/2026-11-02-crm-recovery.md"
+    "docs/lavoro/2026-11-02-crm-recovery.md",
+    "src/server/marine/repository.ts",
+    "src/lib/marine/",
+    "src/app/api/events/route.ts",
+    "src/app/api/marine/route.ts",
+    "src/app/(auth)/login/page.tsx",
+    "src/app/manifest.ts",
+    "public/marine/"
   ],
   "stato": "in-corso",
   "aggiornato": "2026-11-02",
