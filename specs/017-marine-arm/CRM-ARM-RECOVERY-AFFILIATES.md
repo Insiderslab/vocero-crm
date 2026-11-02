@@ -83,3 +83,23 @@ Interactive conversation mockup: `C:/Users/stefa/.codex/visualizations/2026/11/0
 ## Proposal verification
 
 The interactive proposal passed 15 browser checks: scan/confirmation and duplicate handling within the simulation, pending access, administrator approval, CRM tag state, no promotional opt-in by default, the 100+20 USD commission example, and no horizontal overflow for all three views at 360 and 320 pixels. No JavaScript errors. Screenshots were inspected. These are prototype checks, not authentication, real camera, payment or live messaging tests. Evidence: `C:/Users/stefa/bambola-runtime/qa/bambola-proposal-checks.json`.
+
+## Owner correction: preserve the existing CRM, add modules only
+
+Confirmed latest direction: retain the original CRM feature screens, including automations and WhatsApp connection/settings. Add nautical and affiliate sections; do not replace the CRM shell with a second dashboard or informative mock panels. Clientify is the interaction reference already researched on23September2026, not source code to copy. Read reference: C:/Users/stefa/.codex/knowledge/insiderslab/progetti/clientify-crm-benchmark-2026-09-23/README.md.
+
+Use role names in visible interface labels: Administración, Tripulación, Agencias/Afiliados. Do not use a staff member's name to identify a section or permission level. A person's actual name remains appropriate only where it identifies an assigned task or actual account.
+
+Preserve existing screens/routes for contacts, inbox/conversations, pipeline, dashboards, agent, automations, laboratory and settings including WhatsApp, templates, team and listening mode. Staff get a simpler entry point, not access to the administrator CRM via an alternate URL. Connecting WhatsApp must use the original functioning configuration flow, with real connection status; merely showing a button does not establish a connected provider.
+
+Add Calendar/tours with a practical trip detail: departure/time, passengers, equipment such as inflatable/floating mattress, meals/preparation, who is assigned to cooking and other tasks, and task completion. An assignment must identify a valid member of this organization; a display string is not an authorization rule. Crew view contains calendar -> tour -> own/crew tasks, and a prominent QR action with the existing safe confirmation semantics. Avoid extra daily dashboards and duplicate calendars for the same tour.
+
+Provide an installable mobile web-app entry for crew on the same service, rather than promising a native store app. HTTPS, manifest/icons/start entry, actual Android installation/camera and mobile usability require verification. Do not cache passenger records or authenticated CRM responses in a public service-worker cache; disconnected operations must not silently claim server confirmation.
+
+### Concrete coordination request
+
+The previous explicit unification assignment covered Hair/beauty. A scoped assignment for this La Bambola integration was requested in chat because the registry still reports a conflict. Requested authority: coordinate the necessary shared CRM files on the Codex branch, preserve Claude's listening-mode changes, and avoid any Hair deployment or service change. Do not change another tool's branch or modify the checker to hide a conflict.
+
+Candidate change surfaces to reconcile before edits: src/components/app-nav.tsx, src/components/app-shell.tsx, src/app/(app)/layout.tsx, marine UI and new crew/calendar routes, settings navigation only if necessary, isolated marine deployment/public-route rules and scoped tests. Existing authentication/tenant guards must be preserved; widening public CRM access requires a fresh security review and negative-role tests. Review that the crew cannot reach CRM APIs directly, not just that its menu is hidden.
+
+No shared application code was modified while awaiting this assignment. The work is not represented as a completed CRM restoration.
