@@ -1,15 +1,18 @@
 {
   "id": "marine-arm",
-  "titolo": "Rilascio pilota Bambola isolato: solo configurazione esclusiva e uscita sicura",
+  "titolo": "Bambola: navigazione amministratore e calendario dei tour",
   "strumento": "codex",
   "branch": "codex/bambola-arm",
   "file": [
     "specs/017-marine-arm/",
     "deploy/marine/",
     "scripts/marine-release-pack.mjs",
-    "src/app/nautica/"
+    "src/app/nautica/",
+    "src/components/marine/",
+    "tests/unit/marine/",
+    "docs/lavoro/2026-11-02-marine-panels.md"
   ],
   "stato": "in-corso",
-  "aggiornato": "2026-11-01",
-  "note": "User authorized isolated online Bambola pilot 2026-11-01. Prior local marine feature source frozen and not edited in this cycle. Scope narrowed after coordination overlaps with modalita-ascolto/beauty-mvp; do not edit shared components, migrations, package/lock or tests owned there. Use reviewed immutable source snapshot for packaging. Hair and other services excluded."
+  "aggiornato": "2026-11-02",
+  "note": "New owner request 2 Nov: inspect every panel and integrated calendar. UI-only scoped cycle; existing marine API and role guards unchanged, full CRM routes remain closed. No Hair/shared files. Prior release complete. Reuse reviewed frozen r5 for release base."
 }
