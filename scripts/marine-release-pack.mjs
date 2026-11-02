@@ -13,7 +13,7 @@ const ROOT_FILES = [
   "postcss.config.mjs", "tailwind.config.ts", "tsconfig.json",
 ];
 const SOURCE_DIRECTORIES = ["drizzle", "public", "src", "deploy/marine"];
-const REQUIRED_FILES = ["scripts/marine-release-pack.mjs", "scripts/migrate.mjs"];
+const REQUIRED_FILES = ["scripts/marine-release-pack.mjs", "scripts/migrate.mjs", "scripts/migrate-channels.mjs"];
 const DENIED_DIRECTORIES = new Set([".git", ".next", ".dev-media", ".playwright-mcp", "__pycache__", ".pytest_cache", "coverage", "dist", "node_modules", "runtime"]);
 const DENIED_FILES = new Set([".env", "credentials.json", "id_dsa", "id_ed25519", "id_rsa", "secrets.json"]);
 
