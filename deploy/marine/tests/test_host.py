@@ -262,5 +262,13 @@ class HostContractTests(unittest.TestCase):
         self.assertEqual(build.parse_image_identity(f'{image_id} {other_digest}', digest),
                          (image_id, other_digest, False))
 
+    def test_builder_resource_update_uses_docker_compatible_cpu_cap(self):
+        command = build.builder_resource_update_args('buildkit-container')
+        self.assertEqual(command, [
+            'docker', 'update', '--cpu-period', '100000', '--cpu-quota', '100000',
+            '--memory', '2g', 'buildkit-container',
+        ])
+        self.assertNotIn('--cpus', command)
+
 if __name__ == '__main__':
     unittest.main()

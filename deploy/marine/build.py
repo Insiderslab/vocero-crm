@@ -13,6 +13,11 @@ def run(args, **kwargs):
     return subprocess.run(args, check=True, **kwargs)
 
 
+def builder_resource_update_args(container):
+    return ['docker', 'update', '--cpu-period', '100000', '--cpu-quota', '100000',
+            '--memory', '2g', container]
+
+
 def parse_image_identity(output, manifest_digest):
     fields = output.strip().split()
     if len(fields) != 2:
@@ -90,7 +95,7 @@ def main():
         ).splitlines()
         if len(buildkit) != 1 or buildkit[0] != 'buildx_buildkit_bambola-arm-builder0':
             raise RuntimeError('Dedicated builder container identity is ambiguous.')
-        run(['docker', 'update', '--cpus', '1', '--memory', '2g', buildkit[0]], stdout=subprocess.DEVNULL)
+        run(builder_resource_update_args(buildkit[0]), stdout=subprocess.DEVNULL)
         monitor_thread = threading.Thread(target=monitor, daemon=True)
         monitor_thread.start()
         command = ['docker', 'buildx', 'build', '--builder', BUILDER, '--load', '--progress', 'plain',

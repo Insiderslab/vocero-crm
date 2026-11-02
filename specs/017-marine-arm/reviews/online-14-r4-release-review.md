@@ -1,0 +1,11 @@
+# Invocation20 — independent r4 correction review
+
+2 November 2026. Fresh `app_code_reviewer` / fixed GPT-5.6 Sol, task `bambola_r4_release_review`; read-only, no nested agents. This follows Stefano's explicit authorization for one additional CPU correction/review cycle. Actual reviewer verdict: no supported P0/P1 or other material finding; r4 is suitable for the private build attempt after a fresh legitimate preflight baseline.
+
+Reviewer verified r3→r4 changes only `deploy/marine/build.py`, `deploy/marine/tests/test_host.py`, plus regenerated manifest. R4 manifest `2cc6dd7805c51e64fdbb21aacccc41578ce195219ebe9f024bf5c80f7713691b` validates all521entries. Repository versions of both changed files match frozenr4 byte-for-byte. Compatible period100000/quota100000/memory2g replace the conflicting NanoCPU option; monitoring, provenance and cleanup unchanged. Actual Docker disposable never-started container evidence independently inspected: compatible update succeeds, same resource limits, container removed.
+
+Reviewer ran complete fixtures:39pass/1Windows symlinkskip; focused host18pass. Required AGENTS/CLAUDE/Heili laws, EGM methodology/guide/coordination documents, r3 Claude review, online-pilot reconciliation and historical client memory were actually read. No file, infrastructure, secret or real-data access/mutation by reviewer.
+
+Not covered by this verdict: actual r4 BuildKit build, new runtime/bootstrap/backup/gateway/DNS/TLS/mobile checks or final dependency reachability. Caddy rehearsal is isolated, not a production recovery. Public activation remains gated. Audit still5critical/13high. Do not expand an active baseline to absorb the app.heili.cloud alternation; capture a new preflight for a new attempt, retaining the previous evidence.
+
+Counter20/20, third code-fix cycle explicitly authorized only for this correction. Parent monotonic timing not available for this native invocation; no invented native runtime or total review cost. Claude19 actual wall157.772s recorded separately. The CPU fix does not alter the public security/authentication code reviewed by Claude19. Frozenr4 archive:5384850e66f0438c50e52c81f9a5dbd87f95a0889677602693982d2987cbf878,859030bytes,522files including manifest, all archive bytes compared to frozen source.
