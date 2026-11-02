@@ -1,6 +1,6 @@
 # La Bambola — prueba desde Android
 
-Estado de esta guía: preparada para el piloto; la publicación y el acceso todavía deben verificarse. Dirección prevista: https://bambola.heili.cloud/nautica. Stefano entregará a cada persona su acceso de prueba por separado. No usar datos de pasajeros reales.
+Piloto publicado y verificado por HTTPS el 2 de noviembre de 2026: https://bambola.heili.cloud/nautica. Stefano entrega a cada persona su archivo de acceso de prueba por separado. Usar solo personas ficticias y un grupo pequeño; el registro masivo desde una misma red no está aprobado. La cámara en teléfonos Android reales todavía debe probarse.
 
 ## Rosanni
 
