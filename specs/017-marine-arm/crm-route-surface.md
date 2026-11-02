@@ -25,7 +25,7 @@ Dynamic brackets mean one nonempty ID path segment; they are not subtree wildcar
 | `/api/automations/[id]/runs` | GET | Marine CRM owner/admin; preserve any stricter existing guard |
 | `/api/automations` | GET, POST | Marine CRM owner/admin; preserve any stricter existing guard |
 | `/api/contacts/[id]` | GET, PATCH | Marine CRM owner/admin; preserve any stricter existing guard |
-| `/api/contacts/[id]/start-conversation` | POST | Marine CRM owner/admin; preserve any stricter existing guard |
+| `/api/contacts/[id]/start-conversation` | POST | Denied503: sends a provider template |
 | `/api/contacts/[id]/tags` | PUT | Marine CRM owner/admin; preserve any stricter existing guard |
 | `/api/contacts` | GET, POST | Marine CRM owner/admin; preserve any stricter existing guard |
 | `/api/conversations/[id]/messages` | GET | Marine CRM owner/admin; preserve stricter existing guard |
@@ -66,6 +66,6 @@ Dynamic brackets mean one nonempty ID path segment; they are not subtree wildcar
 
 ## Provider actions denied in this pilot
 
-Before any proxy allowlist, return503 JSON code pilot_provider_disabled for POST conversation messages, messages/template, messages/media, agent-retry; POST automations/run, lab/runs, templates, templates/sync, settings/whatsapp/test and embedded-signup; PUT settings/whatsapp and PUT/DELETE settings/whatsapp/wapi-key. These are denied for owner/admin too; public browser tests assert no application/provider invocation. Existing configuration GET screens remain visible and show a clear pilot notice. The rest of the inventory is local state/read only; the production app retains internal networks without WAN and no provider credentials. Keep the original standard-profile application behavior for other deployments. This is a gateway restriction on the synthetic pilot, not a claim that the original CRM lacks these functions.
+Before any proxy allowlist, return503 JSON code pilot_provider_disabled for POST contacts/[id]/start-conversation; POST conversation messages, messages/template, messages/media, agent-retry; POST automations/run, lab/runs, templates, templates/sync, settings/whatsapp/test and embedded-signup; PUT settings/whatsapp and PUT/DELETE settings/whatsapp/wapi-key. These are denied for owner/admin too; public browser tests assert no application/provider invocation. Existing configuration GET screens remain visible and show a clear pilot notice. The rest of the inventory is local state/read only; the production app retains internal networks without WAN and no provider credentials. Keep the original standard-profile application behavior for other deployments. This is a gateway restriction on the synthetic pilot, not a claim that the original CRM lacks these functions.
 
 Marine positive gateway tests must cover all four GET/POST path pairs; PUT/PATCH/DELETE/HEAD and extra subpaths deny. Existing per-route16KiB parser bound remains below edge32KiB.

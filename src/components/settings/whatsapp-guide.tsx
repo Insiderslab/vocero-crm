@@ -52,7 +52,7 @@ export const ADVANCED_HASH = "#avanzate";
 /** Pulsante «Collega con Meta» con etichetta e, se serve, testo di conferma. */
 type RenderConnect = (label?: string, confirmText?: string) => ReactNode;
 
-export function WhatsappGuide() {
+export function WhatsappGuide({ pilotDisabled = false }: { pilotDisabled?: boolean }) {
   const { t, locale } = useT();
   const [status, setStatus] = useState<WhatsappGuideStatus | "loading" | "error">("loading");
   const [advancedOpen, setAdvancedOpen] = useState(false);
@@ -132,6 +132,10 @@ export function WhatsappGuide() {
     />
   );
 
+  if (pilotDisabled) {
+    const savedNumber = status !== "loading" && status !== "error" ? status.connection?.displayPhoneNumber ?? status.connection?.phoneNumberId : null;
+    return <section className="space-y-4 rounded-lg border bg-card p-5"><h2 className="text-lg font-semibold">WhatsApp</h2><p className="text-sm font-medium">Envíos y conexión desactivados en este piloto</p>{status === "loading" ? <p role="status" className="text-sm text-muted-foreground">{t("common.loading")}</p> : status === "error" ? <div role="alert" className="space-y-2"><p className="text-sm text-destructive">{t("settings.whatsapp.guide.loadError")}</p><Button type="button" variant="outline" onClick={() => void refetch()}>Reintentar</Button></div> : <>{savedNumber && <p className="text-sm">Configuración guardada: {savedNumber}. Conexión no verificada.</p>}<div className="flex gap-2"><Button type="button" disabled>Conectar con Meta</Button><Button type="button" disabled variant="outline">Probar conexión</Button></div></>}</section>;
+  }
   return (
     <div className="space-y-6">
       {status === "loading" ? (

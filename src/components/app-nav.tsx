@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
+  CalendarDays,
   FlaskConical,
   Inbox,
   Kanban,
@@ -29,15 +30,20 @@ import { LocaleToggle } from "@/components/locale-toggle";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { APP_VERSION, BUILD_COMMIT, versionLabel } from "@/lib/version";
 import { createIntentPrefetcher } from "@/lib/intent-prefetch";
+import type { WorkspaceProfile } from "@/lib/workspace/profile";
 
 const NAV = [
+  { href: "/oggi", key: "oggi", icon: Sparkles },
+  { href: "/agenda", key: "agenda", icon: CalendarDays },
+  { href: "/contacts", key: "contacts", icon: Users },
   { href: "/dashboard", key: "dashboard", icon: LayoutDashboard },
   { href: "/inbox", key: "inbox", icon: Inbox, badge: true },
   { href: "/pipeline", key: "pipeline", icon: Kanban },
-  { href: "/contacts", key: "contacts", icon: Users },
   { href: "/automations", key: "automations", icon: Zap, adminOnly: true },
   { href: "/agent", key: "agent", icon: Sparkles, adminOnly: true },
   { href: "/lab", key: "lab", icon: FlaskConical, adminOnly: true },
+  { href: "/tours", key: "dashboard", icon: CalendarDays, marineOnly: true, label: "Tours y calendario" },
+  { href: "/nautica", key: "dashboard", icon: Users, marineOnly: true, label: "Aplicación de tripulación" },
 ] as const;
 
 /** Rol en el pie del lateral: antes un admin aparecía como «Team». */
@@ -57,6 +63,7 @@ export function AppNav({
   activeOrgId,
   isSuperadmin,
   locale,
+  profile = "standard",
   open = false,
   onClose,
 }: {
@@ -75,6 +82,7 @@ export function AppNav({
   isSuperadmin?: boolean;
   /** Idioma actual (para el selector). */
   locale: Locale;
+  profile?: WorkspaceProfile;
   /** Solo aplica por debajo de `lg`: en escritorio el lateral es fijo. */
   open?: boolean;
   onClose?: () => void;
@@ -135,7 +143,7 @@ export function AppNav({
         <button
           onClick={onClose}
           aria-label={t("nav.closeMenu")}
-          className="-ml-1 rounded-md p-1.5 text-text-3 hover:bg-accent hover:text-foreground lg:hidden"
+          className="-ml-1 grid h-11 w-11 shrink-0 place-items-center rounded-md text-text-3 hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand lg:hidden"
         >
           <X className="h-[18px] w-[18px]" strokeWidth={1.8} />
         </button>
@@ -183,16 +191,17 @@ export function AppNav({
       )}
 
       <nav className="flex flex-col gap-0.5">
-        {NAV.filter((item) => !("adminOnly" in item) || isOrgAdmin(role)).map((item) => {
+        {NAV.filter((item) => profile === "marine" ? (!("href" in item) || ("marineOnly" in item && item.marineOnly) || !("marineOnly" in item)) && !(item.href === "/oggi" || item.href === "/agenda") : !("marineOnly" in item)).filter((item) => !("adminOnly" in item) || isOrgAdmin(role)).map((item) => {
           const active =
             pathname === item.href || pathname.startsWith(`${item.href}/`);
           return (
             <Link
               key={item.href}
               href={item.href}
+              aria-current={active ? "page" : undefined}
               {...intent(item.href)}
               className={cn(
-                "flex items-center gap-[11px] rounded-sm px-2.5 py-2.5 text-sm font-medium transition-colors lg:py-2",
+                "flex min-h-11 items-center gap-[11px] rounded-lg px-2.5 py-2.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand",
                 active
                   ? "bg-brand-tint font-semibold text-brand-text"
                   : "text-text-2 hover:bg-accent"
@@ -202,7 +211,7 @@ export function AppNav({
                 className={cn("h-[18px] w-[18px]", active ? "text-brand" : "text-text-3")}
                 strokeWidth={1.7}
               />
-              <span className="flex-1">{t(`nav.${item.key}`)}</span>
+              <span className="flex-1">{"label" in item ? item.label : profile === "marine" && item.href === "/agent" ? "Agent Heili" : t(`nav.${item.key}`)}</span>
               {"badge" in item && item.badge && unread > 0 && (
                 <span
                   className={cn(

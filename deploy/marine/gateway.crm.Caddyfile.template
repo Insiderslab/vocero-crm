@@ -1,0 +1,221 @@
+{
+	admin off
+	persist_config off
+	auto_https off
+	storage file_system /tmp/caddy-data
+}
+
+:8080 {
+	route {
+	@health_loopback {
+		remote_ip 127.0.0.1 ::1
+		path /api/health
+		method GET HEAD
+	}
+	@health_shared {
+		path /api/health
+		method GET HEAD
+	}
+	@root_get {
+		path /
+		method GET HEAD
+	}
+	@page_get {
+		path /nautica /pasajero /login /dashboard /contacts /inbox /pipeline /agent /automations /lab /settings /settings/whatsapp /settings/branding /settings/templates /settings/team /settings/api-keys /settings/site /settings/listening /tours
+		method GET HEAD
+	}
+	@assets_get {
+		path /_next/static/* /favicon.ico /api/branding/favicon /nautica/manifest.webmanifest /marine/icon-192.png /marine/icon-512.png
+		method GET HEAD
+	}
+	@session_get {
+		path /api/auth/get-session
+		method GET
+	}
+	@auth_post {
+		path /api/auth/sign-in/email /api/auth/sign-out /api/auth/organization/set-active
+		method POST
+	}
+	@marine {
+		path /api/marine /api/public/marine
+		method GET POST
+	}
+
+	header {
+		Cache-Control "no-store"
+		Referrer-Policy "no-referrer"
+		X-Robots-Tag "noindex"
+		Content-Security-Policy "frame-ancestors 'none'"
+	}
+
+	request_body {
+		max_size 32KB
+	}
+	request_header -Forwarded
+	request_header -X-Real-IP
+	request_header X-Forwarded-Proto https
+	request_header Host bambola.heili.cloud
+
+	# Health is the only gateway path reachable from loopback.
+	handle @health_loopback {
+		reverse_proxy bambola-arm-private-app:3000 {
+			header_up Host bambola.heili.cloud
+			header_up X-Forwarded-For {http.request.header.X-Forwarded-For}
+			header_up X-Forwarded-Proto https
+			header_up -Forwarded
+			header_up -X-Real-IP
+		}
+	}
+
+	# Trust public requests only from the direct shared Caddy IPv4 peer.
+	@not_shared_caddy not remote_ip __SHARED_IPV4__/32
+	respond @not_shared_caddy 403
+	handle @health_shared {
+		reverse_proxy bambola-arm-private-app:3000 {
+			header_up Host bambola.heili.cloud
+			header_up X-Forwarded-For {http.request.header.X-Forwarded-For}
+			header_up X-Forwarded-Proto https
+			header_up -Forwarded
+			header_up -X-Real-IP
+		}
+	}
+
+	redir @root_get /dashboard 302
+	handle @page_get {
+		reverse_proxy bambola-arm-private-app:3000 {
+		header_up Host bambola.heili.cloud
+		header_up X-Forwarded-For {http.request.header.X-Forwarded-For}
+		header_up X-Forwarded-Proto https
+		header_up -Forwarded
+		header_up -X-Real-IP
+		}
+	}
+	handle @assets_get {
+		reverse_proxy bambola-arm-private-app:3000 {
+		header_up Host bambola.heili.cloud
+		header_up X-Forwarded-For {http.request.header.X-Forwarded-For}
+		header_up X-Forwarded-Proto https
+		header_up -Forwarded
+		header_up -X-Real-IP
+		}
+	}
+	handle @session_get {
+		reverse_proxy bambola-arm-private-app:3000 {
+		header_up Host bambola.heili.cloud
+		header_up X-Forwarded-For {http.request.header.X-Forwarded-For}
+		header_up X-Forwarded-Proto https
+		header_up -Forwarded
+		header_up -X-Real-IP
+		}
+	}
+	handle @auth_post {
+		reverse_proxy bambola-arm-private-app:3000 {
+		header_up Host bambola.heili.cloud
+		header_up X-Forwarded-For {http.request.header.X-Forwarded-For}
+		header_up X-Forwarded-Proto https
+		header_up -Forwarded
+		header_up -X-Real-IP
+		}
+	}
+	handle @marine {
+		reverse_proxy bambola-arm-private-app:3000 {
+		header_up Host bambola.heili.cloud
+		header_up X-Forwarded-For {http.request.header.X-Forwarded-For}
+		header_up X-Forwarded-Proto https
+		header_up -Forwarded
+		header_up -X-Real-IP
+		}
+	}
+
+	@provider_post {
+		method POST
+		path_regexp provider_post ^(?:/api/contacts/[A-Za-z0-9_-]+/start-conversation|/api/conversations/[A-Za-z0-9_-]+/(?:messages(?:/(?:template|media))?|agent-retry)|/api/automations/run|/api/lab/runs|/api/templates(?:/sync)?|/api/settings/whatsapp/(?:test|embedded-signup))$
+	}
+	handle @provider_post {
+		header Content-Type application/json
+		respond `{"error":{"code":"pilot_provider_disabled","message":"Los envíos y la conexión de proveedores están desactivados en este piloto."}}` 503
+	}
+	@provider_put {
+		method PUT
+		path_regexp provider_put ^(?:/api/settings/whatsapp(?:/wapi-key)?)$
+	}
+	handle @provider_put {
+		header Content-Type application/json
+		respond `{"error":{"code":"pilot_provider_disabled","message":"Los envíos y la conexión de proveedores están desactivados en este piloto."}}` 503
+	}
+	@provider_delete {
+		method DELETE
+		path_regexp provider_delete ^(?:/api/settings/whatsapp/wapi-key)$
+	}
+	handle @provider_delete {
+		header Content-Type application/json
+		respond `{"error":{"code":"pilot_provider_disabled","message":"Los envíos y la conexión de proveedores están desactivados en este piloto."}}` 503
+	}
+	@crm_get {
+		method GET
+		path_regexp crm_get ^(?:/api/agent/profile|/api/automations/[A-Za-z0-9_-]+/runs|/api/automations|/api/contacts/[A-Za-z0-9_-]+|/api/contacts|/api/conversations/[A-Za-z0-9_-]+/messages|/api/conversations|/api/dashboard/summary|/api/events|/api/kb|/api/kb/size|/api/lab/runs/[A-Za-z0-9_-]+|/api/lab/runs|/api/media/[A-Za-z0-9_-]+|/api/my\-orgs|/api/pipeline/board|/api/pipeline/stages|/api/settings/bot\-keys|/api/settings/branding|/api/settings/export\-keys|/api/settings/listening|/api/settings/site|/api/settings/team|/api/settings/webhook|/api/settings/whatsapp/embedded\-signup|/api/settings/whatsapp/route\-check|/api/settings/whatsapp|/api/settings/whatsapp/status|/api/settings/whatsapp/wapi\-key|/api/tags|/api/templates)$
+	}
+	handle @crm_get {
+		reverse_proxy bambola-arm-private-app:3000 {
+            header_up Host bambola.heili.cloud
+            header_up X-Forwarded-For {http.request.header.X-Forwarded-For}
+            header_up X-Forwarded-Proto https
+            header_up -Forwarded
+            header_up -X-Real-IP
+        }
+	}
+	@crm_put {
+		method PUT
+		path_regexp crm_put ^(?:/api/agent/profile|/api/contacts/[A-Za-z0-9_-]+/tags|/api/settings/branding|/api/settings/listening|/api/settings/site)$
+	}
+	handle @crm_put {
+		reverse_proxy bambola-arm-private-app:3000 {
+            header_up Host bambola.heili.cloud
+            header_up X-Forwarded-For {http.request.header.X-Forwarded-For}
+            header_up X-Forwarded-Proto https
+            header_up -Forwarded
+            header_up -X-Real-IP
+        }
+	}
+	@crm_patch {
+		method PATCH
+		path_regexp crm_patch ^(?:/api/automations/[A-Za-z0-9_-]+|/api/contacts/[A-Za-z0-9_-]+|/api/conversations/[A-Za-z0-9_-]+|/api/kb/[A-Za-z0-9_-]+|/api/pipeline/leads/[A-Za-z0-9_-]+|/api/pipeline/stages/[A-Za-z0-9_-]+)$
+	}
+	handle @crm_patch {
+		reverse_proxy bambola-arm-private-app:3000 {
+            header_up Host bambola.heili.cloud
+            header_up X-Forwarded-For {http.request.header.X-Forwarded-For}
+            header_up X-Forwarded-Proto https
+            header_up -Forwarded
+            header_up -X-Real-IP
+        }
+	}
+	@crm_delete {
+		method DELETE
+		path_regexp crm_delete ^(?:/api/automations/[A-Za-z0-9_-]+|/api/kb/[A-Za-z0-9_-]+|/api/pipeline/stages/[A-Za-z0-9_-]+|/api/settings/bot\-keys/[A-Za-z0-9_-]+|/api/settings/export\-keys/[A-Za-z0-9_-]+|/api/settings/site/key|/api/tags/[A-Za-z0-9_-]+)$
+	}
+	handle @crm_delete {
+		reverse_proxy bambola-arm-private-app:3000 {
+            header_up Host bambola.heili.cloud
+            header_up X-Forwarded-For {http.request.header.X-Forwarded-For}
+            header_up X-Forwarded-Proto https
+            header_up -Forwarded
+            header_up -X-Real-IP
+        }
+	}
+	@crm_post {
+		method POST
+		path_regexp crm_post ^(?:/api/automations|/api/contacts|/api/kb|/api/lab/suggestions/apply|/api/pipeline/stages|/api/settings/bot\-keys|/api/settings/export\-keys|/api/settings/site/key|/api/settings/team|/api/tags)$
+	}
+	handle @crm_post {
+		reverse_proxy bambola-arm-private-app:3000 {
+            header_up Host bambola.heili.cloud
+            header_up X-Forwarded-For {http.request.header.X-Forwarded-For}
+            header_up X-Forwarded-Proto https
+            header_up -Forwarded
+            header_up -X-Real-IP
+        }
+	}
+	respond 404
+}
+}

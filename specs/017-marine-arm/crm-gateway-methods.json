@@ -1,0 +1,89 @@
+{
+  "allowed": {
+    "GET": [
+      "/api/agent/profile",
+      "/api/automations/[A-Za-z0-9_-]+/runs",
+      "/api/automations",
+      "/api/contacts/[A-Za-z0-9_-]+",
+      "/api/contacts",
+      "/api/conversations/[A-Za-z0-9_-]+/messages",
+      "/api/conversations",
+      "/api/dashboard/summary",
+      "/api/events",
+      "/api/kb",
+      "/api/kb/size",
+      "/api/lab/runs/[A-Za-z0-9_-]+",
+      "/api/lab/runs",
+      "/api/media/[A-Za-z0-9_-]+",
+      "/api/my\\-orgs",
+      "/api/pipeline/board",
+      "/api/pipeline/stages",
+      "/api/settings/bot\\-keys",
+      "/api/settings/branding",
+      "/api/settings/export\\-keys",
+      "/api/settings/listening",
+      "/api/settings/site",
+      "/api/settings/team",
+      "/api/settings/webhook",
+      "/api/settings/whatsapp/embedded\\-signup",
+      "/api/settings/whatsapp/route\\-check",
+      "/api/settings/whatsapp",
+      "/api/settings/whatsapp/status",
+      "/api/settings/whatsapp/wapi\\-key",
+      "/api/tags",
+      "/api/templates"
+    ],
+    "PUT": [
+      "/api/agent/profile",
+      "/api/contacts/[A-Za-z0-9_-]+/tags",
+      "/api/settings/branding",
+      "/api/settings/listening",
+      "/api/settings/site"
+    ],
+    "PATCH": [
+      "/api/automations/[A-Za-z0-9_-]+",
+      "/api/contacts/[A-Za-z0-9_-]+",
+      "/api/conversations/[A-Za-z0-9_-]+",
+      "/api/kb/[A-Za-z0-9_-]+",
+      "/api/pipeline/leads/[A-Za-z0-9_-]+",
+      "/api/pipeline/stages/[A-Za-z0-9_-]+"
+    ],
+    "DELETE": [
+      "/api/automations/[A-Za-z0-9_-]+",
+      "/api/kb/[A-Za-z0-9_-]+",
+      "/api/pipeline/stages/[A-Za-z0-9_-]+",
+      "/api/settings/bot\\-keys/[A-Za-z0-9_-]+",
+      "/api/settings/export\\-keys/[A-Za-z0-9_-]+",
+      "/api/settings/site/key",
+      "/api/tags/[A-Za-z0-9_-]+"
+    ],
+    "POST": [
+      "/api/automations",
+      "/api/contacts",
+      "/api/kb",
+      "/api/lab/suggestions/apply",
+      "/api/pipeline/stages",
+      "/api/settings/bot\\-keys",
+      "/api/settings/export\\-keys",
+      "/api/settings/site/key",
+      "/api/settings/team",
+      "/api/tags"
+    ]
+  },
+  "providerDisabled": {
+    "POST": [
+      "/api/conversations/[A-Za-z0-9_-]+/(?:messages(?:/(?:template|media))?|agent-retry)",
+      "/api/automations/run",
+      "/api/lab/runs",
+      "/api/templates(?:/sync)?",
+      "/api/settings/whatsapp/(?:test|embedded-signup)",
+      "/api/contacts/[A-Za-z0-9_-]+/start\\-conversation"
+    ],
+    "PUT": [
+      "/api/settings/whatsapp(?:/wapi-key)?"
+    ],
+    "DELETE": [
+      "/api/settings/whatsapp/wapi-key"
+    ]
+  }
+}

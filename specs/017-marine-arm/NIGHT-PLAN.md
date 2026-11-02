@@ -161,3 +161,7 @@ DNS Bambola A186.241.16.46 TTL300 added with overwrite=false;18 other RRsets exa
 Pilota https://bambola.heili.cloud/nautica attivo e revisione24 PASSsolo sintetico.49/49HTTP pubblici,32asserzioni browser; ciclo completo registrazione/QR/boarding/servizi/rientro/sbarco/completamento riuscito. Tutte le prove di isolamento, TLS, migrazioni, backup e Hair descritte in ONLINE-DELIVERY.md. Copia credenziali server rimossa dopohashmatchlocale, file individuali protetti pronti. Auditdipendenze non verde, realdata/Androidfisico/capacitàpubblica130/Capitaneria fuoriapprovazione. Ultimo cooldownIP dopoattacchi si esaurisce naturalmente; nessun resetdei contatori.
 
 Review24 conclusa, nessun writer attivo,24/24calls. Solo automazione notturna indicata eliminata tramiteautomation_update(mode=delete); nessuna archiviazionechat o modificaaltreautomazioni. Nessun altro deploy/fixcycle autorizzato implicito. Fontefinale ONLINE-DELIVERY.md e reviews/online-18-final-review24.md.
+
+## Nuovo piano — 3 novembre 2026
+
+La richiesta attuale aggiunge le viste Oggi/3giorni/7giorni/Mese, creazione e modifica dal calendario e riepiloghi automatici da prenotazioni e ARM. Specifica e criteri in [AGENDA-AUTOMATICA-PLAN.md](AGENDA-AUTOMATICA-PLAN.md). La precedente automazione notturna è conclusa; non è stata riattivata. La revisione finale del recupero CRM è interrotta dal limite di utilizzo del modello richiesto, non superata. Nessun aggiornamento pubblico in questo ciclo.

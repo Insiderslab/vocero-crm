@@ -1,4 +1,7 @@
 import { MarineApp } from "@/components/marine/marine-app";
+import { getWorkspaceProfile } from "@/lib/workspace/profile";
+
+export const dynamic = "force-dynamic";
 
 export const metadata = {
   title: "La Bambola · Operaciones",
@@ -6,5 +9,5 @@ export const metadata = {
 };
 
 export default function NauticaPage() {
-  return <MarineApp />;
+  return <MarineApp view={getWorkspaceProfile() === "marine" ? "crew" : "legacy"} />;
 }

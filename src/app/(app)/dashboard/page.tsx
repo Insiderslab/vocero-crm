@@ -8,6 +8,7 @@ import {
 } from "@/server/onboarding/checklist";
 import { DashboardClient } from "@/components/dashboard/dashboard-client";
 import { PrimiPassi } from "@/components/onboarding/primi-passi";
+import { canAccessCrm, getWorkspaceProfile } from "@/lib/workspace/profile";
 
 export const dynamic = "force-dynamic";
 
@@ -24,6 +25,7 @@ export default async function DashboardPage({
 }) {
   const session = await getSessionOrNull();
   if (!session) redirect("/login");
+  if (!canAccessCrm(getWorkspaceProfile(), session.role)) redirect("/nautica");
   const { t } = await getT();
   // Como en Automazioni: un member no la ve, así que tampoco toca la BD por ella.
   const checklist = isOrgAdmin(session.role)

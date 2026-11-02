@@ -32,9 +32,13 @@
     "src/server/marine/projection.ts",
     "src/components/login-form.tsx",
     "src/components/settings/whatsapp-guide.tsx",
-    "src/app/(app)/settings/whatsapp/page.tsx"
+    "src/app/(app)/settings/whatsapp/page.tsx",
+    "src/lib/marine/assignment.ts",
+    "tests/unit/helpers/route-roles.ts",
+    "src/app/(app)/dashboard/page.tsx",
+    "src/app/(app)/inbox/page.tsx"
   ],
   "stato": "in-corso",
   "aggiornato": "2026-11-02",
-  "note": "Owner assignment 2026-11-02 in chat: Sì, coordina tu l’integrazione La Bambola. Codex coordinates shared CRM files on this branch only, preserves Claude listening-mode edits; no Hair changes. Broad remote ownership overlaps remain visible; checker is not modified. See specs/017-marine-arm/crm-recovery-ownership.json. Full pre-code EGM and separate security review required."
+  "note": "Owner assignment 2026-11-02 in chat: SÃ¬, coordina tu lâ€™integrazione La Bambola. Codex coordinates shared CRM files on this branch only, preserves Claude listening-mode edits; no Hair changes. Broad remote ownership overlaps remain visible; checker is not modified. See specs/017-marine-arm/crm-recovery-ownership.json. Full pre-code EGM and separate security review required."
 }

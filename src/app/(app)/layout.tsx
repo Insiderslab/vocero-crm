@@ -9,12 +9,15 @@ import { listUserOrgs } from "@/server/auth/orgs";
 import { isSuperadminEmail } from "@/server/auth/superadmin";
 import { AppShell } from "@/components/app-shell";
 import { resolveBuildCommit } from "@/lib/version";
+import { canAccessCrm, getWorkspaceProfile } from "@/lib/workspace/profile";
 
 export default async function AppLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   const session = await getSessionOrNull();
   if (!session) redirect("/login");
+  const profile = getWorkspaceProfile();
+  if (!canAccessCrm(profile, session.role)) redirect("/nautica");
   const branding = await getBranding(session.organizationId);
   const authSession = await getAuth().api.getSession({
     headers: await headers(),
@@ -31,6 +34,7 @@ export default async function AppLayout({
       branding={branding}
       userName={authSession?.user.name ?? "Usuario"}
       role={session.role}
+      profile={profile}
       theme={theme}
       orgs={orgs}
       activeOrgId={session.organizationId}

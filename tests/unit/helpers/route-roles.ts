@@ -36,6 +36,7 @@ export type Policy =
   | "export-key"
   | "bot-key"
   | "site-key"
+  | "marine-session"
   | "session-stream"
   | "webhook-token"
   | "dev-mock"
@@ -50,6 +51,7 @@ export const POLICY_IMPL: Record<Policy, { name: string; module: string; via: "w
   "export-key": { name: "withExport", module: "@/server/export/handler", via: "wrapper" },
   "bot-key": { name: "authenticateBot", module: "@/server/bot/auth", via: "call" },
   "site-key": { name: "authenticateSiteKey", module: "@/server/site-requests/auth", via: "call" },
+  "marine-session": { name: "requireSession", module: "@/lib/auth/session", via: "call" },
   "session-stream": { name: "requireSession", module: "@/lib/auth/session", via: "call" },
   // 005 (M1.3): la route única por canal delega en el gestor del núcleo, que
   // valida slug, token (`isValidWebhookToken`) y firma, en ese orden.
@@ -61,6 +63,28 @@ export const POLICY_IMPL: Record<Policy, { name: string; module: string; via: "w
 type Row = [file: string, methods: string[], policy: Policy, why: string];
 
 const ROWS: Row[] = [
+  ["marine", ["GET", "POST"], "marine-session", "Session membership plus domain owner/admin/member guards and tenant-scoped role projections; crew route intentionally separate from CRM wrapper"],
+  ["public/marine", ["GET", "POST"], "public", "Per-passenger opaque bearer token, request throttling and bounded registration input; no CRM access"],
+  ["service-intelligence/config", ["GET"], "member", "observation status with tenant-scoped counts"],
+  ["service-intelligence/config", ["POST"], "admin", "start or pause the passive observation month"],
+  ["service-intelligence/contacts/search", ["GET"], "member", "customer search limited to authorized contacts"],
+  ["service-intelligence/contacts/[id]/summary", ["GET"], "member", "evidence and media scoped to authorized customer"],
+  ["service-intelligence/contacts/[id]/photos/[assetId]", ["GET"], "member", "private photo with tenant and assigned-operator access"],
+  ["service-intelligence/assistant/query", ["POST"], "member", "read-only retrieval, no executable commands"],
+  ["booking/calendar", ["GET", "POST", "DELETE"], "member", "personal revocable calendar capability; scope checked in domain"],
+  ["calendar/[token]/feed.ics", ["GET"], "public", "unguessable revocable token; live membership and operator checks"],
+  ["booking/appointments/[id]/client", ["GET", "PATCH"], "member", "client scoped through an assigned appointment"],
+  ["booking/appointments/[id]/client/photo", ["GET", "PUT", "DELETE"], "member", "private client photo scoped through an assigned appointment"],
+  ["booking/config", ["GET"], "member", "beauty configuration readable by team; sensitive fields redacted"],
+  ["booking/config", ["PUT"], "admin", "beauty resources and online booking configuration"],
+  ["booking/appointments", ["GET", "POST"], "member", "own operator scope enforced in domain"],
+  ["booking/appointments/[id]", ["PATCH"], "member", "own operator scope enforced before mutation"],
+  ["booking/availability", ["GET"], "member", "team availability"],
+  ["booking/privacy/[contactId]", ["GET", "DELETE"], "admin", "assisted export and pseudonymization"],
+  ["public/booking/[slug]/catalog", ["GET"], "public", "public catalogue allowlist"],
+  ["public/booking/[slug]/availability", ["GET"], "public", "bounded anonymous availability"],
+  ["public/booking/[slug]/appointments", ["POST"], "public", "rate limited public booking"],
+  ["public/booking/manage", ["GET", "PATCH"], "public", "signed per-appointment bearer checked by domain"],
   // Configuración de la conexión, claves, marca y equipo (settings)
   ["settings/whatsapp", ["GET", "PUT"], "admin", "credenciales y datos de la conexión de WhatsApp (Meta)"],
   ["settings/whatsapp/test", ["POST"], "admin", "prueba un token contra Meta"],
@@ -75,6 +99,7 @@ const ROWS: Row[] = [
   ["settings/export-keys/[id]", ["DELETE"], "admin", "revoca una clave de exportación"],
   ["settings/site", ["GET", "PUT"], "admin", "formulario del sitio (008): clave activa y orígenes autorizados"],
   ["settings/site/key", ["POST", "DELETE"], "admin", "crea/rota o revoca la clave del sitio (008)"],
+  ["settings/listening", ["GET", "PUT"], "admin", "016: modalità ascolto (ferma agente AI, automazioni e cervello esterno): solo owner/admin"],
   ["settings/branding", ["PUT"], "owner", "marca de la organización: solo el propietario"],
   ["settings/branding/favicon", ["PUT", "DELETE"], "owner", "icono de la marca: solo el propietario"],
   ["settings/team", ["POST"], "owner", "alta de cuentas de equipo: solo el propietario"],
@@ -145,6 +170,10 @@ const ROWS: Row[] = [
   ["export/conversations", ["GET"], "export-key", "clave de exportación"],
   ["export/leads", ["GET"], "export-key", "clave de exportación"],
   ["export/messages", ["GET"], "export-key", "clave de exportación"],
+  ["export/core/state", ["GET"], "export-key", "016: stato per Heili Core (ascolto, organizzazione); clave de exportación"],
+  ["export/core/contacts", ["GET"], "export-key", "016: contatti per Heili Core, senza note/ficha/tag; clave de exportación"],
+  ["export/core/conversations", ["GET"], "export-key", "016: conversazioni per Heili Core (senza is_test); clave de exportación"],
+  ["export/core/messages", ["GET"], "export-key", "016: messaggi per Heili Core (senza is_test); clave de exportación"],
   ["public/site-requests", ["POST"], "site-key", "formulario del sitio (008): la organización sale de la clave vsk_"],
   ["events", ["GET"], "session-stream", "canal SSE de la organización de la sesión"],
   ["webhooks/[channel]/[webhookToken]", ["GET", "POST"], "webhook-token", "Meta llama sin sesión: slug del canal, segmento secreto en la URL y firma (wa = la URL de siempre)"],

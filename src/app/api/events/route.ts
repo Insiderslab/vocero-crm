@@ -1,5 +1,7 @@
 import { requireSession, UnauthorizedError } from "@/lib/auth/session";
 import { subscribe } from "@/server/events/bus";
+import { canAccessCrm, getWorkspaceProfile } from "@/lib/workspace/profile";
+import { apiError } from "@/lib/api";
 
 /**
  * Canal SSE de la bandeja (contrato sse.md).
@@ -22,8 +24,12 @@ export async function GET(req: Request) {
     throw err;
   }
   const { organizationId } = session;
+  if (!canAccessCrm(getWorkspaceProfile(), session.role)) {
+    return apiError(403, "forbidden", "Solo owner o admin pueden acceder al CRM");
+  }
 
   let cleanup: (() => void) | null = null;
+  let cleaned = false;
 
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
@@ -48,6 +54,8 @@ export async function GET(req: Request) {
       const heartbeat = setInterval(() => send(`: ping\n\n`), HEARTBEAT_MS);
 
       cleanup = () => {
+        if (cleaned) return;
+        cleaned = true;
         clearInterval(heartbeat);
         unsubscribe();
         try {

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { requireSession, UnauthorizedError, type SessionContext } from "@/lib/auth/session";
 import { isOrgAdmin, isOrgOwner } from "@/lib/roles";
+import { canAccessCrm, getWorkspaceProfile } from "@/lib/workspace/profile";
 
 /** Respuesta de error estándar de la API interna (contrato api.md). */
 export function apiError(
@@ -27,6 +28,9 @@ export function withAuth<Args extends unknown[]>(
         return apiError(401, "unauthorized", "No autenticado");
       }
       throw err;
+    }
+    if (!canAccessCrm(getWorkspaceProfile(), session.role)) {
+      return apiError(403, "forbidden", "Solo owner o admin pueden acceder al CRM");
     }
     try {
       return await handler(session, ...args);

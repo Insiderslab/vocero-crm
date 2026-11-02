@@ -3,6 +3,7 @@ import { WhatsappGuide } from "@/components/settings/whatsapp-guide";
 import { getSessionOrNull } from "@/lib/auth/session";
 import { getT } from "@/lib/i18n/server";
 import { canManageWhatsapp } from "@/lib/roles";
+import { getWorkspaceProfile } from "@/lib/workspace/profile";
 
 export const dynamic = "force-dynamic";
 
@@ -20,7 +21,7 @@ export default async function WhatsappSettingsPage() {
   return (
     <div className="max-w-3xl space-y-6">
       {/* 013 — Guida in 3 passi; WABA, token, webhook e chiave Wapi in «Avanzate». */}
-      <WhatsappGuide />
+      <WhatsappGuide pilotDisabled={getWorkspaceProfile() === "marine"} />
       {/* 010 — reabrir la checklist «Primi passi» cuando ya está completa. */}
       <p className="text-sm text-muted-foreground">
         {t("onboarding.reopenDescription")}{" "}

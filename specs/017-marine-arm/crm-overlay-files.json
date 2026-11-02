@@ -1,0 +1,110 @@
+[
+  {
+    "path": "src/lib/workspace/profile.ts",
+    "sha256": "c4439c06f0674fe972456266971532bcd9c70c28db34ca794ebdeb0b41eb5411"
+  },
+  {
+    "path": "src/lib/env.ts",
+    "sha256": "108db4225bf34e71f9b67378ab0929a8214bdc0838c461bf09869a71a4a6c218"
+  },
+  {
+    "path": "src/lib/api.ts",
+    "sha256": "422c77d0b58f9a98489dd91cbdaf0d783bb1657eaec67b20554ad553f86c36c8"
+  },
+  {
+    "path": "src/app/api/events/route.ts",
+    "sha256": "ff42a909213c7269d031de2bf491491e3d6cb6be30cb31582165658b6fc821a7"
+  },
+  {
+    "path": "src/app/(app)/layout.tsx",
+    "sha256": "a29c67b6e18a538dc2ae58cd0f0cec7519d60e4cc5fc4f68d3950674f7aa789e"
+  },
+  {
+    "path": "src/components/app-nav.tsx",
+    "sha256": "0ae1151318bac7ba076180a991a0177c7cd6962b6b923252cd7a89b65f85461d"
+  },
+  {
+    "path": "src/components/app-shell.tsx",
+    "sha256": "6de4879e50191ce7af39d40f2c9422b37975df11dc55b897040eeeccb9985715"
+  },
+  {
+    "path": "src/app/(auth)/login/page.tsx",
+    "sha256": "852c3554962902fe004ab4472510d3ea5bfebb2f459be8a12497ec4f716de4d0"
+  },
+  {
+    "path": "src/components/login-form.tsx",
+    "sha256": "40c25a8d8c089653cd78215f001a12f13fed41a9459f559a057095429e8fa301"
+  },
+  {
+    "path": "src/app/(app)/settings/whatsapp/page.tsx",
+    "sha256": "56a2672d6a2493b11903f63553fa4f5c39413e2ee687d5585819b25ff2e02079"
+  },
+  {
+    "path": "src/components/settings/whatsapp-guide.tsx",
+    "sha256": "a9700116cb8f1429779262ee1f8658920cf525f79e0181a593cd3f8dab4dd188"
+  },
+  {
+    "path": "src/server/marine/repository.ts",
+    "sha256": "d084118af4446af78a85a7421801d9d426b6d193eb4aadbffdb090f287fe3fd7"
+  },
+  {
+    "path": "src/server/marine/projection.ts",
+    "sha256": "880cc800bbcf2b1d0a942850c7a21ef7858daff3c3349348b27911b7896b2810"
+  },
+  {
+    "path": "src/lib/marine/types.ts",
+    "sha256": "1777d4c3c01b78e03331f599162c8d9abbfdc64b97c7c41745e2b4ae67caee16"
+  },
+  {
+    "path": "src/lib/marine/validation.ts",
+    "sha256": "6395a6acc74793eebf88416a407c077d57e58f4600df747117e2d02a17b3db4e"
+  },
+  {
+    "path": "src/lib/marine/assignment.ts",
+    "sha256": "7a1be6a43597ca2789b2498a0061691b2a1dc12b29dc09211d03d1132cded36f"
+  },
+  {
+    "path": "src/components/marine/marine-app.tsx",
+    "sha256": "018b3971f4b1fc387930c34e715fe6513519cd5ca7523e2c2432c18e5dcb11ad"
+  },
+  {
+    "path": "src/components/marine/admin-panels.tsx",
+    "sha256": "23461c702407a3412cb4e4b3d211563c3b4930b2daac294342469c5fbb10f3b3"
+  },
+  {
+    "path": "src/app/nautica/page.tsx",
+    "sha256": "0141600bdde42398d779b654d6451eb39cf76285c805ee39fcf2de4214383b92"
+  },
+  {
+    "path": "src/app/nautica/layout.tsx",
+    "sha256": "b7a03e5511e19bc80565dcd08e9f526b9ad5a0bb738ac35de3f7021b33f2b60c"
+  },
+  {
+    "path": "src/app/nautica/manifest.webmanifest/route.ts",
+    "sha256": "0bcdb3095beca11d1e50dd725987df1f3e821c81cd768e523f91e963de4ca9f9"
+  },
+  {
+    "path": "src/app/(app)/tours/page.tsx",
+    "sha256": "7fe3584241a416d81c4bc738b6e1a33574ff8481824ec1a185c11a1435ff580e"
+  },
+  {
+    "path": "public/marine/icon-192.png",
+    "sha256": "fea19ee9d4804710bda9679b9f94755357550a1d2ffb933595e6cb7f776d88b4"
+  },
+  {
+    "path": "public/marine/icon-512.png",
+    "sha256": "1080a26ea6b56a11c16756dd1a6b1f2a92b10b1dac7ede862bd0e4d2d980dd07"
+  },
+  {
+    "path": "deploy/marine/gateway.crm.Caddyfile.template",
+    "sha256": "fae5b4568c6ae3c9552ab5632270018c1cbd22631b09fdaf78eadfc25bab4ab6"
+  },
+  {
+    "path": "src/app/(app)/inbox/page.tsx",
+    "sha256": "3f6f16827cb82e73ccfaca7e642f8abdbbdf0687c5115bc7d8ce6cc1efcaaeb7"
+  },
+  {
+    "path": "src/app/(app)/dashboard/page.tsx",
+    "sha256": "07d16d7aa49702d4ee8ef9b540e958347268de2948d69f675d7b88b981c27db4"
+  }
+]
