@@ -1,0 +1,131 @@
+{
+	admin off
+	persist_config off
+	auto_https off
+	storage file_system /tmp/caddy-data
+}
+
+:8080 {
+	route {
+	@health_loopback {
+		remote_ip 127.0.0.1 ::1
+		path /api/health
+		method GET HEAD
+	}
+	@health_shared {
+		path /api/health
+		method GET HEAD
+	}
+	@root_get {
+		path /
+		method GET HEAD
+	}
+	@page_get {
+		path /nautica /pasajero
+		method GET HEAD
+	}
+	@assets_get {
+		path /_next/static/* /favicon.ico
+		method GET HEAD
+	}
+	@session_get {
+		path /api/auth/get-session
+		method GET
+	}
+	@auth_post {
+		path /api/auth/sign-in/email /api/auth/sign-out
+		method POST
+	}
+	@marine {
+		path /api/marine /api/public/marine
+		method GET POST
+	}
+
+	header {
+		Cache-Control "no-store"
+		Referrer-Policy "no-referrer"
+		X-Robots-Tag "noindex"
+		Content-Security-Policy "frame-ancestors 'none'"
+	}
+
+	request_body {
+		max_size 32KB
+	}
+	request_header -Forwarded
+	request_header -X-Real-IP
+	request_header X-Forwarded-Proto https
+	request_header Host bambola.heili.cloud
+
+	# Health is the only gateway path reachable from loopback.
+	handle @health_loopback {
+		reverse_proxy bambola-arm-private-app:3000 {
+			header_up Host bambola.heili.cloud
+			header_up X-Forwarded-For {http.request.header.X-Forwarded-For}
+			header_up X-Forwarded-Proto https
+			header_up -Forwarded
+			header_up -X-Real-IP
+		}
+	}
+
+	# Trust public requests only from the direct shared Caddy IPv4 peer.
+	@not_shared_caddy not remote_ip __SHARED_IPV4__/32
+	respond @not_shared_caddy 403
+	handle @health_shared {
+		reverse_proxy bambola-arm-private-app:3000 {
+			header_up Host bambola.heili.cloud
+			header_up X-Forwarded-For {http.request.header.X-Forwarded-For}
+			header_up X-Forwarded-Proto https
+			header_up -Forwarded
+			header_up -X-Real-IP
+		}
+	}
+
+	redir @root_get /nautica 302
+	handle @page_get {
+		reverse_proxy bambola-arm-private-app:3000 {
+		header_up Host bambola.heili.cloud
+		header_up X-Forwarded-For {http.request.header.X-Forwarded-For}
+		header_up X-Forwarded-Proto https
+		header_up -Forwarded
+		header_up -X-Real-IP
+		}
+	}
+	handle @assets_get {
+		reverse_proxy bambola-arm-private-app:3000 {
+		header_up Host bambola.heili.cloud
+		header_up X-Forwarded-For {http.request.header.X-Forwarded-For}
+		header_up X-Forwarded-Proto https
+		header_up -Forwarded
+		header_up -X-Real-IP
+		}
+	}
+	handle @session_get {
+		reverse_proxy bambola-arm-private-app:3000 {
+		header_up Host bambola.heili.cloud
+		header_up X-Forwarded-For {http.request.header.X-Forwarded-For}
+		header_up X-Forwarded-Proto https
+		header_up -Forwarded
+		header_up -X-Real-IP
+		}
+	}
+	handle @auth_post {
+		reverse_proxy bambola-arm-private-app:3000 {
+		header_up Host bambola.heili.cloud
+		header_up X-Forwarded-For {http.request.header.X-Forwarded-For}
+		header_up X-Forwarded-Proto https
+		header_up -Forwarded
+		header_up -X-Real-IP
+		}
+	}
+	handle @marine {
+		reverse_proxy bambola-arm-private-app:3000 {
+		header_up Host bambola.heili.cloud
+		header_up X-Forwarded-For {http.request.header.X-Forwarded-For}
+		header_up X-Forwarded-Proto https
+		header_up -Forwarded
+		header_up -X-Real-IP
+		}
+	}
+	respond 404
+}
+}

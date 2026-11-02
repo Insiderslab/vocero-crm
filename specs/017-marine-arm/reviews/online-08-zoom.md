@@ -1,0 +1,5 @@
+# Stage8 — intermediate Zoom Out
+
+Invocation9, fresh bambola_online_zoom2/app_code_reviewer, completed. Parent interval90s including orchestration, native compute unavailable. Required persona, zoom-out standard, Codex guide, whole87-line target, contracts, reviews05–07, AGENTS, EGM method and dated client context read. Source reuse searches covered auth/logout, packer, limiters, health and Docker. No edits or remote actions.
+
+Major finding at target48/acceptance25: strict single-sample route baseline falsely stops on the documented pre-existing app.heili.cloud200/307 alias alternation. PROPOSE FIX applied: collect10 preflight samples for this route only, accept only observed status/Location pairs (statuses restricted200/307), retain exact invariant elsewhere. Fixture must accept known alternation and reject third pair or TLS/network failure. No scope to repair existing alias. Reviewer reported no other material supported findings after stages6/7 mitigation. No implementation/runtime approval implied.

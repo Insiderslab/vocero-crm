@@ -1,0 +1,101 @@
+name: bambola-arm
+
+services:
+  postgres:
+    image: ${BAMBOLA_POSTGRES_IMAGE:?set BAMBOLA_POSTGRES_IMAGE}
+    pull_policy: never
+    restart: unless-stopped
+    stop_grace_period: 30s
+    environment:
+      POSTGRES_USER: bambola_arm
+      POSTGRES_DB: bambola_arm
+      POSTGRES_PASSWORD: ${BAMBOLA_POSTGRES_PASSWORD:?set BAMBOLA_POSTGRES_PASSWORD}
+    volumes: [bambola_pg:/var/lib/postgresql/data]
+    networks: [bambola_data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bambola_arm -d bambola_arm"]
+      interval: 10s
+      timeout: 5s
+      start_period: 10s
+      retries: 10
+    mem_limit: 384m
+    cpus: 0.5
+    logging: &logging
+      driver: json-file
+      options: {max-size: 10m, max-file: "3"}
+
+  app:
+    image: ${BAMBOLA_APP_IMAGE:?set BAMBOLA_APP_IMAGE}
+    pull_policy: never
+    restart: unless-stopped
+    init: true
+    stop_grace_period: 120s
+    environment:
+      APP_BASE_URL: ${APP_BASE_URL:?set APP_BASE_URL}
+      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?set BETTER_AUTH_SECRET}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:?set ENCRYPTION_KEY}
+      META_WEBHOOK_VERIFY_TOKEN: ${META_WEBHOOK_VERIFY_TOKEN:?set META_WEBHOOK_VERIFY_TOKEN}
+      MEDIA_DIR: /data/media
+      ALLOW_SIGNUP: "false"
+      MARINE_TRUST_PROXY_IP: "true"
+      NODE_ENV: production
+    volumes: [bambola_media:/data/media]
+    networks:
+      bambola_edge:
+        aliases: [bambola-arm-private-app]
+      bambola_data: {}
+    depends_on:
+      postgres: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:3000/api/health"]
+      interval: 15s
+      timeout: 5s
+      start_period: 40s
+      retries: 5
+    mem_limit: 512m
+    cpus: 0.5
+    logging: *logging
+
+  gateway:
+    image: ${BAMBOLA_CADDY_IMAGE:?set BAMBOLA_CADDY_IMAGE}
+    pull_policy: never
+    user: "65532:65532"
+    read_only: true
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]
+    security_opt: ["no-new-privileges:true"]
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=8m"]
+    environment:
+      XDG_DATA_HOME: /tmp/caddy-data
+      XDG_CONFIG_HOME: /tmp/caddy-config
+    restart: unless-stopped
+    stop_grace_period: 30s
+    volumes: ["${BAMBOLA_RUNTIME_DIR:?set BAMBOLA_RUNTIME_DIR}/gateway.Caddyfile:/etc/caddy/Caddyfile:ro"]
+    networks:
+      bambola_edge: {}
+      second-brain_frontend:
+        aliases: [bambola-arm-gateway]
+    depends_on:
+      app: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/api/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+    mem_limit: 64m
+    cpus: 0.2
+    logging: *logging
+
+volumes:
+  bambola_pg:
+  bambola_media:
+
+networks:
+  bambola_edge:
+    internal: true
+  bambola_data:
+    internal: true
+  second-brain_frontend:
+    external: true
