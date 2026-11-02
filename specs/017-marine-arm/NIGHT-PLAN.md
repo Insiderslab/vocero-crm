@@ -165,3 +165,5 @@ Review24 conclusa, nessun writer attivo,24/24calls. Solo automazione notturna in
 ## Nuovo piano — 3 novembre 2026
 
 La richiesta attuale aggiunge le viste Oggi/3giorni/7giorni/Mese, creazione e modifica dal calendario e riepiloghi automatici da prenotazioni e ARM. Specifica e criteri in [AGENDA-AUTOMATICA-PLAN.md](AGENDA-AUTOMATICA-PLAN.md). La precedente automazione notturna è conclusa; non è stata riattivata. La revisione finale del recupero CRM è interrotta dal limite di utilizzo del modello richiesto, non superata. Nessun aggiornamento pubblico in questo ciclo.
+
+Estensione della richiesta: piano generale in [GENERAL-IMPROVEMENT-PLAN.md](GENERAL-IMPROVEMENT-PLAN.md), con inviti e ruoli del team, PWA centrale, registrazione autonoma/assistita o tramite agenzia, link di gruppo e nuovi campi nome/cognome/cédula/data nascita/email/WhatsApp. Percorso trasparente per la presentazione in [DEMO-PAPA.md](DEMO-PAPA.md). Le nuove funzioni sono progetto, non implementazione attestata.
