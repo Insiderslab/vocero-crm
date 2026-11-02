@@ -28,7 +28,11 @@
     "src/app/api/marine/route.ts",
     "src/app/(auth)/login/page.tsx",
     "src/app/manifest.ts",
-    "public/marine/"
+    "public/marine/",
+    "src/server/marine/projection.ts",
+    "src/components/login-form.tsx",
+    "src/components/settings/whatsapp-guide.tsx",
+    "src/app/(app)/settings/whatsapp/page.tsx"
   ],
   "stato": "in-corso",
   "aggiornato": "2026-11-02",

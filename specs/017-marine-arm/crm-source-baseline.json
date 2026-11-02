@@ -1,0 +1,58 @@
+{
+  "src/components/app-nav.tsx": {
+    "sameAsFrozen": true,
+    "sha256": "af0bd06128b37f0397b79ce3de89ae6fcfabd9f2e8691f2ab1496c5e4be5c494"
+  },
+  "src/components/app-shell.tsx": {
+    "sameAsFrozen": true,
+    "sha256": "6ec6566bf0d3c325d8df0219897102b435dd51d87a6a64409c568c4792258999"
+  },
+  "src/app/(app)/layout.tsx": {
+    "sameAsFrozen": true,
+    "sha256": "dae33e0da6a70a0e16548500d810f2da0e06cdc7fd2dff8dee51955cb3f8dd2c"
+  },
+  "src/lib/env.ts": {
+    "sameAsFrozen": true,
+    "sha256": "da73b78987e397f3baf575d44fceddc875a03834104ee44cff913def70d62ebe"
+  },
+  "src/lib/api.ts": {
+    "sameAsFrozen": true,
+    "sha256": "604158bff7ac71f46cb813a431316a4e85c4ff5671c6efb0537069835870a1b5"
+  },
+  "src/lib/auth/session.ts": {
+    "sameAsFrozen": true,
+    "sha256": "33ad90cc36e03239bbb79e54bdc2cfa8618fd505b5cf554b008772280158346f"
+  },
+  "src/app/api/events/route.ts": {
+    "sameAsFrozen": true,
+    "sha256": "a5110e7eab2c0d6b07c35ca5f0d810640ea10e46b360a1600ef8670852b0735f"
+  },
+  "src/server/marine/repository.ts": {
+    "sameAsFrozen": true,
+    "sha256": "20c469157a0fd3473a81a2df12c09c4ff4b7a6d8cb9f64a6ff6e272fe218571b"
+  },
+  "src/lib/marine/types.ts": {
+    "sameAsFrozen": true,
+    "sha256": "d1a81d8480d15b8dd1257f0e7fc7a5643c0b06f223d4aae37fd793f3b2222bcf"
+  },
+  "src/lib/marine/validation.ts": {
+    "sameAsFrozen": true,
+    "sha256": "c072f7c9721462e1226769a142ce21045c72f2485184d9e2f4ba117720ef4219"
+  },
+  "src/server/marine/projection.ts": {
+    "sameAsFrozen": true,
+    "sha256": "af88fe2cdb2142a631bcd30e38e609561e92f79202adc76c3017076f0f73699f"
+  },
+  "src/components/marine/marine-app.tsx": {
+    "sameAsFrozen": true,
+    "sha256": "728cb6e9e05d9fb0eda35da4d907d65f2cf8945b1e7c1e1dd93f79f40a335464"
+  },
+  "src/components/marine/admin-panels.tsx": {
+    "sameAsFrozen": true,
+    "sha256": "06cab64215569ebdd0910ca607850ff5733a15f6b4f678f5a4dc1baae6174546"
+  },
+  "src/app/(auth)/login/page.tsx": {
+    "sameAsFrozen": true,
+    "sha256": "fbad8cae62065fd41d058074ac10a06e0753bc1b3b5121c193288e8239b380db"
+  }
+}
