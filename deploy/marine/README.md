@@ -1,6 +1,6 @@
-# Bambola ARM — deployment helper
+# Bambola ARM â€” deployment helper
 
-This directory contains the isolated deployment tooling for the synthetic La Bámbola pilot. Fixed targets are `/opt/bambola-arm`, Compose project `bambola-arm`, and `bambola.heili.cloud`. These helpers do not manage DNS or credentials and must not be retargeted to Hair or another installation.
+This directory contains the isolated deployment tooling for the synthetic La BÃ¡mbola pilot. Fixed targets are `/opt/bambola-arm`, Compose project `bambola-arm`, and `bambola.heili.cloud`. These helpers do not manage DNS or credentials and must not be retargeted to Hair or another installation.
 
 ## Host state helper
 
@@ -37,3 +37,15 @@ As of 2 November 2026, the isolated synthetic pilot is online at https://bambola
 Gateway capability note: the pinned official Caddy binary carries a NET_BIND_SERVICE file capability. Dropping that capability from the bounding set prevents execution (actual isolated validation returned EPERM). The gateway therefore drops ALL and adds only NET_BIND_SERVICE to the bounding set, with UID65532 and no-new-privileges. An actual isolated Caddy process reported CapEff=0 and served HTTP200 on8080; the Compose runtime reports CapEff=0x400, CapBnd=0x400, NoNewPrivs=1. The release isolation test accepts effective capabilities of zero or NET_BIND_SERVICE alone, requires the bounding set to equal NET_BIND_SERVICE exactly, and rejects every other effective or bounding capability, including NET_RAW. Docker's NET_BIND_SERVICE and CAP_NET_BIND_SERVICE spellings are treated as equivalent. No other capability or privileged mode is permitted. The gateway config has no secrets and is0444 under a0700 host parent so the nonroot gateway can read its single read-only bind mount; accounts and runtime.env stay0600.
 
 Supplemental operators are committed at fc70a95 and executed from /opt/bambola-arm/ops/20261102-compat, while the immutable app remains r5. bootstrap-compat.py pins r5 modules and the 11-second-paced bootstrap script separately. BetterAuth updates lastRequest on each accepted auth request; waiting only four seconds does not clear its production bucket. The failed r5/early compatibility checks are preserved, not overwritten. Runtime accounts.json delivery copy was removed after the full public checks and verified protected local transfer; do not rerun bootstrap using a missing delivery file. Pilot account files remain only in the protected local accessi directory.
+
+## Current UI update — 2 November 2026
+
+The app-only update uses frozen source `/opt/bambola-arm/releases/20261102-panels-r1` (manifest `07ac97fdd0638d631339b32fd075a1120c83b3dceaae95a59c992de463789ec2`). Only two marine UI files differ from r5. The database, gateway, authentication, migrations and dependencies are unchanged. The current image is pinned in `/opt/bambola-arm/runtime/panels-20261102.override.yml`, whose versioned counterpart is `releases/panels-20261102.override.yml` in this directory.
+
+For the CURRENT app configuration, use the original r5 compose plus this override; the runtime env still holds the original base image and has not been edited. The actual service image comes from the override. Do not run runtime preparation/bootstrap again. The command used was:
+
+```sh
+docker compose --project-name bambola-arm --env-file /opt/bambola-arm/runtime/runtime.env -f /opt/bambola-arm/releases/20261102-r5/deploy/marine/compose.ubuntu.yml -f /opt/bambola-arm/runtime/panels-20261102.override.yml up -d --no-deps app
+```
+
+Rolling back this UI update uses the same command without the override, recreating ONLY app with the previous r5 image. No migration rollback is needed because schema and migration files are identical. Never run down, broad restart, or change Hair. The original release audit remains historical; update evidence is separately retained as panels-source/build/deploy/online and panels-calendar-ui JSON. Users can inspect the new panels from the same /nautica URL. ARM, agency portal and online account management are explicitly informational previews, not activated features.

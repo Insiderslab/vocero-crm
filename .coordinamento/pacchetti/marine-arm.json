@@ -12,7 +12,7 @@
     "tests/unit/marine/",
     "docs/lavoro/2026-11-02-marine-panels.md"
   ],
-  "stato": "in-corso",
+  "stato": "in-revisione",
   "aggiornato": "2026-11-02",
-  "note": "New owner request 2 Nov: inspect every panel and integrated calendar. UI-only scoped cycle; existing marine API and role guards unchanged, full CRM routes remain closed. No Hair/shared files. Prior release complete. Reuse reviewed frozen r5 for release base."
+  "note": "UI cycle complete and published app-only 2 Nov. Four independent review calls, 48 unit tests, seven mock browser scenarios, 30 actual public checks. Full CRM/agency/team administration not activated; informational panels explicit. Hair unchanged. Frozen r5 plus two reviewed UI files; see deploy README for active image override and rollback. No merge authorized."
 }
