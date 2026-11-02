@@ -24,3 +24,11 @@ La revisione del design EGM a cinque stadi è conclusa. La revisione Claude cons
 La versione pubblica non è stata aggiornata da questo ciclo. Il vecchio controllo di rilascio rileva correttamente che la configurazione condivisa e Hair sono cambiati da un'altra attività. Non è stato aggirato o azzerato. Una nuova fotografia in sola lettura conferma il nuovo stato; un controllo separato di build è in preparazione. Nessuna configurazione, container o dato di Hair è stato modificato da questo lavoro.
 
 Le evidenze tecniche complete sono nella directory privata `C:/Users/stefa/bambola-runtime/crm-qa`. Credenziali, cookie e codici dei biglietti non vengono copiati nei rapporti del repository.
+
+## Chiusura della sessione di verifica
+
+API: 61 verifiche completate più58dinieghi di accesso ai metodi CRM per il ruolo equipaggio. Le16prove RSC non entrano nel conteggio dei pass: le richieste forgiate possono restituire frammenti client senza dati organizzativi e il giudizio indipendente resta necessario. Browser: accesso e navigazione amministrativa, ingresso equipaggio e larghezza320px verificati; la creazione di un contatto non è stata confermata dal collaudo dopo ricarica. Scansione e percorsi operativi della nuova UI non completati. Non dichiarare usabilità interamente collaudata.
+
+Revisore finale e agente UI interrotti dalla quota del modello. Nessun verdetto indipendente finale, nessuna sostituzione di modello, nessun aggiornamento online. I soli processi QA creati da questa sessione (app3142 e cluster PostgreSQL55437 nella directory crm-qa/data) sono stati chiusi conservando build, fixture ed evidenze. La preview personale e i servizi remoti non sono stati toccati.
+
+Piano generale e scaletta della dimostrazione salvati nel commit a18644a; incremento applicativo locale nel commit9fb505c. Nuove viste dell'agenda, link di gruppo, data di nascita, inviti e portale agenzie sono pianificati, non ancora sviluppati.
