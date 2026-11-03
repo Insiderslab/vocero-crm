@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DateTime } from "luxon";
-import { calendarDays, caracasDate, caracasMonth, monthBounds, MARINE_VIEW_LIMIT } from "@/components/marine/admin-panels";
+import { calendarDays, calendarRangeDates, caracasDate, caracasMonth, shiftCalendarDate, tripsForDate, MARINE_VIEW_LIMIT } from "@/components/marine/admin-panels";
 import type { MarineTripSummary } from "@/lib/marine/types";
 
 function trip(startAt: string, id = "trip"): MarineTripSummary {
@@ -21,16 +20,27 @@ describe("marine calendar presentation", () => {
     expect(days.find((day) => day.date === "2024-02-29")?.trips.map((x) => x.id)).toEqual(["leap"]);
   });
 
-  it("bounds navigation by returned months and the current Caracas month", () => {
-    const bounds = monthBounds([trip("2026-01-31T23:00:00-04:00"), trip("2026-04-01T00:00:00-04:00")], DateTime.fromISO("2026-02-01T02:00:00Z"));
-    expect(bounds).toEqual({ min: "2026-01", max: "2026-04", current: "2026-01" });
-    expect(monthBounds([], DateTime.fromISO("2026-02-01T02:00:00Z"))).toEqual({ min: "2026-01", max: "2026-01", current: "2026-01" });
+  it("steps through future empty months and clamps month-end dates", () => {
+    expect(shiftCalendarDate("2026-01-31", "Mes", 1)).toBe("2026-02-28");
+    expect(shiftCalendarDate("2026-02-28", "Mes", 1)).toBe("2026-03-28");
+    expect(calendarDays([], caracasMonth("2030-02-01")).find((day) => day.date === "2030-02-15")?.trips).toEqual([]);
+  });
+
+  it("keeps short ranges anchored to the selected Caracas date", () => {
+    expect(calendarRangeDates("2026-02-28", "3 días")).toEqual(["2026-02-28", "2026-03-01", "2026-03-02"]);
+    expect(shiftCalendarDate("2026-02-28", "7 días", -1)).toBe("2026-02-21");
+  });
+
+  it("sorts same-day trips chronologically regardless of API order", () => {
+    const later = trip("2026-02-28T15:00:00-04:00", "later");
+    const earlier = trip("2026-02-28T09:00:00-04:00", "earlier");
+    expect(tripsForDate([later, earlier], "2026-02-28").map((item) => item.id)).toEqual(["earlier", "later"]);
   });
 
   it("labels a truncated 50-row view as non-exhaustive", () => {
     const rows = Array.from({ length: 50 }, (_, i) => trip(`2026-05-${String((i % 28) + 1).padStart(2, "0")}T10:00:00-04:00`, `t${i}`));
     expect(rows).toHaveLength(50);
     expect(MARINE_VIEW_LIMIT).toContain("no es el historial completo");
-    expect(monthBounds(rows, DateTime.fromISO("2026-02-01T02:00:00Z")).max).toBe("2026-05");
+    expect(calendarDays(rows, "2026-05")).toHaveLength(35);
   });
 });
