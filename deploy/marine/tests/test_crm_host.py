@@ -80,17 +80,66 @@ class CrmHostGuardTests(unittest.TestCase):
             (release / 'deploy/marine/manifest.py').write_text('# test verifier', encoding='utf-8')
             evidence = root / 'evidence' / 'crm-recovery'
             snapshot = evidence / 'host-readonly-snapshot.json'
-            fields = {key: self.record[key] for key in ('caddy', 'containers', 'ownedAppGateway', 'networks', 'routes', 'configFiles', 'resources')}
+            fields = {key: self.record[key] for key in ('caddy', 'containers', 'ownedAppGateway', 'networks', 'configFiles')}
             with patch.object(crm_host, 'ROOT', root), patch.object(crm_host, 'RELEASES', releases), \
                  patch.object(crm_host, 'EVIDENCE', evidence), patch.object(crm_host, 'SNAPSHOT', snapshot), \
                  patch.object(crm_host, 'command', return_value='verified'), \
-                 patch.object(crm_host, 'current_snapshot_fields', return_value=fields):
+                 patch.object(crm_host, 'current_snapshot_metadata', return_value=fields), \
+                 patch.object(crm_host, 'routes_snapshot', return_value=self.record['routes']) as capture_routes, \
+                 patch.object(crm_host, 'resources_snapshot', return_value=self.record['resources']):
                 crm_host.capture_baseline(release, self.digest)
+                capture_routes.assert_called_once_with(120, 5)
+                record = json.loads(snapshot.read_text(encoding='utf-8'))
+                self.assertEqual(set(record), set(self.record))
+                self.assertEqual(record['routes'], self.record['routes'])
                 if crm_host.os.name == 'posix':
                     self.assertEqual(snapshot.stat().st_mode & 0o777, 0o600)
                     self.assertEqual(evidence.stat().st_mode & 0o777, 0o700)
                 with self.assertRaisesRegex(crm_host.Refusal, 'already exists'):
                     crm_host.capture_baseline(release, self.digest)
+
+    def test_baseline_refuses_nonpositive_resource_values_before_evidence_creation(self):
+        for key in ('memAvailableKiB', 'optFreeKiB'):
+            with self.subTest(key=key), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                release = root / 'releases' / 'r1'
+                (release / 'deploy/marine').mkdir(parents=True)
+                (release / 'deploy/marine/manifest.py').write_text('# test verifier', encoding='utf-8')
+                evidence = root / 'evidence' / 'crm-recovery'
+                snapshot = evidence / 'host-readonly-snapshot.json'
+                metadata = {field: self.record[field] for field in ('caddy', 'containers', 'ownedAppGateway', 'networks', 'configFiles')}
+                resources = dict(self.record['resources'], **{key: 0})
+                with patch.object(crm_host, 'ROOT', root), patch.object(crm_host, 'RELEASES', root / 'releases'), \
+                     patch.object(crm_host, 'EVIDENCE', evidence), patch.object(crm_host, 'SNAPSHOT', snapshot), \
+                     patch.object(crm_host, 'command', return_value='verified'), \
+                     patch.object(crm_host, 'current_snapshot_metadata', return_value=metadata), \
+                     patch.object(crm_host, 'routes_snapshot', return_value=self.record['routes']), \
+                     patch.object(crm_host, 'resources_snapshot', return_value=resources):
+                    with self.assertRaisesRegex(crm_host.Refusal, 'resource availability'):
+                        crm_host.capture_baseline(release, self.digest)
+                self.assertFalse(evidence.exists())
+
+    def test_metadata_drift_in_each_group_aborts_before_snapshot_creation(self):
+        groups = ('caddy', 'containers', 'ownedAppGateway', 'networks', 'configFiles')
+        for group in groups:
+            with self.subTest(group=group), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                release = root / 'releases' / 'r1'
+                (release / 'deploy/marine').mkdir(parents=True)
+                (release / 'deploy/marine/manifest.py').write_text('# test verifier', encoding='utf-8')
+                evidence = root / 'evidence' / 'crm-recovery'
+                snapshot = evidence / 'host-readonly-snapshot.json'
+                baseline = {key: self.record[key] for key in groups}
+                changed = json.loads(json.dumps(baseline))
+                changed[group] = {'changed': True}
+                with patch.object(crm_host, 'ROOT', root), patch.object(crm_host, 'RELEASES', root / 'releases'), \
+                     patch.object(crm_host, 'EVIDENCE', evidence), patch.object(crm_host, 'SNAPSHOT', snapshot), \
+                     patch.object(crm_host, 'command', return_value='verified'), \
+                     patch.object(crm_host, 'current_snapshot_metadata', side_effect=[baseline, changed]), \
+                     patch.object(crm_host, 'routes_snapshot', return_value=self.record['routes']):
+                    with self.assertRaisesRegex(crm_host.Refusal, 'metadata changed'):
+                        crm_host.capture_baseline(release, self.digest)
+                self.assertFalse(evidence.exists())
 
     def test_safe_file_hashes_pin_only_bambola_runtime_env_contents(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -171,6 +220,38 @@ class CrmHostGuardTests(unittest.TestCase):
     def test_untrusted_tls_or_route_status_aborts(self):
         self.assert_changed(lambda c: c['routes'][crm_host.ROUTES[0]].__setitem__(0, {'status': 200, 'tlsVerified': False}), 'route')
         self.assert_changed(lambda c: c['routes'][crm_host.ROUTES[0]].__setitem__(0, {'status': 503, 'tlsVerified': True}), 'route')
+        self.assert_changed(lambda c: c['routes'][crm_host.ROUTES[0]].append({'status': 418, 'tlsVerified': True, 'location': None}), 'route')
+        self.assert_changed(lambda c: c['routes'][crm_host.ROUTES[0]].append({'status': 307, 'tlsVerified': True, 'location': 'https://elsewhere.test/'}), 'route')
+
+    def test_runtime_check_requests_one_route_round_without_sleep(self):
+        with patch.object(crm_host, '_snapshot_read', return_value=self.record), \
+             patch.object(crm_host, '_manifest_release', return_value=Path('/release')), \
+             patch.object(crm_host, 'current_snapshot_fields', return_value=self.current()) as capture, \
+             patch.object(crm_host, 'verify_snapshot_state'):
+            crm_host.check_current(self.digest, 'b' * 64)
+        capture.assert_called_once_with(Path('/release'), route_samples=1)
+
+    def test_baseline_sampling_uses_five_second_spacing(self):
+        class Pool:
+            def __init__(self, **kwargs):
+                self.max_workers = kwargs['max_workers']
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return False
+
+            def map(self, fn, urls):
+                return [fn(url) for url in urls]
+
+        with patch.object(crm_host, 'ROUTES', ['example.test/']), \
+             patch.object(crm_host, 'ThreadPoolExecutor', Pool), \
+             patch.object(crm_host, 'route_probe', return_value=self.route), \
+             patch.object(crm_host.time, 'sleep') as sleep:
+            observed = crm_host.routes_snapshot(3, 5)
+        self.assertEqual(observed, {'example.test/': [self.route]})
+        self.assertEqual([call.args[0] for call in sleep.call_args_list], [5, 5])
 
 
 if __name__ == '__main__':

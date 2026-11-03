@@ -27,3 +27,11 @@ Approved minimal implementation: baseline120rounds,5second spacing (nominal10min
 Tests: exact union without injection; baseline-only extended timing; all five metadata drift cases refuse before snapshot write; stable same-schema snapshot; unknown third status/location and invalidTLS rejected; all existing host/build/rollout regression checks. Maximum cache dwell is UNKNOWN: ten minutes is a bounded observation, not a guarantee of collecting both variants.
 
 Review1 complete; conservatively reserve240seconds from900second new-task reviewerbudget (native elapsed not available). Remaining two required reviews capped together660seconds. Prior cycle counters remain unchanged. Worker owns only crm_host.py and test_crm_host.py; no application or externalservice writes.
+
+Implementation work unit: first local r4 frozen e209a0a9a2e6ae1e9a29acd2803335ffa58178f3dc35016c110c535c295abb97, not uploaded or reviewed post-code. Parent acceptance check caught missing positive-resource assertion before snapshot creation; same work unit is completing that requirement and restoring no final unnecessary sampler sleep. r4 will remain immutable; final candidate r5 forthcoming. Actual suite output says75tests total with1skip (74passed), not75passed plus1skip.
+
+## Final candidate and actual checks
+
+r5 immutable directory C:/Users/stefa/bambola-runtime/releases/20261103-crm-r5;538files; SHA45264e6856db1c76130712963043ddf98ea075c85b86e1eeb809b85a28c929b3. Only crm_host.py/test_crm_host.py differ from reviewed r3. Positive-resource assertion added before freeze; no last unnecessary sampler sleep. Parent rerun:76tests total,75passed,1skipped (Windows symlink). No actualDNS mutation: the test suite's 'DNS intent recorded' output is from a synthetic unit fixture.
+
+Fresh Claude review2 started01:03UTC with300second process cap; fresh Sol review3 started concurrently with300second cap. Budget reserve240+300+300=840seconds below900; no double counting or claim of native token cost. No remote build/activation before both verdicts. Immutable source upload is preparation only.

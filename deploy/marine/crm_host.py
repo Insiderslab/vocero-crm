@@ -27,6 +27,8 @@ BUILDER_NAME = 'buildx_buildkit_bambola-arm-builder0'
 PROJECT = 'bambola-arm'
 DOMAIN = 'bambola.heili.cloud'
 SCHEMA_VERSION = 1
+BASELINE_ROUTE_ROUNDS = 120
+BASELINE_ROUTE_INTERVAL_SECONDS = 5
 SHA_RE = re.compile(r'^[0-9a-f]{64}$')
 ROUTES = [
     'hair.heili.cloud/oggi', 'app.heili.cloud/', 'api.heili.cloud/',
@@ -225,7 +227,7 @@ def route_probe(url: str) -> dict:
     return {'status': int(parts[0]), 'tlsVerified': parts[1] == '0', 'location': location}
 
 
-def routes_snapshot(samples: int = 10) -> dict[str, list[dict]]:
+def routes_snapshot(samples: int = 1, interval_seconds: int = 1) -> dict[str, list[dict]]:
     observed = {url: set() for url in ROUTES}
     def probe(url: str) -> tuple[str, dict]:
         return url, route_probe(url)
@@ -235,8 +237,8 @@ def routes_snapshot(samples: int = 10) -> dict[str, list[dict]]:
                 if not result['tlsVerified']:
                     raise Refusal('TLS verification failed for a baseline route.')
                 observed[url].add(json.dumps(result, sort_keys=True))
-            if index + 1 < samples:
-                time.sleep(1)
+            if index + 1 < samples and interval_seconds:
+                time.sleep(interval_seconds)
     return {url: [json.loads(value) for value in sorted(values)] for url, values in observed.items()}
 
 
@@ -264,7 +266,7 @@ def _owned_services(containers: list[dict]) -> dict[str, dict]:
     return {'app': by_name[APP_NAME], 'gateway': by_name[GATEWAY_NAME]}
 
 
-def current_snapshot_fields(release: Path, route_samples: int = 10) -> dict:
+def current_snapshot_metadata(release: Path) -> dict:
     containers = containers_snapshot()
     caddy_container = _caddy_record(containers)
     if CADDY_CONFIG.is_symlink() or not CADDY_CONFIG.is_file():
@@ -278,8 +280,14 @@ def current_snapshot_fields(release: Path, route_samples: int = 10) -> dict:
         'containers': containers,
         'ownedAppGateway': _owned_services(containers),
         'networks': networks_snapshot(),
-        'routes': routes_snapshot(route_samples),
         'configFiles': safe_file_hashes(release),
+    }
+
+
+def current_snapshot_fields(release: Path, route_samples: int = 1) -> dict:
+    return {
+        **current_snapshot_metadata(release),
+        'routes': routes_snapshot(route_samples),
         'resources': resources_snapshot(),
     }
 
@@ -367,7 +375,15 @@ def capture_baseline(release_path: Path, manifest_digest: str) -> dict:
         raise Refusal('Fixed evidence parent must not be a symlink.')
     if EVIDENCE.exists() or EVIDENCE.is_symlink() or SNAPSHOT.exists() or SNAPSHOT.is_symlink():
         raise Refusal('Fresh snapshot path already exists; refusing reuse or overwrite.')
-    fields = current_snapshot_fields(release)
+    before = current_snapshot_metadata(release)
+    routes = routes_snapshot(BASELINE_ROUTE_ROUNDS, BASELINE_ROUTE_INTERVAL_SECONDS)
+    after = current_snapshot_metadata(release)
+    if before != after:
+        raise Refusal('Host, Caddy, network, container, or safe config metadata changed during route baseline capture.')
+    resources = resources_snapshot()
+    if not resources['memAvailableKiB'] or not resources['optFreeKiB']:
+        raise Refusal('Host resource availability could not be verified.')
+    fields = {**after, 'routes': routes, 'resources': resources}
     record = {
         'schemaVersion': SCHEMA_VERSION,
         'manifestSha256': manifest_digest,
