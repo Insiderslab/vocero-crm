@@ -1,3 +1,5 @@
+> Aggiornamento conclusivo 3 novembre 2026: r9 pubblicato e verificato. Il contenuto sottostante conserva la cronologia dei candidati precedenti. Stato e prove finali: [CRM-RECOVERY-STATUS.md](CRM-RECOVERY-STATUS.md).
+
 # Candidato di rilascio CRM — 3 novembre 2026
 
 Richiesta attuale: proseguire sulla piattaforma e pubblicare la nuova versione; presentazione per il padre di Stefano in spagnolo. La pubblicazione resta già autorizzata. Nessuna nuova autorizzazione di deploy è richiesta.
@@ -64,3 +66,4 @@ Questa sezione sostituisce gli stati temporali precedenti. Due build private r3 
 - Nessun terzo tentativo, nessun ulteriore rinnovo della baseline, nessuna esclusione di rotta o indebolimento del guard. Non è possibile dichiarare il rilascio riuscito. La review di codice e il gate operativo rimangono distinti.
 
 Per riprendere: risolvere o spiegare con evidenza la variazione esterna nel relativo progetto, oppure progettare e revisionare una verifica di salute adatta al comportamento legittimo. Non cancellare le evidenze e non far passare automaticamente200/307. Il deploy resta autorizzato, quindi non serve ripetere la richiesta di permesso per pubblicare; restano i controlli tecnici necessari e gli eventuali limiti del ciclo di revisione.
+

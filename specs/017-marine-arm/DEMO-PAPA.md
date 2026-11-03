@@ -1,3 +1,5 @@
+> Actualización del 3 de noviembre de 2026: la versión r9 ya está publicada y verificada en https://bambola.heili.cloud. Esta guía conserva el diseño previsto; las ampliaciones indicadas siguen pendientes. Presentación visual: C:/Users/stefa/bambola-runtime/presentacion-papa/output/La-Bambola-Guia-Visual-Completa.pptx. Estado comprobado: [CRM-RECOVERY-STATUS.md](CRM-RECOVERY-STATUS.md).
+
 # La Bambola: vender, organizar y embarcar desde un solo sistema
 
 Presentación para la familia y el equipo. Capacidad máxima de la embarcación:130 pasajeros. Ejemplos con personas y reservas ficticias.
@@ -60,3 +62,4 @@ No presentar la versión publicada como si ya incluyera las mejoras locales. No 
 - ¿Se entiende cuándo un pasajero está registrado, confirmado y realmente a bordo?
 
 Usar solo datos ficticios. Anotar las dificultades observadas para corregirlas, sin dar por completada una función que todavía está en proyecto.
+

@@ -28,3 +28,7 @@ Correction frozen asr8,541files,manifestce601db7f67f54d11593aaf26b8b4c9abe90538b
 Authorizedextension results: SolBLOCKEDonly acceptanceevidence;ClaudeINCOMPLETE APImax_output_tokens after248.11s and4automaticAPIattempts. TwoCLI/agentreviewinvocationsconsumed; conservative488.11/600s. Details evidence-r8-postcode.md. Tests-onlycorrection underway; no new reviewcalls or releaseactions.
 
 Tests-only correction frozenr9:541files,manifestef7bcab49494bf0577afec816dc239778db27cf4b470b596600a3cef96042bd7. Comparedr8manifest ONLYtests/test_crm_capture_proven.py differs. Exactfrozen94total93pass1skip; parentverifiedmanifest. Actualphasegated7checkpointmatrix withpre-renameinode persistence/all3consumer refusals, invalidschema2auditsthroughbuild/prepare, re-boundUTCcase, allowed+extraNONAPPoutcome. Runtime/appbyteidenticaltor8. Prepared freshClaudeCLI mediumeffort/24000outputceiling,notexecuted; neednewreviewcallallocation. No new remoteactivation.
+
+2026-11-03 11:40UTC: owner explicitly approves2furtherreviews/600seconds andpublicationifpassed. Preservepriorcounters; r9 tests-onlycorrection remainsimmutable. LaunchClaude300s/Sol240s. Useralsoasks presentation; prepareSpanishfamilydeckwithoutclaimingnewreleaseonline.
+
+R9ClaudePASSconditional runtimegates, measured143.87s; freshSolPASSconditional verifiedmanifestbefore/after and94total93pass1skip, reserve240s upper. Bothfindingsclosed, no newmaterialissues. Extension383.87/600supper; priorcountersretained. Proceedonhostpreflight/capture/build/activation, no claimruntimePASSyet.
