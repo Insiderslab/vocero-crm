@@ -26,7 +26,7 @@ PANEL_OVERRIDE = RUNTIME / 'panels-20261102.override.yml'
 STATE_DIR = crm_host.EVIDENCE
 PLAN = STATE_DIR / 'activation-plan.json'
 LOCK = STATE_DIR / 'activation.lock'
-OP_LOCK = STATE_DIR / 'rollout-operation.lock'
+OP_LOCK = ROOT / 'evidence' / 'crm-recovery-operation.lock'
 APP = crm_host.APP_NAME
 GATEWAY = crm_host.GATEWAY_NAME
 CADDY = crm_host.CADDY_NAME
@@ -282,7 +282,7 @@ def validate_compose_delta(old: dict, candidate: dict, *, expected_image: str, e
         raise Refusal('Effective Compose config changes settings outside app image/profile and gateway file mount.')
 
 
-def prepare(release_path: Path, manifest: str, snapshot_hash: str, image_id: str) -> dict:
+def _prepare(release_path: Path, manifest: str, snapshot_hash: str, image_id: str) -> dict:
     if PLAN.exists() or PLAN.is_symlink():
         raise Refusal('Activation plan already exists; refusing overwrite.')
     release = crm_host._manifest_release(release_path, manifest)
@@ -307,6 +307,11 @@ def prepare(release_path: Path, manifest: str, snapshot_hash: str, image_id: str
         raise Refusal('Prepared config digest changed before activation plan creation.')
     private_file(PLAN,(json.dumps(plan,sort_keys=True,indent=2)+'\n').encode(),0o600)
     return _phase_update(plan,'plan','prepared')
+
+
+def prepare(release_path: Path, manifest: str, snapshot_hash: str, image_id: str) -> dict:
+    with operation_lock():
+        return _prepare(release_path, manifest, snapshot_hash, image_id)
 
 
 def _remove_own(records: list[dict]) -> list[dict]:

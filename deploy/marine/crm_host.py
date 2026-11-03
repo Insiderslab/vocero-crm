@@ -19,6 +19,17 @@ ROOT = Path('/opt/bambola-arm')
 RELEASES = ROOT / 'releases'
 EVIDENCE = ROOT / 'evidence' / 'crm-recovery'
 SNAPSHOT = EVIDENCE / 'host-readonly-snapshot.json'
+ROUTE_AUDIT = EVIDENCE / 'route-source-proofs.json'
+SOURCE_PROOFS = [
+    (Path('/opt/bambola-arm/evidence/crm-recovery-failed-r3-20261103T0038Z/host-readonly-snapshot.json'),
+     '5096137bffd49af345d700784900146bafdec6e643f18c260c0eedffc6e34408',
+     'd4c1de657f7e866b024d5c6106ae2c28a035d000e8ec06bc5c56087be0849c76'),
+    (Path('/opt/bambola-arm/evidence/crm-recovery-before-r5-20261103/host-readonly-snapshot.json'),
+     '4e5740855789715c015080e85af49d0f748898d8510d63f6fe5b86845c83e609',
+     'd4c1de657f7e866b024d5c6106ae2c28a035d000e8ec06bc5c56087be0849c76'),
+]
+PRIOR_COMPOSE = '/opt/bambola-arm/releases/20261103-crm-r3/deploy/marine/compose.ubuntu.yml'
+PRIOR_GATEWAY_TEMPLATE = '/opt/bambola-arm/releases/20261103-crm-r3/deploy/marine/gateway.crm.Caddyfile.template'
 CADDY_CONFIG = Path('/opt/heili/app/infra/Caddyfile')
 CADDY_NAME = 'second-brain-caddy-1'
 APP_NAME = 'bambola-arm-app-1'
@@ -311,10 +322,20 @@ def _manifest_release(path: Path, digest: str) -> Path:
     return release
 
 
+def _snapshot_modes_private() -> bool:
+    return os.name != 'posix' or (SNAPSHOT.stat().st_mode & 0o777 == 0o600 and EVIDENCE.stat().st_mode & 0o777 == 0o700)
+
+
+def _snapshot_root_owned() -> bool:
+    return os.name != 'posix' or SNAPSHOT.stat().st_uid == 0
+
+
 def _snapshot_read(manifest_digest: str, snapshot_digest: str) -> dict:
     if ROOT.is_symlink() or (ROOT / 'evidence').is_symlink() or EVIDENCE.is_symlink() or SNAPSHOT.is_symlink() or not SNAPSHOT.is_file():
         raise Refusal('Fresh CRM recovery snapshot is missing or unsafe.')
-    if os.name == 'posix' and ((SNAPSHOT.stat().st_mode & 0o777) != 0o600 or (EVIDENCE.stat().st_mode & 0o777) != 0o700):
+    if not _snapshot_root_owned():
+        raise Refusal('Snapshot must be root-owned.')
+    if not _snapshot_modes_private():
         raise Refusal('Snapshot directory or file permissions are not private.')
     try:
         raw = SNAPSHOT.read_bytes()
@@ -325,13 +346,16 @@ def _snapshot_read(manifest_digest: str, snapshot_digest: str) -> dict:
         raise
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise Refusal('Snapshot JSON is malformed.') from exc
+    schema = data.get('schemaVersion') if isinstance(data, dict) else None
     expected_keys = {
         'schemaVersion', 'manifestSha256', 'capturedAt', 'target', 'caddy',
         'containers', 'ownedAppGateway', 'networks', 'routes', 'configFiles', 'resources',
     }
+    if schema == 2:
+        expected_keys |= {'routeEvidenceSha256'}
     if not isinstance(data, dict) or set(data) != expected_keys:
         raise Refusal('Snapshot schema is invalid.')
-    if type(data['schemaVersion']) is not int or data['schemaVersion'] != SCHEMA_VERSION or data['manifestSha256'] != manifest_digest:
+    if type(data['schemaVersion']) is not int or data['schemaVersion'] not in (1, 2) or data['manifestSha256'] != manifest_digest:
         raise Refusal('Snapshot schema or manifest does not match this build.')
     try:
         timestamp = datetime.fromisoformat(data['capturedAt'].replace('Z', '+00:00'))
@@ -341,7 +365,138 @@ def _snapshot_read(manifest_digest: str, snapshot_digest: str) -> dict:
         raise Refusal('Snapshot timestamp must include a timezone.')
     if data['target'] != {'root': str(ROOT), 'project': PROJECT, 'domain': DOMAIN}:
         raise Refusal('Snapshot target is invalid.')
+    if schema == 2:
+        if timestamp.utcoffset().total_seconds() != 0 or _canonical(data) != raw:
+            raise Refusal('Schema 2 snapshot must use canonical UTC encoding.')
+        try:
+            _validate_route_evidence(data)
+        except Refusal:
+            raise
+        except (KeyError, TypeError, AttributeError, IndexError) as exc:
+            raise Refusal('Schema 2 route provenance is incomplete or malformed.') from exc
     return data
+
+
+def _private_root_file(path: Path) -> bytes:
+    if ROOT.is_symlink() or (ROOT / 'evidence').is_symlink():
+        raise Refusal('The fixed evidence root is unsafe.')
+    if path.is_symlink() or not path.is_file():
+        raise Refusal('A required private route provenance file is missing or unsafe.')
+    if os.name == 'posix' and (path.stat().st_uid != 0 or path.stat().st_mode & 0o777 != 0o600):
+        raise Refusal('A route provenance file has unsafe ownership or permissions.')
+    current = path.parent
+    evidence_root = ROOT / 'evidence'
+    while current == evidence_root or evidence_root in current.parents:
+        if current.is_symlink() or not current.is_dir():
+            raise Refusal('A route provenance path has an unsafe directory component.')
+        if os.name == 'posix' and (current.stat().st_uid != 0 or current.stat().st_mode & 0o777 != 0o700):
+            raise Refusal('A route provenance directory has unsafe ownership or permissions.')
+        if current == evidence_root: break
+        current = current.parent
+    return path.read_bytes()
+
+
+def _canonical(value: object) -> bytes:
+    return (json.dumps(value, sort_keys=True, indent=2) + '\n').encode('utf-8')
+
+
+def _validate_route_evidence(baseline: dict) -> None:
+    raw_audit = _private_root_file(ROUTE_AUDIT)
+    if not SHA_RE.fullmatch(baseline['routeEvidenceSha256'] or '') or sha(raw_audit) != baseline['routeEvidenceSha256']:
+        raise Refusal('Route provenance digest does not match the schema 2 baseline.')
+    try:
+        audit = json.loads(raw_audit.decode('utf-8'))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise Refusal('Route provenance JSON is malformed.') from exc
+    keys = {'schemaVersion', 'capturedAt', 'manifestSha256', 'sources', 'currentRoutes', 'derivedAppRoutes'}
+    if not isinstance(audit, dict) or set(audit) != keys or type(audit['schemaVersion']) is not int or audit['schemaVersion'] != 1 or _canonical(audit) != raw_audit:
+        raise Refusal('Route provenance schema or canonical encoding is invalid.')
+    if audit['capturedAt'] != baseline['capturedAt'] or audit['manifestSha256'] != baseline['manifestSha256']:
+        raise Refusal('Route provenance is not bound to this snapshot.')
+    try:
+        captured = datetime.fromisoformat(audit['capturedAt'].replace('Z', '+00:00'))
+        if captured.tzinfo is None or captured.utcoffset().total_seconds() != 0:
+            raise ValueError('timezone')
+    except (AttributeError, TypeError, ValueError) as exc:
+        raise Refusal('Route provenance timestamp is invalid.') from exc
+    source_records = []
+    for (path, digest, manifest), item in zip(SOURCE_PROOFS, audit['sources'] if isinstance(audit['sources'], list) else []):
+        if not isinstance(item, dict) or set(item) != {'path', 'sha256', 'manifestSha256'} or item != {'path': str(path), 'sha256': digest, 'manifestSha256': manifest}:
+            raise Refusal('Route provenance source identity is invalid.')
+        raw = _private_root_file(path)
+        if sha(raw) != digest:
+            raise Refusal('Pinned source route proof digest changed.')
+        try: source = json.loads(raw.decode('utf-8'))
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc: raise Refusal('Pinned source proof is malformed.') from exc
+        source_keys = {'schemaVersion', 'manifestSha256', 'capturedAt', 'target', 'caddy', 'containers', 'ownedAppGateway', 'networks', 'routes', 'configFiles', 'resources'}
+        if not isinstance(source, dict) or set(source) != source_keys or type(source.get('schemaVersion')) is not int or source['schemaVersion'] != 1 or source.get('manifestSha256') != manifest or source.get('target') != {'root': str(ROOT), 'project': PROJECT, 'domain': DOMAIN}:
+            raise Refusal('Pinned source proof schema, target, or manifest is invalid.')
+        if not isinstance(source['resources'], dict) or set(source['resources']) != {'memAvailableKiB', 'optFreeKiB'} or any(type(value) is not int or value <= 0 for value in source['resources'].values()):
+            raise Refusal('Pinned source proof resources are invalid.')
+        try:
+            source_release = Path(source['configFiles']['compose']['path']).parents[2]
+            _manifest_release(source_release, manifest)
+        except (KeyError, IndexError, TypeError) as exc:
+            raise Refusal('Pinned source release path is invalid.') from exc
+        source_records.append(source)
+    if len(source_records) != 2 or not isinstance(audit['sources'], list) or len(audit['sources']) != 2:
+        raise Refusal('Exactly two pinned route proofs are required.')
+    groups = ('caddy', 'containers', 'ownedAppGateway', 'networks', 'configFiles')
+    if any(source_records[0][key] != source_records[1][key] for key in groups):
+        raise Refusal('Pinned source proof metadata differs.')
+    if not isinstance(baseline['resources'], dict) or set(baseline['resources']) != {'memAvailableKiB', 'optFreeKiB'} or any(type(value) is not int or value <= 0 for value in baseline['resources'].values()):
+        raise Refusal('Schema 2 snapshot resources are invalid.')
+    for source in source_records:
+        try:
+            source_time = datetime.fromisoformat(source['capturedAt'].replace('Z', '+00:00'))
+            if source_time.tzinfo is None or source_time.utcoffset().total_seconds() != 0 or source_time > captured or (captured - source_time).total_seconds() > 24 * 60 * 60:
+                raise ValueError('source time range')
+        except (KeyError, AttributeError, TypeError, ValueError) as exc:
+            raise Refusal('Pinned source proof timestamp is invalid or outside the capture window.') from exc
+    release_path = Path(baseline['configFiles']['compose']['path']).parents[2]
+    release = _manifest_release(release_path, baseline['manifestSha256'])
+    source_metadata = {key: source_records[0][key] for key in groups}
+    config_files = source_metadata['configFiles']
+    current_config = baseline['configFiles']
+    for key, old_path in (('compose', PRIOR_COMPOSE), ('gatewayTemplate', PRIOR_GATEWAY_TEMPLATE)):
+        if config_files.get(key, {}).get('path') != old_path or config_files[key].get('sha256') != current_config[key].get('sha256'):
+            raise Refusal('Pinned release source path or hash is invalid.')
+        config_files[key]['path'] = current_config[key]['path']
+    if current_config['compose']['path'] != str(release / 'deploy/marine/compose.ubuntu.yml') or current_config['gatewayTemplate']['path'] != str(release / 'deploy/marine/gateway.crm.Caddyfile.template'):
+        raise Refusal('Baseline release source paths are not the exact reviewed files.')
+    if any(source_metadata[key] != baseline[key] for key in groups):
+        raise Refusal('Baseline protected metadata differs from the pinned source proofs.')
+    app_url = 'app.heili.cloud/'
+    derived = sorted({json.dumps(value, sort_keys=True) for source in source_records for value in source['routes'][app_url]})
+    derived = [json.loads(value) for value in derived]
+    expected = [{'status': 200, 'tlsVerified': True, 'location': None}, {'status': 307, 'tlsVerified': True, 'location': 'https://app.heili.cloud/dashboard'}]
+    if {json.dumps(v, sort_keys=True) for v in derived} != {json.dumps(v, sort_keys=True) for v in expected} or audit['derivedAppRoutes'] != derived or baseline['routes'].get(app_url) != derived:
+        raise Refusal('The source-derived app route union is invalid.')
+    if not isinstance(audit['currentRoutes'], dict) or set(audit['currentRoutes']) != set(ROUTES) or set(baseline['routes']) != set(ROUTES):
+        raise Refusal('Route provenance route keys are invalid.')
+    for url in ROUTES:
+        if any(not isinstance(source.get('routes'), dict) or set(source['routes']) != set(ROUTES) for source in source_records):
+            raise Refusal('Pinned source route keys are invalid.')
+        prior = [source['routes'].get(url) for source in source_records]
+        for route_set in prior:
+            if not isinstance(route_set, list) or not route_set or route_set != sorted(route_set, key=lambda value: json.dumps(value, sort_keys=True)):
+                raise Refusal('Pinned source route outcomes are malformed or unsorted.')
+            for item in route_set:
+                if not isinstance(item, dict) or set(item) != {'status', 'tlsVerified', 'location'} or type(item['status']) is not int or type(item['tlsVerified']) is not bool or item['tlsVerified'] is not True or (item['location'] is not None and not isinstance(item['location'], str)):
+                    raise Refusal('Pinned source route outcome is malformed.')
+        fresh = audit['currentRoutes'][url]
+        if not isinstance(fresh, list) or not fresh or len({json.dumps(v, sort_keys=True) for v in fresh}) != len(fresh):
+            raise Refusal('Fresh route provenance outcomes are invalid.')
+        if fresh != sorted(fresh, key=lambda value: json.dumps(value, sort_keys=True)) or baseline['routes'][url] != sorted(baseline['routes'][url], key=lambda value: json.dumps(value, sort_keys=True)):
+            raise Refusal('Route provenance outcomes are not canonically sorted.')
+        if url == app_url:
+            if any(v not in derived for v in fresh): raise Refusal('Fresh app route is outside the source-derived union.')
+        else:
+            if prior[0] != prior[1] or len(prior[0]) != 1 or fresh != prior[0] or baseline['routes'][url] != prior[0]:
+                raise Refusal('A non-app route differs from the pinned proofs.')
+        for item in fresh + baseline['routes'][url]:
+            if not isinstance(item, dict) or set(item) != {'status', 'tlsVerified', 'location'} or type(item['status']) is not int or type(item['tlsVerified']) is not bool or item['tlsVerified'] is not True or (item['location'] is not None and not isinstance(item['location'], str)):
+                raise Refusal('A route provenance outcome is malformed.')
 
 
 def _write_snapshot_exclusive(encoded: bytes) -> None:

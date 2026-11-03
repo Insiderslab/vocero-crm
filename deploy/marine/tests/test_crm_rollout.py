@@ -159,6 +159,18 @@ class CrmRolloutTests(unittest.TestCase):
             with self.assertRaisesRegex(rollout.Refusal,'Only a prepared plan'): rollout.activate('a'*64,'b'*64)
         check.assert_not_called()
 
+    def test_prepare_holds_shared_parent_lock_before_operational_body(self):
+        with tempfile.TemporaryDirectory() as td:
+            lock=Path(td)/'operation.lock'
+            with patch.object(rollout,'OP_LOCK',lock),patch.object(rollout,'_prepare') as body:
+                body.side_effect=lambda *args: self.assertTrue(lock.exists())
+                rollout.prepare(Path('/release'),'a'*64,'b'*64,'sha256:'+'c'*64)
+                body.assert_called_once()
+            lock.write_text('held',encoding='utf-8')
+            with patch.object(rollout,'OP_LOCK',lock),patch.object(rollout,'_prepare') as body:
+                with self.assertRaises(rollout.Refusal): rollout.prepare(Path('/release'),'a'*64,'b'*64,'sha256:'+'c'*64)
+                body.assert_not_called()
+
     def test_activation_stops_on_preflight_drift_before_compose(self):
         plan={'phase':'prepared'}
         with tempfile.TemporaryDirectory() as td, patch.object(rollout,'OP_LOCK',Path(td)/'operation.lock'), \

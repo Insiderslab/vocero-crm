@@ -3,6 +3,7 @@
 import argparse, json, os, re, subprocess, sys, threading, time
 from datetime import datetime, timezone
 from pathlib import Path
+import crm_rollout
 
 ROOT = Path('/opt/bambola-arm')
 BUILDER = 'bambola-arm-builder'
@@ -28,7 +29,7 @@ def parse_image_identity(output, manifest_digest):
     return image_id, source_label, valid
 
 
-def main():
+def _main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--release', required=True, type=Path)
     parser.add_argument('--manifest-sha256', required=True)
@@ -169,6 +170,11 @@ def main():
     if not image_identity_ok:
         raise RuntimeError('Built image ID or manifest label failed verification.')
     print('Reviewed image built; private result: ' + result_path.name)
+
+
+def main():
+    with crm_rollout.operation_lock():
+        return _main()
 
 if __name__ == '__main__':
     os.umask(0o077)
