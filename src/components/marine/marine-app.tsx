@@ -75,7 +75,7 @@ export function MarineApp({ view = "legacy" }: { view?: "legacy" | "crm" | "crew
       if (version !== refreshVersion.current) return;
       if (!response.ok) throw new Error(body.message || body.error?.message || "No se pudo cargar la información.");
       setData(body as ApiState); setSelectedId(tripId || body.trip?.id || body.trips?.[0]?.id || ""); setConnected(true); setError(""); setDetailLoading(false);
-    } catch (e) { if (e instanceof DOMException && e.name === "AbortError") return; if (version === refreshVersion.current) { setConnected(false); setError(errorText(e)); setDetailLoading(false); } }
+    } catch (e) { if (e instanceof DOMException && e.name === "AbortError") return; if (version === refreshVersion.current) { setConnected(false); setError(e instanceof TypeError || e instanceof SyntaxError ? "No pudimos actualizar la información. Pulsa Actualizar para volver a cargarla." : errorText(e)); setDetailLoading(false); } }
   }, [session]);
   useEffect(() => { void refresh(selectedId || undefined); }, [refresh, selectedId]);
   useEffect(() => { if (!data?.organizationId || !selectedId) return; const key = `marine-offline:${data.organizationId}:${selectedId}`; setOfflineMarker(localStorage.getItem(key) || ""); }, [data?.organizationId, selectedId]);
