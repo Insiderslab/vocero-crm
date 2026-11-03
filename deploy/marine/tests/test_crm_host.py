@@ -100,7 +100,8 @@ class CrmHostGuardTests(unittest.TestCase):
 
     def test_baseline_refuses_nonpositive_resource_values_before_evidence_creation(self):
         for key in ('memAvailableKiB', 'optFreeKiB'):
-            with self.subTest(key=key), tempfile.TemporaryDirectory() as directory:
+            for invalid in (0, -1):
+              with self.subTest(key=key, value=invalid), tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
                 release = root / 'releases' / 'r1'
                 (release / 'deploy/marine').mkdir(parents=True)
@@ -108,7 +109,7 @@ class CrmHostGuardTests(unittest.TestCase):
                 evidence = root / 'evidence' / 'crm-recovery'
                 snapshot = evidence / 'host-readonly-snapshot.json'
                 metadata = {field: self.record[field] for field in ('caddy', 'containers', 'ownedAppGateway', 'networks', 'configFiles')}
-                resources = dict(self.record['resources'], **{key: 0})
+                resources = dict(self.record['resources'], **{key: invalid})
                 with patch.object(crm_host, 'ROOT', root), patch.object(crm_host, 'RELEASES', root / 'releases'), \
                      patch.object(crm_host, 'EVIDENCE', evidence), patch.object(crm_host, 'SNAPSHOT', snapshot), \
                      patch.object(crm_host, 'command', return_value='verified'), \
@@ -223,6 +224,39 @@ class CrmHostGuardTests(unittest.TestCase):
         self.assert_changed(lambda c: c['routes'][crm_host.ROUTES[0]].append({'status': 418, 'tlsVerified': True, 'location': None}), 'route')
         self.assert_changed(lambda c: c['routes'][crm_host.ROUTES[0]].append({'status': 307, 'tlsVerified': True, 'location': 'https://elsewhere.test/'}), 'route')
 
+    def test_observed_route_alternation_records_exact_union_and_accepts_known_member(self):
+        class Pool:
+            def __init__(self, **kwargs):
+                pass
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return False
+
+            def map(self, fn, urls):
+                return [fn(url) for url in urls]
+
+        outcomes = iter([
+            {'status': 200, 'tlsVerified': True, 'location': None},
+            {'status': 307, 'tlsVerified': True, 'location': 'https://app.heili.cloud/dashboard'},
+            {'status': 200, 'tlsVerified': True, 'location': None},
+        ])
+        with patch.object(crm_host, 'ROUTES', ['app.heili.cloud/']), \
+             patch.object(crm_host, 'ThreadPoolExecutor', Pool), \
+             patch.object(crm_host, 'route_probe', side_effect=lambda url: next(outcomes)), \
+             patch.object(crm_host.time, 'sleep'):
+            observed = crm_host.routes_snapshot(3, 5)
+        self.assertEqual(observed, {'app.heili.cloud/': [
+            {'status': 307, 'tlsVerified': True, 'location': 'https://app.heili.cloud/dashboard'},
+            {'status': 200, 'tlsVerified': True, 'location': None},
+        ]})
+        record = dict(self.record, routes={**self.record['routes'], 'app.heili.cloud/': observed['app.heili.cloud/']})
+        current = self.current()
+        current['routes']['app.heili.cloud/'] = [observed['app.heili.cloud/'][1]]
+        crm_host.verify_snapshot_state(record, current)
+
     def test_runtime_check_requests_one_route_round_without_sleep(self):
         with patch.object(crm_host, '_snapshot_read', return_value=self.record), \
              patch.object(crm_host, '_manifest_release', return_value=Path('/release')), \
@@ -230,6 +264,15 @@ class CrmHostGuardTests(unittest.TestCase):
              patch.object(crm_host, 'verify_snapshot_state'):
             crm_host.check_current(self.digest, 'b' * 64)
         capture.assert_called_once_with(Path('/release'), route_samples=1)
+
+    def test_runtime_verification_rejects_nonpositive_or_noninteger_resource_values(self):
+        for key in ('memAvailableKiB', 'optFreeKiB'):
+            for invalid in (0, -1, True, '100'):
+                with self.subTest(key=key, value=invalid):
+                    current = self.current()
+                    current['resources'][key] = invalid
+                    with self.assertRaisesRegex(crm_host.Refusal, 'resource availability'):
+                        crm_host.verify_snapshot_state(self.record, current)
 
     def test_baseline_sampling_uses_five_second_spacing(self):
         class Pool:

@@ -365,7 +365,7 @@ def verify_snapshot_state(record: dict, current: dict) -> None:
         accepted = {json.dumps(item, sort_keys=True) for item in record['routes'].get(url, [])}
         if not observed or any(json.dumps(item, sort_keys=True) not in accepted for item in observed):
             raise Refusal('A trusted route status or TLS baseline changed.')
-    if not current['resources']['memAvailableKiB'] or not current['resources']['optFreeKiB']:
+    if any(type(value) is not int or value <= 0 for value in current['resources'].values()):
         raise Refusal('Host resource availability could not be verified.')
 
 
@@ -381,7 +381,7 @@ def capture_baseline(release_path: Path, manifest_digest: str) -> dict:
     if before != after:
         raise Refusal('Host, Caddy, network, container, or safe config metadata changed during route baseline capture.')
     resources = resources_snapshot()
-    if not resources['memAvailableKiB'] or not resources['optFreeKiB']:
+    if any(type(value) is not int or value <= 0 for value in resources.values()):
         raise Refusal('Host resource availability could not be verified.')
     fields = {**after, 'routes': routes, 'resources': resources}
     record = {
