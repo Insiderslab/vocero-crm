@@ -1,0 +1,9 @@
+# R8 review extension — actual outcomes
+
+Owner authorized2additional reviews/600seconds on2026-11-03 at09:12UTC. Prior counters retained.
+
+Sol evidence_r8_final: BLOCKED on acceptance evidence. No materially supported implementation defect found; root-ownership correction verified. Missing checkpoint contention after rename, metadata/routes/mkdir/audit/baseline phases; missing invalid-audit checks through actual build/prepare consumer entries; timecase failed at hash before timevalidation; no exact allowed-plus-extra non-app readercase. Runtime code scope/manifest verified. Allocate conservative240seconds (parentobservedstarted09:13 andfinishedby09:17, nativecompute unavailable).
+
+Claude CLI: INCOMPLETE, exit1 after248.11seconds (not timeout). API reported max_output_tokens because the coordinator configured CLAUDE_CODE_MAX_OUTPUT_TOKENS=6000. The CLI automatically attempted4APIturns, all exhausted before a textual verdict; result reports24000outputtokens,23999thinkingtokens. This is not a security pass. One CLI review invocation;4underlyingattempts explicitly retained as evidence. No new manual retry is authorized by the completed2call allocation. MAX_THINKING_TOKENS setting did not constrain this adaptive model as intended. The next invocation must use a verified effort option and an adequate response ceiling; do not silently repeat the same configuration.
+
+Extension conservative time488.11/600seconds;2/2manualreviewinvocations consumed. Whole recorded time2235.77seconds (prior1747.66+488.11);14manualreviewinvocations. Remainingtime does not add permitted calls. A new tests-only correction is underway; production implementation must remain byte-identical to r8. No capture/build/activation. Read-onlymorningcheck still all5protectedgroupsunchanged,Hair307loginTLSvalid,Bambola200TLSvalid.

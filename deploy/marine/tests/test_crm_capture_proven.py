@@ -141,11 +141,15 @@ class ProvenCaptureTests(unittest.TestCase):
                     else: source['resources']['memAvailableKiB']=True
                     sources[0][0].write_bytes(capture.canonical(source)); sources[0]=(sources[0][0],host.sha(sources[0][0].read_bytes()),sources[0][2])
                     audit_data['sources'][0]['sha256']=sources[0][1]; audit.write_bytes(capture.canonical(audit_data))
-                if case not in ('audit_hash','source_hash') and case != 'baseline_time': baseline['routeEvidenceSha256']=host.sha(audit.read_bytes())
+                if case not in ('audit_hash','source_hash'): baseline['routeEvidenceSha256']=host.sha(audit.read_bytes())
                 snapshot.write_bytes(capture.canonical(baseline))
                 with patch.object(host,'EVIDENCE',evidence),patch.object(host,'SNAPSHOT',snapshot),patch.object(host,'ROUTE_AUDIT',audit), \
                      patch.object(host,'SOURCE_PROOFS',sources),patch.object(host,'_manifest_release',side_effect=lambda path,digest:Path(path)):
-                    with self.assertRaises(host.Refusal): host._snapshot_read('c'*64,host.sha(snapshot.read_bytes()))
+                    if case == 'baseline_time':
+                        with self.assertRaisesRegex(host.Refusal, 'canonical UTC'):
+                            host._snapshot_read('c'*64,host.sha(snapshot.read_bytes()))
+                    else:
+                        with self.assertRaises(host.Refusal): host._snapshot_read('c'*64,host.sha(snapshot.read_bytes()))
 
     def test_schema2_reader_rejects_private_mode_symlink_and_nonroot_snapshot(self):
         host=capture.crm_host
@@ -342,6 +346,135 @@ class ProvenCaptureTests(unittest.TestCase):
                 with self.assertRaises(capture.crm_host.Refusal): capture.capture_proven(release, 'c'*64)
             self.assertTrue((root/'evidence'/'archive').exists())
             self.assertFalse(evidence.exists())
+
+    def test_schema2_rejects_allowed_plus_extra_non_app_route_outcome(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td); evidence,release,sources,snapshot,audit,baseline=self.reader_fixture(root)
+            audit_data=json.loads(audit.read_text())
+            route='hair.heili.cloud/oggi'
+            self.assertIn(route,baseline['routes'])
+            audit_data['currentRoutes'][route].append({'status':503,'tlsVerified':True,'location':None})
+            audit_data['currentRoutes'][route]=sorted(audit_data['currentRoutes'][route],key=lambda value:json.dumps(value,sort_keys=True))
+            audit.write_bytes(capture.canonical(audit_data))
+            baseline['routeEvidenceSha256']=capture.crm_host.sha(audit.read_bytes())
+            snapshot.write_bytes(capture.canonical(baseline))
+            host=capture.crm_host
+            with patch.object(host,'EVIDENCE',evidence),patch.object(host,'SNAPSHOT',snapshot),patch.object(host,'ROUTE_AUDIT',audit), \
+                 patch.object(host,'SOURCE_PROOFS',sources),patch.object(host,'_manifest_release',side_effect=lambda path,digest:Path(path)):
+                with self.assertRaisesRegex(host.Refusal,'non-app route'):
+                    host._snapshot_read('c'*64,host.sha(snapshot.read_bytes()))
+
+    def test_operation_lock_refuses_all_entrypoints_at_each_capture_checkpoint(self):
+        checkpoints=('after_rename','metadata_before','routes','metadata_after','evidence_mkdir','audit_write','baseline_write')
+        for checkpoint in checkpoints:
+          with self.subTest(checkpoint=checkpoint),tempfile.TemporaryDirectory() as td:
+            root=Path(td); evidence,release,sources,snapshot,audit,baseline=self.reader_fixture(root)
+            snapshot.write_bytes(b'old')
+            source=json.loads(sources[0][0].read_text())
+            current={key:source[key] for key in ('caddy','containers','ownedAppGateway','networks','configFiles')}
+            current['configFiles']['compose']['path']=str(release/'deploy/marine/compose.ubuntu.yml')
+            current['configFiles']['gatewayTemplate']['path']=str(release/'deploy/marine/gateway.crm.Caddyfile.template')
+            lock=root/'operation.lock'; seen=[]; held={'inode':None}
+            def contend():
+                self.assertTrue(lock.exists(),checkpoint)
+                self.assertEqual(lock.stat().st_ino,held['inode'],checkpoint)
+                with patch.object(capture.crm_rollout,'OP_LOCK',lock),patch.object(capture.crm_rollout,'_prepare') as body:
+                    with self.assertRaises(capture.crm_rollout.Refusal): capture.crm_rollout.prepare(release,'a'*64,'b'*64,'sha256:'+'c'*64)
+                    body.assert_not_called()
+                with patch.object(capture.crm_rollout,'OP_LOCK',lock),patch.object(capture.crm_rollout,'_activate') as body:
+                    with self.assertRaises(capture.crm_rollout.Refusal): capture.crm_rollout.activate('a'*64,'b'*64)
+                    body.assert_not_called()
+                with patch.object(build.crm_rollout,'OP_LOCK',lock),patch.object(build,'_main') as body:
+                    with self.assertRaises(capture.crm_rollout.Refusal): build.main()
+                    body.assert_not_called()
+                self.assertEqual(lock.stat().st_ino,held['inode'])
+            original_rename=os.rename
+            def renamed(src,dst):
+                self.assertTrue(lock.exists())
+                held['inode']=lock.stat().st_ino
+                original_rename(src,dst)
+                self.assertTrue(lock.exists())
+                self.assertEqual(lock.stat().st_ino,held['inode'])
+                if checkpoint=='after_rename':
+                    contend(); seen.append('after_rename')
+            original_mkdir=Path.mkdir
+            def mkdir(path,*args,**kwargs):
+                result=original_mkdir(path,*args,**kwargs)
+                if Path(path)==evidence and checkpoint=='evidence_mkdir':
+                    contend(); seen.append('evidence_mkdir')
+                return result
+            original_write=capture._write
+            def write(path,data):
+                original_write(path,data)
+                if Path(path)==audit and checkpoint=='audit_write':
+                    contend(); seen.append('audit_write')
+                if Path(path)==snapshot and checkpoint=='baseline_write':
+                    contend(); seen.append('baseline_write')
+            calls={'metadata':0}
+            def metadata(_):
+                calls['metadata']+=1
+                key='metadata_before' if calls['metadata']==1 else 'metadata_after'
+                if checkpoint==key:
+                    contend(); seen.append(key)
+                return current
+            def routes_snapshot(**kwargs):
+                if checkpoint=='routes':
+                    contend(); seen.append('routes')
+                return baseline['routes']
+            with patch.object(capture.crm_host,'EVIDENCE',evidence),patch.object(capture.crm_host,'SNAPSHOT',snapshot), \
+                 patch.object(capture.crm_host,'ROUTE_AUDIT',audit),patch.object(capture.crm_host,'SOURCE_PROOFS',sources), \
+                 patch.object(capture,'PARENT',root/'evidence'),patch.object(capture,'ARCHIVE',root/'evidence'/'archive'), \
+                 patch.object(capture,'OLD_SNAPSHOT_SHA',capture.crm_host.sha(b'old')),patch.object(capture,'_check_runtime_state'), \
+                 patch.object(capture.crm_host,'_manifest_release',side_effect=lambda path,digest:Path(path)), \
+                 patch.object(capture.crm_host,'current_snapshot_metadata',side_effect=metadata), \
+                 patch.object(capture.crm_host,'routes_snapshot',side_effect=routes_snapshot), \
+                 patch.object(capture.crm_host,'resources_snapshot',return_value=baseline['resources']), \
+                 patch.object(capture.os,'rename',side_effect=renamed),patch.object(Path,'mkdir',autospec=True,side_effect=mkdir), \
+                 patch.object(capture,'_write',side_effect=write),patch.object(capture.crm_rollout,'OP_LOCK',lock):
+                capture.capture_proven(release,'c'*64)
+            self.assertEqual(seen,[checkpoint])
+            self.assertFalse(lock.exists())
+
+    def test_invalid_schema2_audit_stops_build_and_prepare_before_mutation(self):
+        for invalid in ('missing','tampered','incomplete'):
+          with self.subTest(invalid=invalid),tempfile.TemporaryDirectory() as td:
+            root=Path(td); evidence,fixture_release,sources,snapshot,audit,baseline=self.reader_fixture(root)
+            if invalid=='missing': audit.unlink()
+            elif invalid=='tampered': audit.write_bytes(audit.read_bytes()+b' ')
+            else:
+                audit.write_bytes(capture.canonical({}))
+                baseline['routeEvidenceSha256']=capture.crm_host.sha(audit.read_bytes())
+                snapshot.write_bytes(capture.canonical(baseline))
+            digest=capture.crm_host.sha(snapshot.read_bytes())
+            host=capture.crm_host
+            release=root/'releases'/'r1'; (release/'deploy/marine').mkdir(parents=True)
+            (release/'deploy/marine/Dockerfile').write_text('FROM scratch')
+            build_lock=root/'build.lock'; op_lock=root/'rollout.lock'; plan=root/'activation-plan.json'
+            calls=[]
+            def command_runner(args,**kwargs):
+                args=list(args); calls.append(args)
+                if args[0]=='docker' and args[1:3]==['buildx','create']:
+                    raise AssertionError('builder must not be created before schema 2 guard rejection')
+                if len(args)>1 and args[1]==str(release/'deploy/marine/manifest.py'):
+                    return SimpleNamespace(returncode=0)
+                if len(args)>1 and args[1]==str(release/'deploy/marine/crm_host.py'):
+                    host._snapshot_read('c'*64,digest)
+                return SimpleNamespace(returncode=0)
+            old_argv=__import__('sys').argv
+            with patch.object(host,'EVIDENCE',evidence),patch.object(host,'SNAPSHOT',snapshot),patch.object(host,'ROUTE_AUDIT',audit), \
+                 patch.object(host,'SOURCE_PROOFS',sources),patch.object(host,'_manifest_release',side_effect=lambda path,sha:Path(path)), \
+                 patch.object(build,'ROOT',root),patch.object(build.crm_rollout,'OP_LOCK',build_lock), \
+                 patch.object(build,'run',side_effect=command_runner),patch.object(__import__('sys'),'argv',[
+                    'build_crm.py','--release',str(release),'--manifest-sha256','c'*64,'--host-snapshot-sha256',digest,
+                    '--node-image',build.NODE_IMAGE]):
+                with self.assertRaises(host.Refusal): build.main()
+            self.assertFalse(any(args[:3]==['docker','buildx','create'] for args in calls))
+            with patch.object(host,'EVIDENCE',evidence),patch.object(host,'SNAPSHOT',snapshot),patch.object(host,'ROUTE_AUDIT',audit), \
+                 patch.object(host,'SOURCE_PROOFS',sources),patch.object(host,'_manifest_release',side_effect=lambda path,sha:Path(path)), \
+                 patch.object(capture.crm_rollout,'OP_LOCK',op_lock),patch.object(capture.crm_rollout,'PLAN',plan), \
+                 patch.object(capture.crm_rollout,'safe_run',side_effect=AssertionError('prepare command ran before guard')):
+                with self.assertRaises(host.Refusal): capture.crm_rollout.prepare(release,'c'*64,digest,'sha256:'+'d'*64)
+            self.assertFalse(plan.exists())
 
 
 if __name__ == '__main__':
