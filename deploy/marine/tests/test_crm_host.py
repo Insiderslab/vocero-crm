@@ -16,7 +16,7 @@ spec.loader.exec_module(crm_host)
 class CrmHostGuardTests(unittest.TestCase):
     def setUp(self):
         self.digest = 'a' * 64
-        self.route = {'status': 200, 'tlsVerified': True}
+        self.route = {'status': 200, 'tlsVerified': True, 'location': None}
         self.record = {
             'schemaVersion': 1,
             'manifestSha256': self.digest,
@@ -32,7 +32,11 @@ class CrmHostGuardTests(unittest.TestCase):
             'ownedAppGateway': {'app': {'id': 'app-id'}, 'gateway': {'id': 'gateway-id'}},
             'networks': [{'id': 'network-id', 'name': 'edge', 'containers': {}}],
             'routes': {url: [self.route] for url in crm_host.ROUTES},
-            'configFiles': {'compose': {'path': str(crm_host.RELEASES / 'r1' / 'deploy/marine/compose.ubuntu.yml'), 'sha256': 'd' * 64}},
+            'configFiles': {
+                'compose': {'path': str(crm_host.RELEASES / 'r1' / 'deploy/marine/compose.ubuntu.yml'), 'sha256': 'd' * 64},
+                'pinnedBaseCompose': {'path': str(crm_host.RELEASES / '20261102-r5/deploy/marine/compose.ubuntu.yml'), 'sha256': 'e' * 64},
+                'runtimeEnv': {'path': str(crm_host.ROOT / 'runtime/runtime.env'), 'sha256': 'f' * 64},
+            },
             'resources': {'memAvailableKiB': 1000000, 'optFreeKiB': 1000000},
         }
 
@@ -88,6 +92,26 @@ class CrmHostGuardTests(unittest.TestCase):
                 with self.assertRaisesRegex(crm_host.Refusal, 'already exists'):
                     crm_host.capture_baseline(release, self.digest)
 
+    def test_safe_file_hashes_pin_only_bambola_runtime_env_contents(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            release = root / 'releases' / 'candidate'
+            paths = {
+                'compose': release / 'deploy/marine/compose.ubuntu.yml',
+                'gatewayTemplate': release / 'deploy/marine/gateway.crm.Caddyfile.template',
+                'runtimeGateway': root / 'runtime/gateway.Caddyfile',
+                'runtimeOverride': root / 'runtime/panels-20261102.override.yml',
+                'pinnedBaseCompose': root / 'releases/20261102-r5/deploy/marine/compose.ubuntu.yml',
+                'runtimeEnv': root / 'runtime/runtime.env',
+            }
+            for path in paths.values():
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text('sensitive-but-hashed', encoding='utf-8')
+            with patch.object(crm_host, 'ROOT', root), patch.object(crm_host, 'RELEASES', root / 'releases'):
+                hashes = crm_host.safe_file_hashes(release)
+            self.assertEqual(hashes['runtimeEnv']['path'], str(paths['runtimeEnv']))
+            self.assertEqual(hashes['runtimeEnv']['sha256'], hashlib.sha256(b'sensitive-but-hashed').hexdigest())
+
     def test_snapshot_writer_uses_exclusive_create_without_overwrite(self):
         with tempfile.TemporaryDirectory() as directory:
             evidence = Path(directory)
@@ -102,12 +126,27 @@ class CrmHostGuardTests(unittest.TestCase):
         line = '\t'.join([
             json.dumps('/' + crm_host.BUILDER_NAME), json.dumps('builder-id'), json.dumps('sha256:b'),
             json.dumps('builder:image'), json.dumps('time'), json.dumps(0), json.dumps(True), json.dumps(None),
-            json.dumps({}), json.dumps({}),
+            json.dumps({}), json.dumps({}), json.dumps([]), json.dumps(True), json.dumps(['ALL']),
+            json.dumps([]), json.dumps([]), json.dumps(1024), json.dumps(100000000), json.dumps(64),
+            json.dumps(100000), json.dumps(100000), json.dumps(False), json.dumps('unless-stopped'), json.dumps(''),
         ])
         with patch.object(crm_host, 'command', side_effect=['builder-id\n', line]) as run:
             self.assertEqual(crm_host.containers_snapshot(), [])
         self.assertEqual(run.call_args_list[1].args[0][2], '--format')
-        self.assertNotIn('Env', run.call_args_list[1].args[0][3])
+        template = run.call_args_list[1].args[0][3]
+        self.assertNotIn('Env', template)
+        self.assertIn('with index .State "Health"', template)
+        self.assertIn('.Mounts', template)
+
+    def test_stopped_builder_without_health_metadata_is_valid(self):
+        line = '\t'.join([
+            json.dumps('/stopped-service'), json.dumps('id'), json.dumps('sha256:i'), json.dumps('image'),
+            json.dumps('time'), json.dumps(0), json.dumps(False), 'null', json.dumps({}), json.dumps({}),
+            json.dumps([]), json.dumps(True), json.dumps([]), json.dumps([]), json.dumps([]), json.dumps(1),
+            json.dumps(1), json.dumps(1), json.dumps(1), json.dumps(1), json.dumps(False), json.dumps('no'), json.dumps(''),
+        ])
+        with patch.object(crm_host, 'command', side_effect=['id\n', line]):
+            self.assertIsNone(crm_host.containers_snapshot()[0]['health'])
 
     def assert_changed(self, mutate, message):
         current = self.current()

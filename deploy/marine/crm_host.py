@@ -13,6 +13,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
+from urllib.parse import urlsplit
 
 ROOT = Path('/opt/bambola-arm')
 RELEASES = ROOT / 'releases'
@@ -60,9 +61,11 @@ def regular_file_hash(path: Path) -> dict[str, str]:
 def safe_file_hashes(release: Path) -> dict[str, dict[str, str]]:
     paths = {
         'compose': release / 'deploy/marine/compose.ubuntu.yml',
+        'pinnedBaseCompose': RELEASES / '20261102-r5/deploy/marine/compose.ubuntu.yml',
         'gatewayTemplate': release / 'deploy/marine/gateway.crm.Caddyfile.template',
         'runtimeGateway': ROOT / 'runtime/gateway.Caddyfile',
         'runtimeOverride': ROOT / 'runtime/panels-20261102.override.yml',
+        'runtimeEnv': ROOT / 'runtime/runtime.env',
     }
     result = {}
     for key, path in paths.items():
@@ -110,6 +113,7 @@ def _container_record(container: dict) -> dict:
         'health': (state.get('Health') or {}).get('Status'),
         'ports': _port_fields(container),
         'networks': _network_fields(container),
+        'runtime': container.get('Runtime', {}),
     }
 
 
@@ -120,22 +124,38 @@ def containers_snapshot() -> list[dict]:
     template = (
         '{{json .Name}}\t{{json .Id}}\t{{json .Image}}\t{{json .Config.Image}}\t'
         '{{json .State.StartedAt}}\t{{json .RestartCount}}\t{{json .State.Running}}\t'
-        '{{if .State.Health}}{{json .State.Health.Status}}{{else}}null{{end}}\t'
-        '{{json .NetworkSettings.Ports}}\t{{json .NetworkSettings.Networks}}'
+        '{{with index .State "Health"}}{{json .Status}}{{else}}null{{end}}\t'
+        '{{json .NetworkSettings.Ports}}\t{{json .NetworkSettings.Networks}}\t'
+        '{{json .Mounts}}\t{{json .HostConfig.ReadonlyRootfs}}\t{{json .HostConfig.CapDrop}}\t'
+        '{{json .HostConfig.CapAdd}}\t{{json .HostConfig.SecurityOpt}}\t{{json .HostConfig.Memory}}\t'
+        '{{json .HostConfig.NanoCpus}}\t{{json .HostConfig.PidsLimit}}\t{{json .HostConfig.CpuQuota}}\t'
+        '{{json .HostConfig.CpuPeriod}}\t{{json .HostConfig.Privileged}}\t'
+        '{{json .HostConfig.RestartPolicy.Name}}\t{{json .Config.User}}'
     )
     rendered = command(['docker', 'inspect', '--format', template, *ids], timeout=20)
     try:
         raw = []
         for line in rendered.splitlines():
             fields = line.split('\t')
-            if len(fields) != 10:
+            if len(fields) != 23:
                 raise ValueError('field count')
-            name, container_id, image_id, configured_image, started, restarts, running, health, ports, networks = [json.loads(v) for v in fields]
+            values = [json.loads(v) for v in fields]
+            (name, container_id, image_id, configured_image, started, restarts, running, health,
+             ports, networks, mounts, readonly, cap_drop, cap_add, security_opt, memory,
+             nano_cpus, pids_limit, cpu_quota, cpu_period, privileged, restart_policy, user) = values
             raw.append({
                 'Name': name, 'Id': container_id, 'Image': image_id, 'RestartCount': restarts,
                 'Config': {'Image': configured_image},
                 'State': {'StartedAt': started, 'Running': running, 'Health': {'Status': health} if health else None},
                 'NetworkSettings': {'Ports': ports, 'Networks': networks},
+                'Mounts': mounts,
+                'Runtime': {
+                    'readonlyRootfs': readonly, 'capDrop': cap_drop, 'capAdd': cap_add,
+                    'securityOpt': security_opt, 'memory': memory, 'nanoCpus': nano_cpus,
+                    'pidsLimit': pids_limit, 'cpuQuota': cpu_quota, 'cpuPeriod': cpu_period,
+                    'privileged': privileged, 'restartPolicy': restart_policy, 'user': user,
+                    'mounts': mounts,
+                },
             })
     except (json.JSONDecodeError, TypeError, ValueError) as exc:
         raise Refusal('Docker container metadata is malformed.') from exc
@@ -190,15 +210,19 @@ def networks_snapshot() -> list[dict]:
 def route_probe(url: str) -> dict:
     host, path = url.split('/', 1)
     target = 'https://' + host + '/' + path
-    fmt = '%{http_code}|%{ssl_verify_result}'
+    fmt = '%{http_code}|%{ssl_verify_result}|%{redirect_url}'
     output = command([
         'curl', '-sS', '--max-time', '10', '--connect-timeout', '5',
         '--output', os.devnull, '--write-out', fmt, target,
     ], timeout=12).strip()
-    parts = output.split('|', 1)
-    if len(parts) != 2 or not parts[0].isdigit() or not parts[1].isdigit():
+    parts = output.split('|', 2)
+    if len(parts) != 3 or not parts[0].isdigit() or not parts[1].isdigit():
         raise Refusal('HTTPS route probe returned malformed metadata.')
-    return {'status': int(parts[0]), 'tlsVerified': parts[1] == '0'}
+    location = None
+    if parts[2]:
+        parsed = urlsplit(parts[2])
+        location = f'{parsed.scheme}://{parsed.netloc}{parsed.path}'
+    return {'status': int(parts[0]), 'tlsVerified': parts[1] == '0', 'location': location}
 
 
 def routes_snapshot(samples: int = 10) -> dict[str, list[dict]]:

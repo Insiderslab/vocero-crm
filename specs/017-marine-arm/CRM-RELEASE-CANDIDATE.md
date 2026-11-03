@@ -39,3 +39,13 @@ Questa sequenza non è uno script eseguito e non equivale ad approvazione. L'aut
 ## Chiusura del collaudo indipendente dalla review
 
 Rapporto completo privato: `C:/Users/stefa/bambola-runtime/crm-qa/usability-report.md`. Contatto creato e ritrovato dopo ricarica verificato; navigazione CRM e diniego equipaggio verificati; calendario/dettagli e paella2 assegnata al membro corrente verificati nella fixture nuova. Cambio stato attività e scansione/ricerca manuale/conferma movimento nella nuova UI restano non eseguiti dopo fallimenti dei locator del collaudo; non sono trasformati in pass. Nessun movimento di imbarco effettuato dalla prova UI. Browser di test chiusi. Nessun aggiornamento pubblico in questo turno e nessuna review finale iniziata fuori dal budget: l'estensione richiesta rimane in attesa.
+
+## Ripresa autorizzata, candidato r3 (sostituisce gli stati precedenti)
+
+L'estensione è stata approvata da Stefano: due revisioni, venti minuti, un solo ciclo correttivo. Claude ha completato la prima review in 275.84 secondi; esito condizionato alla correzione della procedura operativa. Correzioni completate e 45 test mirati passati. La seconda e ultima review Sol è iniziata il 3 novembre alle 00:33 UTC in contesto nuovo; massimo residuo 924.16 secondi.
+
+Artefatto r3 immutabile, 538 file, manifesto d4c1de657f7e866b024d5c6106ae2c28a035d000e8ec06bc5c56087be0849c76. Verificato localmente e dopo trasferimento in /opt/bambola-arm/releases/20261103-crm-r3. Baseline nuova acquisita senza modificare le precedenti: SHA256 5096137bffd49af345d700784900146bafdec6e643f18c260c0eedffc6e34408. Build privata remota avviata con limiti 1CPU/2GB e controllo continuo degli altri servizi. Nessuna attivazione ancora eseguita.
+
+Ora sono presenti crm_rollout.py e test del flusso di attivazione/ripristino. Il codice mantiene i soli servizi Bambola app/gateway come bersagli, usa i file Compose precedenti per rollback, aspetta salute e verifica separatamente la nuova destinazione /dashboard. Le dichiarazioni precedenti di helper non implementato o review in attesa di autorizzazione sono superate da questo aggiornamento.
+
+Test UI locali: paella assegnata, cambio stato persistente, camera negata con fallback, ricerca manuale, imbarco esplicito, persistenza e duplicati completati. Android fisico e uso umano restano non provati. L'API di creazione membri è owner-only, usa signup interno senza callback di verifica/invio email (auth/index.ts e on-signup.ts ispezionati); nessun invito o messaggio è stato inviato.

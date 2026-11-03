@@ -45,3 +45,23 @@ Risultati finali disponibili: build XOrloegVwcsOIZwhaBxq8 exit0/90,78s; unit152/
 ## Ripresa richiesta dall’owner
 
 Disponibilità del revisore verificata con un messaggio minimale in contesto fresco: AVAILABLE, nessuna lettura/review o approvazione implicita (invocazione18 conservativamente registrata). Rimane in attesa l’estensione circoscritta del budget richiesta tramite tool. Candidato immutabile locale536file, manifest29982f7312b6bb2c38c38e2fe41b571c036de0a733649537fd971567a3482d4f; vedere CRM-RELEASE-CANDIDATE.md. Nessun trasferimento o deploy. Presentazione familiare ora in spagnolo.
+
+Owner ha approvato esplicitamente estensione2review/20minuti e1ciclo di correzione. Conteggio estensione0/2review,0/1200secondi. Ciclo unico: completamento attivatore nel design approvato e eventuali correzioni circoscritte emerse dalle prove/review. Collaudo UI ripreso. Nessuna deroga a isolamento o reviewindipendente/Claude.
+
+## Estensione approvata e correzione completata — 3 novembre 2026
+
+Stefano ha autorizzato 2 revisioni aggiuntive, 20 minuti e un solo ciclo di correzione. Revisione 1: Claude, completa, exit 0, 275.84 secondi; rapporto in specs/017-marine-arm/reviews/recovery-extension-01-claude.md. Resta una revisione indipendente Sol e 924.16 secondi di budget. Claude ammette solo build privata condizionata: attivazione subordinata alle correzioni B-R1–B-R4 e review Sol.
+
+Unico ciclo correttivo completato: percorso proprio separato dal confronto esterno, attesa salute 180 secondi, rollback sui due file Compose precedenti senza profilo vuoto né nuovo override, retry protetto, preparazione senza piano prematuro. 45 test mirati superati dall'esecutore; 27 test crm_host/rollout ripetuti dal coordinatore superati. Nessuna modifica applicativa durante questo ciclo. Docker API effettiva del VPS: 1.56 (alias non contengono ID effimeri delle vecchie API).
+
+Candidato r3: C:/Users/stefa/bambola-runtime/releases/20261103-crm-r3; 538 file; manifesto d4c1de657f7e866b024d5c6106ae2c28a035d000e8ec06bc5c56087be0849c76. Provenienza: QA derivata dalla release precedente, 27 file applicativi/gateway verificati immutati, soli helper operativi aggiornati. Non impacchettato il working tree ereditato. Verifica manifesto locale superata.
+
+Prove UI locali completate dopo le note precedenti: task Paella2 assegnato al membro corrente, stato En curso persistente, camera negata con fallback, ricerca manuale biglietto, conferma imbarco e persistenza, ripetizione senza secondo imbarco. Rapporto crm-qa/usability-report.md. Android fisico e offline non provati.
+
+Recupero in caso di deriva esterna: non ripristinare Hair, Caddy condiviso, reti o stato storico. Conservare evidenze, identificare l'attività concorrente. Un eventuale recupero manuale deve essere limitato ai servizi app e gateway del progetto bambola-arm con i soli file Compose base+panel precedenti, immagini e mount verificati; nessun down/prune/reload esterno. Non eseguire tale recupero saltando un controllo fallito senza esame della causa.
+
+Limiti registrati: dipendenze 5 critical/13 high ancora segnalate, con triage di raggiungibilità per solo pilota sintetico; DB superuser, quindi dati reali esclusi. APP_WORKSPACE vuoto ha parser incoerenti ma non viene usato: rilascio marine, rollback ripristina profilo assente. Inviti, nuovi calendari e gruppi/agenzie restano lavori successivi, non inclusi in questo rilascio.
+
+### Primo tentativo build r3 interrotto dal guardrail
+
+La build privata è stata fermata durante pnpm install: guardrail di rotta esterna. Nessuna nuova immagine attivata. Su app.heili.cloud/ la baseline aveva dieci osservazioni HTTP200 senza redirect; le successive quattro acquisizioni complete e otto richieste HTTPS mirate hanno rilevato HTTP307 verso /dashboard con TLS valido (pagina pubblica Approve by Heili). Container, reti, Caddy e file di configurazione risultano identici alla baseline; Hair invariato. Non è stato modificato alcun servizio esterno. Vecchia baseline conservata integralmente. Chiesta valutazione al revisore finale sul possibile rinnovo documentato della baseline per lo stesso artefatto, senza indebolire il confronto né alterare le vecchie evidenze. Finché non risolto, build e attivazione non sono PASS.
