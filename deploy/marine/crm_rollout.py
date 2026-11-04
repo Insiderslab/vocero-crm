@@ -16,6 +16,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import crm_host
+from release_lock import LockRefusal, ReleaseLock
 
 ROOT = Path('/opt/bambola-arm')
 RUNTIME = ROOT / 'runtime'
@@ -77,14 +78,10 @@ def prepared_file(path: Path, data: bytes, mode: int) -> None:
 @contextmanager
 def operation_lock():
     try:
-        fd=os.open(OP_LOCK,os.O_WRONLY|os.O_CREAT|os.O_EXCL|getattr(os,'O_NOFOLLOW',0),0o600)
-    except FileExistsError as exc:
-        raise Refusal('Another Bambola rollout operation is in progress.') from exc
-    os.close(fd)
-    try:
-        yield
-    finally:
-        OP_LOCK.unlink(missing_ok=True)
+        with ReleaseLock(OP_LOCK) as held:
+            yield held
+    except LockRefusal as exc:
+        raise Refusal('Another Bambola rollout operation is in progress or its lock identity changed.') from exc
 
 
 def read_plan(manifest: str, snapshot_hash: str) -> dict:
