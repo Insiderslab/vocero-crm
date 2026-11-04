@@ -2,7 +2,7 @@
 
 Esta guía describe la nueva versión en pruebas. La publicación se confirma por separado.
 
-1. Entra en **Tours y calendario**.
+1. Entra en **Tours y calendario**. En un teléfono, abre primero el menú ☰. Si el menú lateral aparece en italiano, pulsa **IT** abajo a la izquierda para pasar a **ES**.
 2. Elige **Hoy**, **3 días**, **7 días** o **Mes**. Las fechas y horas corresponden a Venezuela.
 3. Para crear una salida, selecciona la fecha y pulsa **Nuevo tour**. Revisa nombre, horario, tipo y capacidad máxima. La capacidad no es una reserva de pasajeros.
 4. En la tarjeta del tour, **Abrir paseo** muestra la operación del día. **Reservas y servicios** abre la administración de ese tour.
