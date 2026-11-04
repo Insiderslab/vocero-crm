@@ -80,6 +80,41 @@ class AppUpdateTests(unittest.TestCase):
                 with self.assertRaisesRegex(update.Refusal,'file owner or mode'):
                     update.verify_release(release,hashlib.sha256(raw+b'\n').hexdigest())
 
+    def test_capture_window_uses_only_empirical_route_union_and_stays_strict(self):
+        before=self.safe_snapshot(); after=copy.deepcopy(before)
+        url=update.crm_host.DOMAIN+'/'
+        window={key:[{'status':200,'tlsVerified':True,'location':None}] for key in update.crm_host.ROUTES}
+        window[url]=[{'status':307,'tlsVerified':True,'location':'https://app.heili.cloud/login'}]
+        after['resources']={'memAvailableKiB':900000,'optFreeKiB':12*1024*1024}
+        baseline=update.verify_capture_window(before,window,after)
+        self.assertEqual({x['status'] for x in baseline['routes'][url]},{200,307})
+        current=copy.deepcopy(baseline); current['routes'][url]=[{'status':307,'tlsVerified':True,'location':'https://app.heili.cloud/login'}]
+        update.verify_build_guard(baseline,current)
+        current['routes'][url]=[{'status':503,'tlsVerified':True,'location':None}]
+        with self.assertRaises(update.Refusal): update.verify_build_guard(baseline,current)
+
+    def test_capture_window_refuses_metadata_config_container_network_and_resource_drift(self):
+        before=self.safe_snapshot(); window={key:[{'status':200,'tlsVerified':True,'location':None}] for key in update.crm_host.ROUTES}
+        for section in ('caddy','containers','ownedAppGateway','networks','configFiles'):
+            after=copy.deepcopy(before); after[section]=copy.deepcopy(after[section]);
+            if section=='configFiles': after[section]['runtimeEnv']['sha256']='f'*64
+            elif section=='containers': after[section][0]['id']='f'*64
+            elif section=='networks': after[section][0]['driver']='host'
+            elif section=='ownedAppGateway': after[section]['gateway']['id']='f'*64
+            else: after[section]['config']['sha256']='f'*64
+            with self.subTest(section=section),self.assertRaises(update.Refusal): update.verify_capture_window(before,window,after)
+        after=copy.deepcopy(before); after['resources']['memAvailableKiB']=700000
+        with self.assertRaisesRegex(update.Refusal,'resources'): update.verify_capture_window(before,window,after)
+
+    def test_capture_window_refuses_catalog_drift_and_stale_postwindow_qa(self):
+        proof={'migrations':[{'id':1,'hash':'a'*64,'createdAt':'10'}],'schemaSha256':'b'*64}
+        changed=copy.deepcopy(proof); changed['schemaSha256']='c'*64
+        with patch.object(update,'verify_migration_set'):
+            with self.assertRaisesRegex(update.Refusal,'metadata changed'): update.verify_capture_metadata(proof,changed,Path('/candidate'))
+        manifest={'src/app.ts':'d'*64}
+        with patch.object(update,'verify_release',return_value=Path('/candidate')),patch.object(update,'manifest_map',return_value=manifest),patch.object(update,'qa_validate',return_value=({},b'changed',update.sha(update.canonical(manifest)))),patch.object(update,'verify_static_update_exclusion'):
+            with self.assertRaisesRegex(update.Refusal,'Acceptance artifact'): update.revalidate_capture_inputs(Path('/candidate'),'1'*64,'2'*64,manifest,b'captured',update.sha(update.canonical(manifest)))
+
     def test_gateway_pin_and_compose_mount_are_fixed_and_read_only(self):
         rendered={'services':{'app':{'image':update.R9_IMAGE},'gateway':{'image':'sha256:'+'b'*64,'volumes':[{'source':str(update.GATEWAY_CONFIG),'target':'/etc/caddy/Caddyfile','read_only':True}]}},'networks':{}}
         with patch.object(update.crm_host,'current_snapshot_fields',return_value=self.safe_snapshot()):
@@ -185,6 +220,10 @@ class AppUpdateTests(unittest.TestCase):
             raw=update.canonical(q); path.write_bytes(raw); manifest[update.QA_REL.as_posix()]=update.sha(raw)
             accepted,copy_bytes,runtime=update.qa_validate(root,update.sha(raw),manifest)
             self.assertEqual(copy_bytes,raw); self.assertEqual(runtime,q['unchangedRuntimeInputsSha256'])
+            stale=copy.deepcopy(q); stale['capturedAt']='2026-11-01T00:00:00Z'; stale_raw=update.canonical(stale); path.write_bytes(stale_raw); manifest[update.QA_REL.as_posix()]=update.sha(stale_raw)
+            with patch.object(update,'verify_release',return_value=root),patch.object(update,'manifest_map',return_value=manifest),patch.object(update,'verify_static_update_exclusion'):
+                with self.assertRaisesRegex(update.Refusal,'stale or future-dated'):
+                    update.revalidate_capture_inputs(root,'1'*64,update.sha(stale_raw),manifest,stale_raw,runtime)
             q['scenarios'][-1]=q['scenarios'][0]; raw=update.canonical(q); path.write_bytes(raw); manifest[update.QA_REL.as_posix()]=update.sha(raw)
             with self.assertRaises(update.Refusal): update.qa_validate(root,update.sha(raw),manifest)
 
@@ -332,7 +371,7 @@ class AppUpdateTests(unittest.TestCase):
                 for item in (patch.object(update,'RELEASES',releases),patch.object(update,'R9',r9),patch.object(update,'R9_MANIFEST',r9_hash),patch.object(update,'OPS',root/'operations'),
                     patch.object(update,'BASE',compose_files[0]),patch.object(update,'PANELS',compose_files[1]),patch.object(update,'CRM',compose_files[2]),patch.object(update,'ENV',root/'runtime.env'),patch.object(update,'GATEWAY_CONFIG',root/'gateway-crm-ef7bcab49494.Caddyfile'),
                     patch.object(update,'_check_ancestors'),patch.object(update,'verify_host_execution_boundary'),patch.object(update,'verify_compose_labels'),patch.object(update.crm_host,'_manifest_release'),
-                    patch.object(update,'current_baseline',return_value=baseline),patch.object(update,'metadata_proof',return_value=proof),patch.object(update,'verify_migration_set'),patch.object(update,'migration_bundle_hash',return_value=bundle),patch.object(update,'verify_app_environment'),
+                    patch.object(update,'current_baseline',return_value=baseline),patch.object(update.crm_host,'routes_snapshot',return_value={url:[{'status':307 if url==update.crm_host.DOMAIN+'/' else 200,'tlsVerified':True,'location':'https://app.heili.cloud/login' if url==update.crm_host.DOMAIN+'/' else None}] for url in update.crm_host.ROUTES}),patch.object(update,'metadata_proof',return_value=proof),patch.object(update,'verify_migration_set'),patch.object(update,'migration_bundle_hash',return_value=bundle),patch.object(update,'verify_app_environment'),
                     patch.object(update,'path_identity',side_effect=lambda p,**kw:{'path':str(p),'sha256':hashlib.sha256(Path(p).read_bytes()).hexdigest(),'mode':(kw.get('mode',(0o600,))[0] if kw.get('mode') else 0o600)})):
                     stack.enter_context(item)
                 run=stack.enter_context(patch.object(update,'run'))
@@ -340,6 +379,11 @@ class AppUpdateTests(unittest.TestCase):
                 run.side_effect=lambda args,**kw: (update.R9_IMAGE+'\n') if args[:3]==['docker','image','inspect'] else json.dumps(candidate_render if str(candidate/'candidate.override.yml') in args else old_render)
                 update.capture(candidate,candidate_hash,update.sha(qraw))
                 opid=printed.call_args.args[0]; operation_dir=root/'operations'/opid
+                window_call=next(call for call in update.crm_host.routes_snapshot.call_args_list)
+                self.assertEqual(window_call.kwargs,{'samples':update.crm_host.BASELINE_ROUTE_ROUNDS,'interval_seconds':update.crm_host.BASELINE_ROUTE_INTERVAL_SECONDS})
+                captured_baseline=json.loads((operation_dir/'baseline.json').read_bytes())
+                route=captured_baseline['routes'][update.crm_host.DOMAIN+'/']
+                self.assertEqual({x['status'] for x in route},{200,307})
                 record={'schemaVersion':1,'operationId':opid,'sourceManifestSha256':candidate_hash,'imageId':image,'sourceManifestLabel':candidate_hash,'migrationBundleSha256':bundle,'logSha256':'0'*64,'exitCode':0}
                 def fake_build(release,manifest,operation_id,evidence,guard,**kwargs):
                     update.write_exclusive(evidence/'build.log',b'mock log')

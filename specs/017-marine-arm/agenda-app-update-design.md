@@ -176,3 +176,10 @@ Text-cast sequence/enum values remain strings as selected, avoiding driver bigin
 ### Health convergence
 
 Both mutation commands append `--wait --wait-timeout 180` to `up -d --no-deps --no-build` before final service argument `app`. The Python subprocess timeout is210seconds. A timeout/nonzero exit leaves the intent phase intact and requires status/explicit rollback; it never appends activated. After Compose reports success, independently inspect exact app image ID, expected config and Docker health status `healthy`, then validate metadata and external invariants. Rollback uses the same wait flags/bound. A no-op rollback separately polls only the fixed r9 app health every2seconds for at most180seconds, refuses unknown/replaced identity immediately, and records success only after exact r9 health is observed. No unrelated service is waited on or restarted.
+
+
+### Capture-only route variability correction
+
+The initial capture records a route baseline from the existing `crm_host.BASELINE_ROUTE_ROUNDS` and `BASELINE_ROUTE_INTERVAL_SECONDS` sampler (120 rounds, 5 seconds between rounds). The baseline route set is the union of outcomes actually observed in the initial snapshot, bounded sampler, and final snapshot. No status is whitelisted or ignored. Later build/prepare/activate checks retain the existing strict rule: every sampled outcome must belong to that captured set.
+
+Capture compares the protected Caddy/container/app/gateway/network/config projections exactly before and after the observation window and checks the existing memory/disk minimums on both snapshots. It also compares read-only migration/schema proofs, then revalidates the candidate manifest, QA artifact freshness and bytes, r9 manifest, Compose/gateway pins, runtime environment hash, labels, and Docker context before writing immutable operation artifacts. These are pre/post checks; they do not claim continuous host observation during the route window. Any mismatch or an unseen later route result refuses the operation. No service, database, source, schema, allowlist, or activation behavior changes.

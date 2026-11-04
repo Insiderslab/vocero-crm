@@ -1,6 +1,6 @@
 # Agenda v1 — verified local candidate
 
-Updated 4 November 2026. Published pilot is still r9; this agenda increment has not yet been published. The calendar implementation and its independent post-code review are complete. The isolated app-only release helper is being implemented after the five-stage design review passed.
+Updated 4 November 2026. Published pilot is still r9; this agenda increment has not yet been published. The calendar implementation and its independent post-code review are complete. The isolated app-only release helper passed the five-stage design, native post-code and Claude security reviews. The actual release attempt stopped before building because an unrelated public route varied outside the short capture set.
 
 ## What is implemented
 
@@ -24,4 +24,14 @@ Browser proof uses synthetic data, desktop Chromium,320/390px viewports, keyboar
 
 ## Release prerequisite
 
-Existing crm_capture_proven.py and crm_rollout.py are historical recovery tools, not reusable app-only updates. The reviewed bounded r9-to-agenda release design is agenda-app-update-design.md. Final Stage9 PASS is preserved in reviews/agenda-app-update-readiness-final.md. Implementation, independent post-code review, Claude security review and live release checks still remain. Existing owner permission to publish is valid; no new permission request is needed.
+Existing crm_capture_proven.py and crm_rollout.py are historical recovery tools, not reusable app-only updates. The reviewed bounded r9-to-agenda release design is agenda-app-update-design.md. Final Stage9 PASS is preserved in reviews/agenda-app-update-readiness-final.md. Implementation and both independent source reviews passed for helper8253011d (commit c6205d7). Existing owner permission to publish remains valid. Live build and activation have not happened; a capture-sampling correction is being prepared locally, requiring its own verified review closure before use.
+
+## Actual release attempt, 4 November
+
+Installed only the verified source candidate /opt/bambola-arm/releases/20261104-agenda-r4, manifest cad4ea43c1ecc1f7276689656f0627f753714fc3f641204c8a3f7df36f644a05. Reviewed source permissions normalization passed without byte changes. Exact packaged Linux suite125tests/1skip passed; Windows suite126tests/4skips passed. Real helper metadata/Compose proofs passed with their documented scopes.
+
+Operations20261104T084749Z-4d99178d3fc8 and20261104T084958Z-77bb369e7f61 remain in captured state. Both build commands were refused before creating a builder or changing the app. app.heili.cloud alternates between verifiedTLS200 and verifiedTLS307-to-dashboard; each short capture saw one and the subsequent guard observed the other. Neither guard nor immutable baseline was edited. A longer empirical capture window is the proposed correction; no changes to app.heili.cloud are in scope.
+
+After-attempt integrity: all container records, gateway, shared Caddy and safe config hashes match both baselines. Existing r9 image eb8d7abe remains healthy. Bambola root302-to-dashboard and Hair307-to-login both verifyTLS. Evidence /opt/bambola-arm/qa/agenda-update-20261104-r4/post-attempt-integrity.json. New calendar is NOT online; no physical Android test performed.
+
+Capture-only correction is now locally implemented and passes129Windows tests with4platformskips. New helper d2832b58 differs from approved8253011; it is not deployed or reviewed. It records a longer actual observationwindow with invariant/QA freshness checks and preserves strict laterguards. A bounded EGM review extension is required because the sole re-audits have already completed; do not reuse their PASS for the new diff. Exact patch/tests and design appendix are versioned. All production data/services remain on r9.

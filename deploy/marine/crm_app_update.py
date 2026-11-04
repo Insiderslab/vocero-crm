@@ -364,6 +364,49 @@ def verify_app_environment(rendered,image_id,container=APP):
         else: expected[key]=value
     if _environment_map(actual_values)!=expected: fail('Owned app runtime environment differs from the pinned image and Compose inputs.')
 
+def verify_capture_window(before,route_window,after):
+    # Capture permits only outcomes observed during this bounded empirical window.
+    # All host identity, configuration, network and container records remain exact.
+    for key in ('caddy','containers','ownedAppGateway','networks','configFiles'):
+        if before.get(key)!=after.get(key): fail('Protected host identity or configuration drifted during baseline capture.')
+    for snapshot in (before,after):
+        resources=snapshot.get('resources',{})
+        if resources.get('memAvailableKiB',0)<768*1024 or resources.get('optFreeKiB',0)<10*1024*1024: fail('Host resources are below the reviewed build minimum.')
+    expected=set(crm_host.ROUTES)
+    if not isinstance(route_window,dict) or set(route_window)!=expected: fail('Route observation window is incomplete.')
+    accepted={url:{} for url in expected}
+    for snapshot in (before,after):
+        routes=snapshot.get('routes',{})
+        if not isinstance(routes,dict) or set(routes)!=expected: fail('Route samples changed during baseline capture.')
+        for url,rows in routes.items():
+            if not isinstance(rows,list) or not rows: fail('A baseline route has no observed outcomes.')
+            for row in rows: _add_route_observation(accepted[url],row)
+    for url,rows in route_window.items():
+        if not isinstance(rows,list) or not rows: fail('The empirical route window is missing observations.')
+        for row in rows: _add_route_observation(accepted[url],row)
+    result=copy.deepcopy(after)
+    result['routes']={url:[accepted[url][key] for key in sorted(accepted[url])] for url in sorted(expected)}
+    return result
+
+def _add_route_observation(bucket,row):
+    if not isinstance(row,dict) or set(row)!={'status','tlsVerified','location'} or type(row['status']) is not int or not 100<=row['status']<=599 or row['tlsVerified'] is not True or (row['location'] is not None and not isinstance(row['location'],str)):
+        fail('An empirical baseline route observation is malformed or lacks verified TLS.')
+    bucket[json.dumps(row,sort_keys=True,separators=(',',':'))]=row
+
+def verify_capture_metadata(before,after,release):
+    verify_migration_set(before,release); verify_migration_set(after,release)
+    if before!=after: fail('Migration/schema metadata changed during baseline capture.')
+    return before
+
+def revalidate_capture_inputs(release_path,manifest_digest,qa_digest,manifest_before,qa_before,runtime_digest):
+    release=verify_release(Path(release_path),manifest_digest)
+    manifest=manifest_map(release)
+    if manifest!=manifest_before: fail('Candidate release changed during baseline capture.')
+    _,qraw,runtime_after=qa_validate(release,qa_digest,manifest)
+    if qraw!=qa_before or runtime_after!=runtime_digest: fail('Acceptance artifact or runtime projection changed during baseline capture.')
+    verify_static_update_exclusion(release,manifest)
+    return release,manifest
+
 def verify_build_guard(baseline,current):
     # Container/network/Caddy and immutable config state must remain exact; routes may
     # only return outcomes already observed by capture, and resources must stay safe.
@@ -463,11 +506,22 @@ def capture(release_path,manifest_digest,qa_digest):
     rendered=json.loads(run(compose_prefix(tmp)+['config','--format','json']))
     validate_original_compose(rendered,before)
     verify_app_environment(rendered,R9_IMAGE)
+    proof_before=metadata_proof(APP); verify_migration_set(proof_before,r9)
+    route_window=crm_host.routes_snapshot(samples=crm_host.BASELINE_ROUTE_ROUNDS,interval_seconds=crm_host.BASELINE_ROUTE_INTERVAL_SECONDS)
     after=current_baseline(release)
-    verify_build_guard(before,after)
-    baseline={**before,'metadataProof':None}
-    # Metadata proof is mandatory; obtain only through a fixed read-only node client query.
-    proof=metadata_proof(APP); verify_migration_set(proof,r9)
+    baseline=verify_capture_window(before,route_window,after)
+    proof_after=metadata_proof(APP)
+    proof=verify_capture_metadata(proof_before,proof_after,r9)
+    # The empirical window may take ten minutes; rebind fresh source, QA and pinned config afterwards.
+    release,candidate=revalidate_capture_inputs(release,manifest_digest,qa_digest,candidate,qraw,runtime_digest)
+    r9=verify_release(R9,R9_MANIFEST)
+    if manifest_map(r9)!=predecessor: fail('Pinned r9 predecessor changed during baseline capture.')
+    verify_compose_labels(); verify_host_execution_boundary()
+    if [path_identity(p) for p in (BASE,PANELS,CRM)]!=files or path_identity(GATEWAY_CONFIG,mode=(0o444,))!=gateway_pin:
+        fail('A pinned Compose or gateway configuration input changed during baseline capture.')
+    runtime=path_identity(ENV)
+    if runtime['path']!=str(ENV) or runtime['sha256']!=before['configFiles']['runtimeEnv']['sha256']:
+        fail('The fixed runtime environment changed during baseline capture.')
     baseline['metadataProof']=proof
     validate_safe_snapshot(baseline,True)
     # Recompute baseline with proof included, bind it immutably.
