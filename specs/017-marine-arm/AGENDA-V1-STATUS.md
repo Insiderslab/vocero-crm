@@ -1,6 +1,6 @@
 # Agenda v1 — verified local candidate
 
-Updated 4 November 2026. Published pilot is still r9; this agenda increment has not yet been published. The calendar implementation and its independent post-code review are complete. The isolated app-only release helper passed the five-stage design, native post-code and Claude security reviews. The actual release attempt stopped before building because an unrelated public route varied outside the short capture set.
+Updated 4 November 2026, 21:02 UTC. The new agenda is not yet online. The corrected release helper has passed independent native and Claude reviews; fresh browser acceptance passed all 12 scenarios in one run. Verified candidate r5 is installed as source only, and the real pre-release observation window is running. Published app remains r9 until activation and final checks complete.
 
 ## What is implemented
 
@@ -35,3 +35,13 @@ Operations20261104T084749Z-4d99178d3fc8 and20261104T084958Z-77bb369e7f61 remain 
 After-attempt integrity: all container records, gateway, shared Caddy and safe config hashes match both baselines. Existing r9 image eb8d7abe remains healthy. Bambola root302-to-dashboard and Hair307-to-login both verifyTLS. Evidence /opt/bambola-arm/qa/agenda-update-20261104-r4/post-attempt-integrity.json. New calendar is NOT online; no physical Android test performed.
 
 Capture-only correction is now locally implemented and passes129Windows tests with4platformskips. New helper d2832b58 differs from approved8253011; it is not deployed or reviewed. It records a longer actual observationwindow with invariant/QA freshness checks and preserves strict laterguards. A bounded EGM review extension is required because the sole re-audits have already completed; do not reuse their PASS for the new diff. Exact patch/tests and design appendix are versioned. All production data/services remain on r9.
+
+## Fresh acceptance and final r5 package
+
+The isolated test database agenda_v1_20261104_2046_a9f73c and localhost:3144 preserve the existing previews and shared crm_recovery database. All 12 scenarios passed in one fresh run on the same immutable build WDJmvjJpPTeYjcDCQ6_ID. Actual desktop and mobile screenshots were checked. Earlier failed/blocked harness runs remain recorded separately; mobile navigation now opens the real drawer before selecting Tours. This changed only the test harness.
+
+Fresh acceptance SHA256: 94597bcf97a41b956ad9a50323c7b5e4d8d154a6132194b70b8f2329a5fb2230, capturedAt 2026-11-04T20:56:18Z. Source report SHA256: 5ab343c5db16ffafdf136904bf8ca185b4983827443a548b1bbf3f563b2c22da, agenda-v1-qa/evidence/browser-2026-11-04T20-54-15.213Z/results.json.
+
+Capture-window helper d2832b58 passed 129 Windows tests (4 skips) and 128 packaged Linux tests (1 skip). Final r5 source differs from the Linux-tested bundle only in the fresh acceptance data and regenerated manifest; all runtime source and eight operational files match exactly. Final manifest: 9adfa66b449b3bff1c6d620a996a34b4278151f85a158e635569e9e87102a844. Archive: de655ed5f266384717c75cd1e3ad769adf9885c9d9e36ba8bbf6d360d78d6dec.
+
+Both source reviews are PASS, conditional on the recorded runtime gates. The owner approved the bounded review extension; 3 invocations and 231.06 reviewer seconds were used, including one 0.66-second Claude startup failure. No further approval is pending. Actual capture/build/prepare/activation and live checks determine publication, not these source PASS verdicts.

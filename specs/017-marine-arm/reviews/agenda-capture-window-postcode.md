@@ -1,0 +1,5 @@
+# Capture-window post-code review — PASS conditional runtime
+
+Fresh native app_code_reviewer (GPT-5.6 Sol), fork_turns:none, capture_window_review. Diff c6205d7..d3e57fa, helperd2832b58/test7000f86d. No material sourcefinding. Baseline exactunion of actual before/window/after observations, malformed/TLSunverified refusals, protectedidentity+resources+metadataprepostchecks, postwindow source/QA/pins/context revalidation, strictlaterguards unchanged. Frozenhashes match evidence. Windows129run4skip evidence inspected; reviewer did not rerun tests because its Python alias lookup failed (Python actually available to coordinator at explicit Python3.14 path). Native wallactual not reported; charge150seconds assignedceiling conservatively.
+
+PASS requires actual freshLinuxrun of newhashes, fresh12scenario browserartifact (oldexpired), empirical120round5sec capture, image/build/prepare/activation, auth/TLS/roles/isolation/calendar/rollback readiness. No source edits or hostactions byreviewer. This PASS does not prove deployment.
