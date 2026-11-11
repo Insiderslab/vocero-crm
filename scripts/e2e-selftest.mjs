@@ -1853,6 +1853,16 @@ async function listeningSection() {
   ok("chiave vbk_ dell'organizzazione per il cervello esterno", String(botKey).startsWith("vbk_"));
   const orgBot = (path, opts = {}) =>
     api(path, { ...opts, headers: { "x-api-key": botKey ?? "", ...(opts.headers ?? {}) } });
+  // Storico: un messaggio arrivato PRIMA dell'accensione non deve mai uscire dal feed.
+  const BEFORE = "393470016002";
+  await api("/api/dev/wa-mock/inbound", {
+    method: "POST",
+    body: JSON.stringify({ phoneNumberId: PN, from: BEFORE, name: "Prima Ascolto", text: "messaggio di prima dell'ascolto", waMessageId: "wamid.e2e.016.0" }),
+  });
+  for (let i = 0; i < 20 && !(await convOf(BEFORE)); i++) await sleep(250);
+  const convBefore = await convOf(BEFORE);
+  ok("il messaggio di prima dell'ascolto è in Posta", Boolean(convBefore?.id));
+  await sleep(2100); // due secondi pieni: il messaggio di prima cade in un secondo precedente a quello dell'accensione
   const on = await setListening(true);
   ok("PUT /api/settings/listening {enabled:true} → 200", on.res.ok, JSON.stringify(on.json));
   const got = await api("/api/settings/listening");
@@ -1903,6 +1913,17 @@ async function listeningSection() {
     mine.some((m) => m.direction === "in") && mine.some((m) => m.direction === "out" && m.origin === "operator"),
     JSON.stringify(mine.map((m) => [m.direction, m.origin]))
   );
+  ok(
+    "feed: lo storico di prima dell'accensione non esce",
+    (feedMsgs?.items ?? []).length > 0 && !(feedMsgs.items).some((m) => m.conversationId === convBefore?.id),
+    JSON.stringify((feedMsgs?.items ?? []).filter((m) => m.conversationId === convBefore?.id).length)
+  );
+  const since = Math.floor(Date.parse(state?.listening?.enabledAt ?? "") / 1000) * 1000; // WhatsApp data al secondo
+  ok(
+    "feed: ogni messaggio ha data uguale o successiva all'accensione",
+    Number.isFinite(since) && (feedMsgs?.items ?? []).every((m) => Date.parse(m.waTimestamp ?? m.createdAt) >= since),
+    JSON.stringify({ since: state?.listening?.enabledAt })
+  );
   const feedContacts = await (await core("contacts?limit=1000")).json();
   const contact = (feedContacts?.items ?? []).find((c) => c.phone === LISTEN);
   ok("feed: contatto senza note né scheda", Boolean(contact) && !("notes" in contact) && !("ficha" in contact), JSON.stringify(contact));
@@ -1913,6 +1934,12 @@ async function listeningSection() {
 
   const off = await setListening(false);
   ok("spengo l'ascolto", off.res.ok && off.json?.enabled === false, JSON.stringify(off.json));
+  const feedOff = await (await core("messages?limit=1000")).json();
+  ok(
+    "ascolto spento: il feed dei messaggi è vuoto",
+    feedOff?.listening === false && Array.isArray(feedOff?.items) && feedOff.items.length === 0 && feedOff.nextCursor === null,
+    JSON.stringify({ listening: feedOff?.listening, n: feedOff?.items?.length })
+  );
   await api("/api/dev/wa-mock/inbound", {
     method: "POST",
     body: JSON.stringify({ phoneNumberId: PN, from: LISTEN, text: "e la consegna?", waMessageId: "wamid.e2e.016.2" }),

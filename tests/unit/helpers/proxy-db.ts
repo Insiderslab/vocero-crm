@@ -27,6 +27,6 @@ export async function makeProxyDb(
 export function listeningRows(on: ReadonlySet<string>, sql: string, params: unknown[]): unknown[][] | null {
   if (!/from "listening_mode"/.test(sql)) return null;
   return params.some((p) => typeof p === "string" && on.has(p))
-    ? [[true, "2026-10-31T10:00:00.000"]]
+    ? [[true, "2026-10-31T10:00:00.750"]]
     : [];
 }

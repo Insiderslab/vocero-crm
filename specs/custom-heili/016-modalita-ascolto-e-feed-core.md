@@ -87,6 +87,11 @@ Core** contatti, identità e messaggi in modo incrementale e affidabile:
    - Il consumatore rilegge **tutte e tre le liste** con una sovrapposizione di 5 minuti e deduplica per
      `id`. Copre le transazioni che finiscono in ordine diverso; il contratto lo dice.
    - Esclude `is_test` e i messaggi di un contatto archiviato.
+   - **Storico (11/11):** escono solo i messaggi con data WhatsApp (`wa_timestamp`, o `created_at` se manca)
+     uguale o successiva all'ultima accensione dell'ascolto, al secondo. Lo storico che la coesistenza importa
+     dal telefono ha `created_at` nuovo ma data vecchia: non esce. Con l'ascolto spento la lista è vuota.
+     Contatti e conversazioni **non** hanno ancora questo filtro: un contatto importato dallo storico esce
+     comunque (limite noto, da decidere).
    - **Campi:** `id`, `conversationId`, `contactId`, `channel`, `direction`, `origin`, `aiGenerated`,
      `type`, `text`, `waTimestamp`, `createdAt`, `hasMedia` (booleano, nessun file né URL).
 5. **Risposta delle liste:**

@@ -43,7 +43,7 @@ import { message as messageTable } from "@/lib/db/schema";
 const key = generateApiKey("export");
 const get = (h: (r: Request) => Promise<Response>, name: string, q = "") =>
   h(new Request(`http://localhost/api/export/core/${name}${q}`, { headers: { "x-api-key": key.plain } }));
-const dataQueries = () => st.log.filter((q) => /^select/i.test(q.sql) && !/from "(bot_api_key|organization)"/.test(q.sql));
+const dataQueries = () => st.log.filter((q) => /^select/i.test(q.sql) && !/from "(bot_api_key|organization|listening_mode)"/.test(q.sql));
 
 const CONTACT_ROW = (id: string, archived: string | null = null) => [
   id, "Ana", "5215511111111", "5215511111111", null, "ana@x.it", "anuncio",
@@ -65,7 +65,7 @@ describe("state", () => {
       schema: FEED_SCHEMA,
       organizationId: "org_a",
       organizationSlug: "slug-org_a",
-      listening: { enabled: true, enabledAt: "2026-10-31T10:00:00.000Z" },
+      listening: { enabled: true, enabledAt: "2026-10-31T10:00:00.750Z" },
     });
     expect(Number.isNaN(Date.parse(body.serverTime))).toBe(false);
   });
@@ -143,6 +143,29 @@ describe("messages", () => {
     const q = dataQueries()[0]!;
     expect(q.sql).toMatch(/"conversation"\."is_test" = \$/);
     expect(q.sql).not.toMatch(/media_asset"/);
+  });
+
+  it("storico: solo i messaggi con data WhatsApp dall'ultima accensione dell'ascolto in poi", async () => {
+    await get(messages, "messages");
+    const q = dataQueries()[0]!;
+    // La data del messaggio, non quella di inserimento: lo storico importato ha un created_at nuovo.
+    expect(q.sql).toMatch(/coalesce\("message"\."wa_timestamp", "message"\."created_at"\) >= \$\d+::timestamp/);
+    expect(q.params).toContain("2026-10-31T10:00:00.000Z");
+  });
+
+  it("ascolto spento: nessun messaggio esce e la tabella dei messaggi non viene letta", async () => {
+    st.on = new Set();
+    st.data.message = [["msg_1", "cv_1", "ct_1", "whatsapp", "in", "operator", false, "text", "ciao", null, "2026-10-02T10:00:00.000", false, "2026-10-02T10:00:00.000001Z"]];
+    const res = await get(messages, "messages");
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ listening: false, items: [], nextCursor: null });
+    expect(dataQueries()).toEqual([]);
+  });
+
+  it("l'ascolto di A non apre i messaggi a B", async () => {
+    st.keyOrg = "org_b";
+    expect((await (await get(messages, "messages")).json()).items).toEqual([]);
+    expect(dataQueries()).toEqual([]);
   });
 });
 
