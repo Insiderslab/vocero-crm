@@ -28,8 +28,10 @@
     "scripts/e2e-selftest.mjs",
     "docs/lavoro/2026-10-31-modalita-ascolto.md",
     "src/server/ai/pipeline.ts",
-    "src/server/ai/manual-retry.ts"
+    "src/server/ai/manual-retry.ts",
+    "docs/lavoro/2026-11-18-ascolto-heili-arm.md",
+    "docs/lavoro/patch/2026-11-18-ascolto-heili-arm.patch"
   ],
   "stato": "in-revisione",
-  "aggiornato": "2026-11-01"
+  "aggiornato": "2026-11-18"
 }

@@ -1,0 +1,125 @@
+diff --git a/src/app/api/conversations/[id]/agent-retry/route.ts b/src/app/api/conversations/[id]/agent-retry/route.ts
+index 988ae82..ffee2f5 100644
+--- a/src/app/api/conversations/[id]/agent-retry/route.ts
++++ b/src/app/api/conversations/[id]/agent-retry/route.ts
+@@ -10,6 +10,7 @@ type Params = { params: Promise<{ id: string }> };
+ const RETRY_REFUSED = {
+   ai_not_configured: "La IA no está configurada en esta instancia",
+   agent_disabled: "El agente está apagado",
++  listening_mode: "El modo escucha está activo: el agente no responde",
+   not_retryable: "La conversación no está en pausa por un fallo del proveedor de IA",
+   already_answered: "Alguien ya respondió después del último mensaje del cliente",
+ } as const;
+diff --git a/src/app/api/export/core/messages/route.ts b/src/app/api/export/core/messages/route.ts
+index ca2405c..9eb3459 100644
+--- a/src/app/api/export/core/messages/route.ts
++++ b/src/app/api/export/core/messages/route.ts
+@@ -1,8 +1,9 @@
+-import { asc, eq, isNotNull, isNull } from "drizzle-orm";
++import { asc, eq, isNotNull, isNull, sql } from "drizzle-orm";
+ import { getDb, schema } from "@/lib/db";
+ import { scoped } from "@/lib/db/tenant";
+ import { withExport } from "@/server/export/handler";
+ import { feedList, keysetAfter, microIso, parseFeedParams } from "@/server/listening/feed";
++import { getListeningState } from "@/server/listening/mode";
+ 
+ export const dynamic = "force-dynamic";
+ 
+@@ -14,11 +15,26 @@ export const dynamic = "force-dynamic";
+  * ordine diverso). Esclusi i messaggi del Laboratorio. Nessun file né URL:
+  * solo `hasMedia`. Esclusi i messaggi di un contatto archiviato (`deleted`
+  * per il Core in core/contacts).
++ *
++ * Storico: escono solo i messaggi con data WhatsApp uguale o successiva
++ * all'ultima accensione dell'ascolto. Collegando un numero in coesistenza
++ * Orbit importa le chat vecchie del telefono, anche private: hanno un
++ * `created_at` nuovo ma un `wa_timestamp` vecchio, quindi il confronto è
++ * sulla data del messaggio (`wa_timestamp`, o `created_at` se manca), mai
++ * su quella di inserimento (al secondo, come le date di WhatsApp). Con l'ascolto spento non esce nulla: la raccolta
++ * si ferma alla fonte, non per cortesia di chi legge.
+  */
+ export const GET = withExport(async (org, url) => {
+   const params = parseFeedParams(url);
+   if (params instanceof Response) return params;
+ 
++  const listening = await getListeningState(org.id);
++  if (!listening.enabled || !listening.enabledAt) return feedList(org.id, [], undefined);
++
++  // WhatsApp data i messaggi al secondo: il confronto è con il secondo dell'accensione,
++  // altrimenti un messaggio arrivato mezzo secondo dopo risulterebbe «di prima».
++  const since = new Date(Math.floor(listening.enabledAt.getTime() / 1000) * 1000).toISOString();
++
+   const m = schema.message;
+   const rows = await getDb()
+     .select({
+@@ -59,6 +75,7 @@ export const GET = withExport(async (org, url) => {
+         schema.message.organizationId,
+         org.id,
+         eq(schema.conversation.isTest, false),
++        sql`coalesce(${m.waTimestamp}, ${m.createdAt}) >= ${since}::timestamp`,
+         keysetAfter(m.createdAt, m.id, params.after)
+       )
+     )
+diff --git a/src/server/ai/manual-retry.ts b/src/server/ai/manual-retry.ts
+index c357506..0fda718 100644
+--- a/src/server/ai/manual-retry.ts
++++ b/src/server/ai/manual-retry.ts
+@@ -5,6 +5,7 @@ import { isAiConfigured } from "@/lib/env";
+ import { publish } from "@/server/events/bus";
+ import { answeredSinceLastInbound } from "@/server/ai/failure";
+ import { cancelAgentRetry } from "@/server/ai/pipeline";
++import { isListeningMode } from "@/server/listening/mode";
+ import {
+   getConversation,
+   MESSAGE_CHRONOLOGY_DESC,
+@@ -19,6 +20,7 @@ export type ManualRetryResult =
+         | "not_found"
+         | "ai_not_configured"
+         | "agent_disabled"
++        | "listening_mode"
+         | "not_retryable"
+         | "already_answered"
+         | "cooldown";
+@@ -56,6 +58,9 @@ export async function prepareManualRetry(
+   // El Laboratorio no vive en la bandeja.
+   if (!row || row.conversation.isTest) return { status: "not_found" };
+   if (!isAiConfigured()) return { status: "ai_not_configured" };
++  // 016: in ascolto l'agente non risponde; reclamare toglierebbe il passaggio
++  // a una persona e riaccenderebbe l'IA per un turno che non parte.
++  if (await isListeningMode(organizationId)) return { status: "listening_mode" };
+ 
+   const db = getDb();
+   const profiles = await db
+diff --git a/src/server/ai/pipeline.ts b/src/server/ai/pipeline.ts
+index b0fa155..a501ec1 100644
+--- a/src/server/ai/pipeline.ts
++++ b/src/server/ai/pipeline.ts
+@@ -284,6 +284,15 @@ export async function fireAgentRetry(
+   const conversation = rows[0];
+   if (!conversation?.agentRetryAt) return "nothing";
+ 
++  // 016: in ascolto l'agente tace come se fosse spento, in OGNI ramo: il
++  // reclamo toglierebbe il passaggio a una persona, e un entrante più nuovo
++  // non ha un turno che lo risponda. Si toglie solo la marca: la conversazione
++  // resta «da prendere in mano». Il Laboratorio prosegue, come in `runAgentTurn`.
++  if (!conversation.isTest && (await isListeningMode(conversation.organizationId))) {
++    await dropAgentRetryMarker(conversationId);
++    return "agent_off";
++  }
++
+   // 008: una solicitud del sitio (`web`) no es un entrante de WhatsApp ni una
+   // respuesta: no invalida el segundo intento (si contara como «entrante
+   // distinto», el segundo intento no hablaría y nadie respondería al cliente).
+@@ -414,7 +423,11 @@ export async function runAgentTurn(
+   if (!conversation) return;
+   const organizationId = conversation.organizationId;
+ 
+-  if (!conversation.isTest && await isListeningMode(organizationId)) return;
++  // 016: in modalità ascolto nessun turno reale arriva al modello né scrive
++  // nel CRM (fase, note): copre i turni pianificati prima dell'accensione, il
++  // secondo intento (`agent_retry_at`) e «Riprova». Il Laboratorio sì: è
++  // sandbox e non invia mai.
++  if (!conversation.isTest && (await isListeningMode(organizationId))) return;
+ 
+   // Condiciones de silencio: handoff activo o IA apagada en la conversación.
+   // Un handoff con `agent_retry_at` NO silencia: es un segundo intento
